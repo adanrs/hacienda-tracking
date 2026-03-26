@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Weight, Heart, ArrowRightLeft, Baby } from 'lucide-react';
+import { ArrowLeft, Weight, Heart, ArrowRightLeft, Baby, Clock } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { api } from '../services/api';
 import { formatDate } from '../components/DateFormat';
@@ -8,14 +8,18 @@ import { CowWeightIndicator } from '../components/CowIcon';
 
 const estadoBadge = { activo: 'badge-green', vendido: 'badge-blue', muerto: 'badge-red', trasladado: 'badge-yellow' };
 const saludBadge = { vacunacion: 'badge-green', desparasitacion: 'badge-blue', tratamiento: 'badge-yellow', cirugia: 'badge-red', examen: 'badge-gray', otro: 'badge-gray' };
+const timelineDotColor = { pesaje: '#16a34a', vacunacion: '#2563eb', movimiento: '#f59e0b', sacrificio: '#dc2626', corte: '#7c3aed', transporte: '#ea580c' };
+const timelineBadgeClass = { pesaje: 'badge-green', vacunacion: 'badge-blue', movimiento: 'badge-yellow', sacrificio: 'badge-red', corte: 'badge-purple', transporte: 'badge-orange' };
 
 export default function AnimalDetalle() {
   const { id } = useParams();
   const [animal, setAnimal] = useState(null);
   const [tab, setTab] = useState('pesajes');
+  const [timeline, setTimeline] = useState([]);
 
   useEffect(() => {
     api.getAnimal(id).then(setAnimal).catch(console.error);
+    api.getTimeline(id).then(setTimeline).catch(() => setTimeline([]));
   }, [id]);
 
   if (!animal) return <div className="empty-state">Cargando...</div>;
@@ -87,6 +91,7 @@ export default function AnimalDetalle() {
         <div className={`tab ${tab === 'salud' ? 'active' : ''}`} onClick={() => setTab('salud')}><Heart size={14} style={{ marginRight: 4 }} />Salud ({animal.salud?.length || 0})</div>
         <div className={`tab ${tab === 'movimientos' ? 'active' : ''}`} onClick={() => setTab('movimientos')}><ArrowRightLeft size={14} style={{ marginRight: 4 }} />Movimientos ({animal.movimientos?.length || 0})</div>
         <div className={`tab ${tab === 'crias' ? 'active' : ''}`} onClick={() => setTab('crias')}><Baby size={14} style={{ marginRight: 4 }} />Crias ({animal.crias?.length || 0})</div>
+        <div className={`tab ${tab === 'timeline' ? 'active' : ''}`} onClick={() => setTab('timeline')}><Clock size={14} style={{ marginRight: 4 }} />Timeline ({timeline.length})</div>
       </div>
 
       <div className="card">
@@ -133,6 +138,26 @@ export default function AnimalDetalle() {
               {!animal.crias?.length && <tr><td colSpan={4} className="empty-state">Sin crias registradas</td></tr>}
             </tbody>
           </table>
+        )}
+        {tab === 'timeline' && (
+          timeline.length > 0 ? (
+            <div className="timeline">
+              {timeline.map((ev, i) => (
+                <div key={i} className="timeline-item">
+                  <div className="timeline-dot" style={{ background: timelineDotColor[ev.tipo] || '#9ca3af', boxShadow: `0 0 0 2px ${timelineDotColor[ev.tipo] || '#9ca3af'}` }} />
+                  <div className="timeline-content">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <span className={`badge ${timelineBadgeClass[ev.tipo] || 'badge-gray'}`}>{ev.tipo}</span>
+                      <span className="timeline-date">{formatDate(ev.fecha)}</span>
+                    </div>
+                    <div style={{ fontSize: '0.875rem' }}>{ev.descripcion}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">Sin eventos en el timeline</div>
+          )
         )}
       </div>
     </div>

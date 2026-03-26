@@ -47,6 +47,9 @@ app.use('/api/movimientos', authMiddleware, require('./routes/movimientos'));
 app.use('/api/reproduccion', authMiddleware, require('./routes/reproduccion'));
 app.use('/api/potreros', authMiddleware, require('./routes/potreros'));
 app.use('/api/dashboard', authMiddleware, require('./routes/dashboard'));
+app.use('/api/transporte', authMiddleware, require('./routes/transporte'));
+app.use('/api/sacrificio', authMiddleware, require('./routes/sacrificio'));
+app.use('/api/cortes', authMiddleware, require('./routes/cortes'));
 
 // Start with DB init
 async function start() {

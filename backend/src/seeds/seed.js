@@ -64,7 +64,45 @@ async function runSeed() {
       [animalId, 'desparasitacion', '2025-09-01', 'Desparasitación interna', 'Ivermectina', 'Dr. Mora', '2026-03-01']);
   }
 
-  console.log('Seed completed: 2 users, 5 potreros, 20 animales with pesajes and salud events');
+  // Transporte samples (animals 1 and 2)
+  const [animalesSeed] = await pool.query('SELECT id FROM animales ORDER BY id ASC LIMIT 3');
+  if (animalesSeed.length >= 3) {
+    const a1 = animalesSeed[0].id;
+    const a2 = animalesSeed[1].id;
+    const a3 = animalesSeed[2].id;
+
+    await pool.query(`
+      INSERT INTO transporte (animal_id, tipo, destino, fecha_salida, fecha_llegada, transportista, placa_vehiculo, guia_movilizacion, estado, notas)
+      VALUES (?, 'finca', 'Finca El Roble', '2025-10-01 08:00:00', '2025-10-01 12:00:00', 'Juan Perez', 'ABC-123', 'GM-2025-0001', 'recibido', 'Traslado rutinario')
+    `, [a1]);
+    await pool.query(`
+      INSERT INTO transporte (animal_id, tipo, destino, fecha_salida, fecha_llegada, transportista, placa_vehiculo, guia_movilizacion, estado, notas)
+      VALUES (?, 'matadero', 'Matadero Central', '2025-11-15 06:00:00', '2025-11-15 09:00:00', 'Carlos Rios', 'XYZ-789', 'GM-2025-0045', 'recibido', 'Transporte a sacrificio')
+    `, [a3]);
+    await pool.query(`
+      INSERT INTO transporte (animal_id, tipo, destino, fecha_salida, transportista, placa_vehiculo, guia_movilizacion, estado)
+      VALUES (?, 'feria', 'Feria Ganadera Regional', '2026-04-10 07:00:00', 'Miguel Torres', 'DEF-456', 'GM-2026-0012', 'programado')
+    `, [a2]);
+
+    // Sacrificio sample (animal 3)
+    const pesoVivo = 450;
+    const pesoCanalCaliente = 260;
+    const pesoCanalFrio = 248;
+    const rendimiento = parseFloat(((pesoCanalFrio / pesoVivo) * 100).toFixed(2));
+    const [sacResult] = await pool.query(`
+      INSERT INTO sacrificios (animal_id, fecha, peso_vivo, peso_canal_caliente, peso_canal_frio, rendimiento_canal, inspector, resultado_inspeccion, lote_sacrificio, notas)
+      VALUES (?, '2025-11-15 10:00:00', ?, ?, ?, ?, 'Dr. Vargas', 'aprobado', 'LS-2025-011', 'Sacrificio programado')
+    `, [a3, pesoVivo, pesoCanalCaliente, pesoCanalFrio, rendimiento]);
+    await pool.query("UPDATE animales SET estado = 'sacrificado' WHERE id = ?", [a3]);
+
+    // Cortes samples for the sacrificio
+    const sacId = sacResult.insertId;
+    await pool.query(`INSERT INTO cortes (sacrificio_id, animal_id, tipo_corte, peso_kg, calidad, destino, lote_empaque, fecha_empaque) VALUES (?, ?, 'lomo', 18.5, 'exportacion', 'Exportadora del Sur', 'EP-2025-100', '2025-11-16')`, [sacId, a3]);
+    await pool.query(`INSERT INTO cortes (sacrificio_id, animal_id, tipo_corte, peso_kg, calidad, destino, lote_empaque, fecha_empaque) VALUES (?, ?, 'costilla', 32.0, 'primera', 'Supermercado Central', 'EP-2025-101', '2025-11-16')`, [sacId, a3]);
+    await pool.query(`INSERT INTO cortes (sacrificio_id, animal_id, tipo_corte, peso_kg, calidad, destino, lote_empaque, fecha_empaque) VALUES (?, ?, 'pierna', 45.2, 'primera', 'Distribuidora Norte', 'EP-2025-102', '2025-11-16')`, [sacId, a3]);
+  }
+
+  console.log('Seed completed: 2 users, 5 potreros, 20 animales with pesajes, salud events, transporte, sacrificio and cortes');
 }
 
 // Run directly or export

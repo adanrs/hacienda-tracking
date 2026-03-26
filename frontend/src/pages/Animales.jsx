@@ -4,6 +4,7 @@ import { Plus, Search, Eye, Trash2, Edit } from 'lucide-react';
 import { api } from '../services/api';
 import { formatDate } from '../components/DateFormat';
 import { CowIcon } from '../components/CowIcon';
+import AnimalSearch from '../components/AnimalSearch';
 
 const estadoBadge = { activo: 'badge-green', vendido: 'badge-blue', muerto: 'badge-red', trasladado: 'badge-yellow' };
 
@@ -198,6 +199,16 @@ export default function Animales() {
                     <option value="muerto">Muerto</option>
                     <option value="trasladado">Trasladado</option>
                   </select>
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Madre</label>
+                  <AnimalSearch value={form.madre_id} onChange={id => setForm({ ...form, madre_id: id })} filter={a => a.sexo === 'hembra'} />
+                </div>
+                <div className="form-group">
+                  <label>Padre</label>
+                  <AnimalSearch value={form.padre_id} onChange={id => setForm({ ...form, padre_id: id })} filter={a => a.sexo === 'macho'} />
                 </div>
               </div>
               <div className="form-group">

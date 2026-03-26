@@ -1,5 +1,5 @@
 import { Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Bug as Cow, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User } from 'lucide-react';
+import { LayoutDashboard, Bug as Cow, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Scissors } from 'lucide-react';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { CowWalking } from './components/CowIcon';
 import Login from './pages/Login';
@@ -12,6 +12,9 @@ import Movimientos from './pages/Movimientos';
 import Reproduccion from './pages/Reproduccion';
 import Potreros from './pages/Potreros';
 import Usuarios from './pages/Usuarios';
+import Transporte from './pages/Transporte';
+import Sacrificio from './pages/Sacrificio';
+import Cortes from './pages/Cortes';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -21,6 +24,9 @@ const navItems = [
   { to: '/movimientos', icon: ArrowRightLeft, label: 'Movimientos' },
   { to: '/reproduccion', icon: Baby, label: 'Reproduccion' },
   { to: '/potreros', icon: MapPin, label: 'Potreros' },
+  { to: '/transporte', icon: Truck, label: 'Transporte' },
+  { to: '/sacrificio', icon: Warehouse, label: 'Sacrificio' },
+  { to: '/cortes', icon: Scissors, label: 'Cortes' },
 ];
 
 function ProtectedRoute({ children }) {
@@ -98,6 +104,9 @@ function AppLayout() {
           <Route path="/movimientos" element={<Movimientos />} />
           <Route path="/reproduccion" element={<Reproduccion />} />
           <Route path="/potreros" element={<Potreros />} />
+          <Route path="/transporte" element={<Transporte />} />
+          <Route path="/sacrificio" element={<Sacrificio />} />
+          <Route path="/cortes" element={<Cortes />} />
           <Route path="/usuarios" element={<Usuarios />} />
         </Routes>
       </main>

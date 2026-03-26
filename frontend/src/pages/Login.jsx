@@ -1,12 +1,16 @@
 import { useState } from 'react';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { Lock, User } from 'lucide-react';
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, user } = useAuth();
+  const navigate = useNavigate();
   const [form, setForm] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  if (user) return <Navigate to="/" />;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -14,6 +18,7 @@ export default function Login() {
     setLoading(true);
     try {
       await login(form.username, form.password);
+      navigate('/');
     } catch (err) {
       setError(err.message || 'Error al iniciar sesion');
     } finally {

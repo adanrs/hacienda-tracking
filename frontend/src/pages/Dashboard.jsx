@@ -19,7 +19,7 @@ export default function Dashboard() {
   if (loading) return <div className="empty-state"><CowWalking size={64} /><p style={{ marginTop: 12 }}>Cargando dashboard...</p></div>;
   if (!data) return <div className="empty-state">Error al cargar datos</div>;
 
-  const { resumen, porSexo, porRaza, porPotrero, pesajesRecientes, eventosProximos, gestacionesActivas } = data;
+  const { resumen, porSexo, porRaza, porPotrero, pesajesRecientes, eventosProximos, gestacionesActivas, topGDP } = data;
 
   return (
     <div>
@@ -124,6 +124,39 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {topGDP && topGDP.length > 0 && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="card-header"><h3>Top GDP (Ganancia Diaria de Peso)</h3></div>
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Animal</th>
+                  <th>Peso Nacimiento (kg)</th>
+                  <th>Peso Actual (kg)</th>
+                  <th>Dias</th>
+                  <th>GDP (kg/dia)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topGDP.map((g, i) => {
+                  const gdpClass = g.gdp > 0.8 ? 'gdp-good' : g.gdp >= 0.5 ? 'gdp-mid' : 'gdp-low';
+                  return (
+                    <tr key={i}>
+                      <td><Link to={`/animales/${g.animal_id}`}>{g.numero_trazabilidad}</Link></td>
+                      <td>{g.peso_nacimiento ? `${g.peso_nacimiento}` : '-'}</td>
+                      <td>{g.peso_actual ? `${g.peso_actual}` : '-'}</td>
+                      <td>{g.dias || '-'}</td>
+                      <td><span className={gdpClass}>{g.gdp ? g.gdp.toFixed(3) : '-'}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

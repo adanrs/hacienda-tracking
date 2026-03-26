@@ -86,4 +86,23 @@ export const api = {
   createPotrero: (data) => request('/potreros', { method: 'POST', body: JSON.stringify(data) }),
   updatePotrero: (id, data) => request(`/potreros/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deletePotrero: (id) => request(`/potreros/${id}`, { method: 'DELETE' }),
+
+  // Transporte
+  getTransportes: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/transporte${qs ? '?' + qs : ''}`); },
+  createTransporte: (data) => request('/transporte', { method: 'POST', body: JSON.stringify(data) }),
+  updateTransporte: (id, data) => request(`/transporte/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  // Sacrificio
+  getSacrificios: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/sacrificio${qs ? '?' + qs : ''}`); },
+  getSacrificio: (id) => request(`/sacrificio/${id}`),
+  createSacrificio: (data) => request('/sacrificio', { method: 'POST', body: JSON.stringify(data) }),
+  updateSacrificio: (id, data) => request(`/sacrificio/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  // Cortes
+  getCortes: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/cortes${qs ? '?' + qs : ''}`); },
+  createCorte: (data) => request('/cortes', { method: 'POST', body: JSON.stringify(data) }),
+  deleteCorte: (id) => request(`/cortes/${id}`, { method: 'DELETE' }),
+
+  // Timeline
+  getTimeline: (animalId) => request(`/animales/${animalId}/timeline`),
 };

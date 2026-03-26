@@ -10,3 +10,4 @@ uploads/
 Thumbs.db
 .claude/
 azure-backend-update.yaml
+.playwright-mcp/

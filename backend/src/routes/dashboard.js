@@ -39,10 +39,22 @@ router.get('/', async (req, res) => {
       WHERE fecha_nacimiento >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
     `);
 
+    const [topGDP] = await pool.query(`
+      SELECT a.id, a.numero_trazabilidad, a.nombre,
+        a.peso_nacimiento, a.peso_actual,
+        DATEDIFF(CURDATE(), a.fecha_nacimiento) as dias_vida,
+        CASE WHEN DATEDIFF(CURDATE(), a.fecha_nacimiento) > 0
+          THEN ROUND((a.peso_actual - a.peso_nacimiento) / DATEDIFF(CURDATE(), a.fecha_nacimiento), 3)
+          ELSE 0 END as gdp
+      FROM animales a
+      WHERE a.estado = 'activo' AND a.peso_actual IS NOT NULL AND a.fecha_nacimiento IS NOT NULL
+      ORDER BY gdp DESC LIMIT 20
+    `);
+
     res.json({
       resumen: { totalAnimales, totalPotreros, gestacionesActivas: gestacionesActivas.length, nacimientosMes },
       porSexo, porRaza, porPotrero,
-      pesajesRecientes, eventosProximos, gestacionesActivas
+      pesajesRecientes, eventosProximos, gestacionesActivas, topGDP
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

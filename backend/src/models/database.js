@@ -143,6 +143,74 @@ async function initDB() {
       )
     `);
 
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS transporte (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        animal_id INT NOT NULL,
+        tipo ENUM('finca','feria','matadero','otro') DEFAULT 'otro',
+        destino VARCHAR(300),
+        fecha_salida DATETIME NOT NULL,
+        fecha_llegada DATETIME,
+        transportista VARCHAR(200),
+        placa_vehiculo VARCHAR(20),
+        guia_movilizacion VARCHAR(100),
+        estado ENUM('programado','en_transito','recibido','cancelado') DEFAULT 'programado',
+        notas TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (animal_id) REFERENCES animales(id) ON DELETE CASCADE,
+        INDEX idx_animal (animal_id)
+      )
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS sacrificios (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        animal_id INT NOT NULL,
+        fecha DATETIME NOT NULL,
+        peso_vivo DECIMAL(8,2),
+        peso_canal_caliente DECIMAL(8,2),
+        peso_canal_frio DECIMAL(8,2),
+        rendimiento_canal DECIMAL(5,2),
+        inspector VARCHAR(200),
+        resultado_inspeccion ENUM('aprobado','rechazado','condicionado') DEFAULT 'aprobado',
+        lote_sacrificio VARCHAR(50),
+        notas TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_animal (animal_id),
+        FOREIGN KEY (animal_id) REFERENCES animales(id) ON DELETE CASCADE,
+        INDEX idx_animal (animal_id)
+      )
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS cortes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        sacrificio_id INT NOT NULL,
+        animal_id INT NOT NULL,
+        tipo_corte VARCHAR(100) NOT NULL,
+        peso_kg DECIMAL(8,2) NOT NULL,
+        calidad ENUM('primera','segunda','exportacion') DEFAULT 'primera',
+        destino VARCHAR(200),
+        lote_empaque VARCHAR(50),
+        fecha_empaque DATE,
+        notas TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (sacrificio_id) REFERENCES sacrificios(id) ON DELETE CASCADE,
+        FOREIGN KEY (animal_id) REFERENCES animales(id) ON DELETE CASCADE,
+        INDEX idx_sacrificio (sacrificio_id),
+        INDEX idx_animal (animal_id)
+      )
+    `);
+
+    // Add 'sacrificado' to animales estado ENUM if not already present
+    try {
+      await conn.query(`
+        ALTER TABLE animales MODIFY COLUMN estado ENUM('activo','vendido','muerto','trasladado','sacrificado') DEFAULT 'activo'
+      `);
+    } catch (e) {
+      // Ignore if already modified
+    }
+
     console.log('Database tables initialized');
   } finally {
     conn.release();
