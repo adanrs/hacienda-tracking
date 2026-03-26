@@ -1,0 +1,29 @@
+services:
+  backend:
+    build: ./backend
+    container_name: hacienda-backend
+    ports:
+      - "8001:8001"
+    volumes:
+      - backend-data:/app/data
+    environment:
+      - PORT=8001
+      - NODE_ENV=production
+    command: ["npm", "start"]
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_URL: /api
+    container_name: hacienda-frontend
+    ports:
+      - "8000:8000"
+    depends_on:
+      - backend
+    restart: always
+
+volumes:
+  backend-data:
