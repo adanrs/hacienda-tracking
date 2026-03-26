@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { api } from '../services/api';
 import { Link } from 'react-router-dom';
+import AnimalSearch from '../components/AnimalSearch';
+import { formatDate } from '../components/DateFormat';
 
 const tipoBadge = { vacunacion: 'badge-green', desparasitacion: 'badge-blue', tratamiento: 'badge-yellow', cirugia: 'badge-red', examen: 'badge-gray', otro: 'badge-gray' };
 
 export default function Salud() {
   const [eventos, setEventos] = useState([]);
   const [alertas, setAlertas] = useState([]);
-  const [animales, setAnimales] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ tipo: 'vacunacion' });
   const [tab, setTab] = useState('todos');
@@ -18,10 +19,11 @@ export default function Salud() {
     api.getAlertasSalud(60).then(setAlertas).catch(console.error);
   };
 
-  useEffect(() => { load(); api.getAnimales({ estado: 'activo' }).then(setAnimales); }, []);
+  useEffect(() => { load(); }, []);
 
   const save = async (e) => {
     e.preventDefault();
+    if (!form.animal_id) { alert('Selecciona un animal'); return; }
     try {
       await api.createEventoSalud(form);
       setShowModal(false);
@@ -57,13 +59,13 @@ export default function Salud() {
             <tbody>
               {items.map(e => (
                 <tr key={e.id}>
-                  <td>{e.fecha}</td>
+                  <td>{formatDate(e.fecha)}</td>
                   <td><Link to={`/animales/${e.animal_id}`}>{e.numero_trazabilidad}</Link></td>
                   <td><span className={`badge ${tipoBadge[e.tipo]}`}>{e.tipo}</span></td>
                   <td>{e.descripcion}</td>
                   <td>{e.producto || '-'}</td>
                   <td>{e.veterinario || '-'}</td>
-                  <td>{e.proxima_fecha || '-'}</td>
+                  <td>{formatDate(e.proxima_fecha)}</td>
                   <td><button className="btn-icon" onClick={() => remove(e.id)}><Trash2 size={16} color="#dc2626" /></button></td>
                 </tr>
               ))}
@@ -81,10 +83,7 @@ export default function Salud() {
               <div className="form-row">
                 <div className="form-group">
                   <label>Animal *</label>
-                  <select required value={form.animal_id || ''} onChange={e => setForm({ ...form, animal_id: parseInt(e.target.value) })}>
-                    <option value="">Seleccionar...</option>
-                    {animales.map(a => <option key={a.id} value={a.id}>{a.numero_trazabilidad} - {a.nombre || a.raza}</option>)}
-                  </select>
+                  <AnimalSearch value={form.animal_id} onChange={id => setForm({ ...form, animal_id: id })} />
                 </div>
                 <div className="form-group">
                   <label>Tipo *</label>

@@ -1,10 +1,23 @@
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
+function getToken() {
+  return localStorage.getItem('token');
+}
+
 async function request(path, options = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
-    ...options,
-  });
+  const token = getToken();
+  const headers = { 'Content-Type': 'application/json', ...options.headers };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+
+  if (res.status === 401) {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/login';
+    throw new Error('Sesion expirada');
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || 'Error en la solicitud');
@@ -13,6 +26,15 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  // Auth
+  login: (username, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  getMe: () => request('/auth/me'),
+  changePassword: (current_password, new_password) => request('/auth/password', { method: 'PUT', body: JSON.stringify({ current_password, new_password }) }),
+  getUsuarios: () => request('/auth/usuarios'),
+  createUsuario: (data) => request('/auth/usuarios', { method: 'POST', body: JSON.stringify(data) }),
+  updateUsuario: (id, data) => request(`/auth/usuarios/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteUsuario: (id) => request(`/auth/usuarios/${id}`, { method: 'DELETE' }),
+
   // Dashboard
   getDashboard: () => request('/dashboard'),
 

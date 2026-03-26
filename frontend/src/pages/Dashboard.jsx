@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Bug as Cow, MapPin, Baby, Calendar, AlertTriangle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { api } from '../services/api';
+import { formatDate } from '../components/DateFormat';
+import { CowWalking } from '../components/CowIcon';
 
 const COLORS = ['#16a34a', '#2563eb', '#f59e0b', '#dc2626', '#8b5cf6', '#ec4899', '#06b6d4'];
 
@@ -14,7 +16,7 @@ export default function Dashboard() {
     api.getDashboard().then(setData).catch(console.error).finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="empty-state">Cargando dashboard...</div>;
+  if (loading) return <div className="empty-state"><CowWalking size={64} /><p style={{ marginTop: 12 }}>Cargando dashboard...</p></div>;
   if (!data) return <div className="empty-state">Error al cargar datos</div>;
 
   const { resumen, porSexo, porRaza, porPotrero, pesajesRecientes, eventosProximos, gestacionesActivas } = data;
@@ -93,7 +95,7 @@ export default function Dashboard() {
                   <tr key={p.id}>
                     <td><Link to={`/animales/${p.animal_id}`}>{p.numero_trazabilidad}</Link></td>
                     <td><strong>{p.peso_kg}</strong></td>
-                    <td>{p.fecha}</td>
+                    <td>{formatDate(p.fecha)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -113,7 +115,7 @@ export default function Dashboard() {
                   <tr key={e.id}>
                     <td><Link to={`/animales/${e.animal_id}`}>{e.numero_trazabilidad}</Link></td>
                     <td><span className="badge badge-yellow">{e.tipo}</span></td>
-                    <td>{e.proxima_fecha}</td>
+                    <td>{formatDate(e.proxima_fecha)}</td>
                   </tr>
                 ))}
                 {eventosProximos.length === 0 && <tr><td colSpan={3} style={{ textAlign: 'center', color: '#9ca3af' }}>Sin eventos proximos</td></tr>}

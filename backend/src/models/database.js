@@ -40,6 +40,7 @@ db.exec(`
     madre_id INTEGER REFERENCES animales(id),
     padre_id INTEGER REFERENCES animales(id),
     potrero_id INTEGER REFERENCES potreros(id),
+    peso_actual REAL,
     foto_url TEXT,
     notas TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -97,6 +98,19 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS usuarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    nombre TEXT NOT NULL,
+    email TEXT,
+    rol TEXT DEFAULT 'operador' CHECK(rol IN ('admin','operador','viewer')),
+    activo INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_usuarios_username ON usuarios(username);
   CREATE INDEX IF NOT EXISTS idx_animales_trazabilidad ON animales(numero_trazabilidad);
   CREATE INDEX IF NOT EXISTS idx_animales_potrero ON animales(potrero_id);
   CREATE INDEX IF NOT EXISTS idx_pesajes_animal ON pesajes(animal_id);

@@ -1,8 +1,26 @@
 const db = require('../models/database');
+const bcrypt = require('bcryptjs');
 
 console.log('Seeding database...');
 
+// Default admin user
+const adminExists = db.prepare('SELECT id FROM usuarios WHERE username = ?').get('admin');
+if (!adminExists) {
+  const adminPwd = process.env.ADMIN_PASSWORD || 'HT$2026!Adm1n#Tmp';
+  const operPwd = process.env.OPER_PASSWORD || 'HT$2026!0per#Tmp';
+  const hash = bcrypt.hashSync(adminPwd, 12);
+  db.prepare('INSERT INTO usuarios (username, password, nombre, email, rol) VALUES (?, ?, ?, ?, ?)').run('admin.tempisque', hash, 'Administrador', 'admin@haciendatempisque.com', 'admin');
+  db.prepare('INSERT INTO usuarios (username, password, nombre, email, rol) VALUES (?, ?, ?, ?, ?)').run('operador.campo', bcrypt.hashSync(operPwd, 12), 'Operador Campo', 'operador@haciendatempisque.com', 'operador');
+  console.log('Users created: admin.tempisque / operador.campo');
+}
+
 // Potreros
+const potreroExists = db.prepare('SELECT id FROM potreros LIMIT 1').get();
+if (potreroExists) {
+  console.log('Data already seeded, skipping...');
+  process.exit(0);
+}
+
 const potreros = [
   { nombre: 'Potrero Norte', superficie_ha: 15, capacidad_animales: 30 },
   { nombre: 'Potrero Sur', superficie_ha: 20, capacidad_animales: 40 },
@@ -19,8 +37,8 @@ const razas = ['Brahman', 'Nelore', 'Gyr', 'Angus', 'Charolais', 'Simmental', 'H
 const colores = ['Blanco', 'Negro', 'Rojo', 'Pardo', 'Gris', 'Pinto'];
 
 const insertAnimal = db.prepare(`
-  INSERT INTO animales (numero_trazabilidad, nombre, tipo, raza, sexo, fecha_nacimiento, peso_nacimiento, color, estado, potrero_id)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'activo', ?)
+  INSERT INTO animales (numero_trazabilidad, nombre, tipo, raza, sexo, fecha_nacimiento, peso_nacimiento, peso_actual, color, estado, potrero_id)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'activo', ?)
 `);
 
 const insertPesaje = db.prepare('INSERT INTO pesajes (animal_id, peso_kg, fecha, tipo) VALUES (?, ?, ?, ?)');
@@ -39,16 +57,17 @@ const seed = db.transaction(() => {
     const month = String((i % 12) + 1).padStart(2, '0');
     const fechaNac = `${year}-${month}-15`;
     const pesoNac = 25 + Math.round(Math.random() * 15);
+    const pesoActual = 150 + Math.round(Math.random() * 200);
 
     const animalId = insertAnimal.run(
       `HT-${String(i + 1).padStart(4, '0')}`,
-      nombres[i], 'bovino', raza, sexo, fechaNac, pesoNac, color, potrero
+      nombres[i], 'bovino', raza, sexo, fechaNac, pesoNac, pesoActual, color, potrero
     ).lastInsertRowid;
 
-    // Pesajes
+    // Pesajes (historial completo, nunca se sobreescribe)
     insertPesaje.run(animalId, pesoNac, fechaNac, 'nacimiento');
     insertPesaje.run(animalId, pesoNac * 3 + Math.round(Math.random() * 20), `${year}-${month === '12' ? '12' : String(Number(month) + 1).padStart(2, '0')}-15`, 'rutinario');
-    insertPesaje.run(animalId, 150 + Math.round(Math.random() * 200), '2025-12-01', 'rutinario');
+    insertPesaje.run(animalId, pesoActual, '2025-12-01', 'rutinario');
 
     // Salud
     insertSalud.run(animalId, 'vacunacion', '2025-06-01', 'Vacuna Aftosa', 'Aftogan', 'Dr. Mora', '2026-06-01');
@@ -57,4 +76,4 @@ const seed = db.transaction(() => {
 });
 
 seed();
-console.log('Seed completed: 5 potreros, 20 animales with pesajes and salud events');
+console.log('Seed completed: 2 users, 5 potreros, 20 animales with pesajes and salud events');

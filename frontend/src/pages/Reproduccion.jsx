@@ -2,27 +2,26 @@ import { useState, useEffect } from 'react';
 import { Plus, Edit } from 'lucide-react';
 import { api } from '../services/api';
 import { Link } from 'react-router-dom';
+import AnimalSearch from '../components/AnimalSearch';
+import { formatDate } from '../components/DateFormat';
 
 const resultadoBadge = { gestante: 'badge-yellow', vacia: 'badge-gray', aborto: 'badge-red', parto_exitoso: 'badge-green', parto_complicado: 'badge-red' };
 
 export default function Reproduccion() {
   const [registros, setRegistros] = useState([]);
-  const [animales, setAnimales] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editReg, setEditReg] = useState(null);
   const [form, setForm] = useState({ tipo: 'monta_natural', resultado: 'gestante' });
 
   const load = () => api.getReproduccion().then(setRegistros).catch(console.error);
-  useEffect(() => { load(); api.getAnimales({ estado: 'activo' }).then(setAnimales); }, []);
-
-  const hembras = animales.filter(a => a.sexo === 'hembra');
-  const machos = animales.filter(a => a.sexo === 'macho');
+  useEffect(() => { load(); }, []);
 
   const openEdit = (r) => { setEditReg(r); setForm({ ...r }); setShowModal(true); };
   const openNew = () => { setEditReg(null); setForm({ tipo: 'monta_natural', resultado: 'gestante' }); setShowModal(true); };
 
   const save = async (e) => {
     e.preventDefault();
+    if (!form.hembra_id) { alert('Selecciona una hembra'); return; }
     try {
       if (editReg) {
         await api.updateReproduccion(editReg.id, form);
@@ -47,13 +46,13 @@ export default function Reproduccion() {
             <tbody>
               {registros.map(r => (
                 <tr key={r.id}>
-                  <td>{r.fecha_servicio}</td>
+                  <td>{formatDate(r.fecha_servicio)}</td>
                   <td><Link to={`/animales/${r.hembra_id}`}>{r.hembra_trazabilidad} {r.hembra_nombre && `(${r.hembra_nombre})`}</Link></td>
                   <td>{r.macho_trazabilidad ? <Link to={`/animales/${r.macho_id}`}>{r.macho_trazabilidad}</Link> : '-'}</td>
                   <td>{r.tipo.replace(/_/g, ' ')}</td>
                   <td><span className={`badge ${resultadoBadge[r.resultado] || 'badge-gray'}`}>{r.resultado?.replace(/_/g, ' ') || '-'}</span></td>
-                  <td>{r.fecha_parto_estimada || '-'}</td>
-                  <td>{r.fecha_parto_real || '-'}</td>
+                  <td>{formatDate(r.fecha_parto_estimada)}</td>
+                  <td>{formatDate(r.fecha_parto_real)}</td>
                   <td>{r.cria_trazabilidad ? <Link to={`/animales/${r.cria_id}`}>{r.cria_trazabilidad}</Link> : '-'}</td>
                   <td><button className="btn-icon" onClick={() => openEdit(r)}><Edit size={16} /></button></td>
                 </tr>
@@ -72,17 +71,11 @@ export default function Reproduccion() {
               <div className="form-row">
                 <div className="form-group">
                   <label>Hembra *</label>
-                  <select required value={form.hembra_id || ''} onChange={e => setForm({ ...form, hembra_id: parseInt(e.target.value) })}>
-                    <option value="">Seleccionar...</option>
-                    {hembras.map(a => <option key={a.id} value={a.id}>{a.numero_trazabilidad} - {a.nombre || a.raza}</option>)}
-                  </select>
+                  <AnimalSearch value={form.hembra_id} onChange={id => setForm({ ...form, hembra_id: id })} filter={a => a.sexo === 'hembra'} />
                 </div>
                 <div className="form-group">
                   <label>Macho</label>
-                  <select value={form.macho_id || ''} onChange={e => setForm({ ...form, macho_id: parseInt(e.target.value) || null })}>
-                    <option value="">Seleccionar...</option>
-                    {machos.map(a => <option key={a.id} value={a.id}>{a.numero_trazabilidad} - {a.nombre || a.raza}</option>)}
-                  </select>
+                  <AnimalSearch value={form.macho_id} onChange={id => setForm({ ...form, macho_id: id })} filter={a => a.sexo === 'macho'} />
                 </div>
               </div>
               <div className="form-row-3">

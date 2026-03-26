@@ -2,18 +2,20 @@ import { useState, useEffect } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { api } from '../services/api';
 import { Link } from 'react-router-dom';
+import AnimalSearch from '../components/AnimalSearch';
+import { formatDate } from '../components/DateFormat';
 
 export default function Pesajes() {
   const [pesajes, setPesajes] = useState([]);
-  const [animales, setAnimales] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ tipo: 'rutinario' });
 
   const load = () => api.getPesajes().then(setPesajes).catch(console.error);
-  useEffect(() => { load(); api.getAnimales({ estado: 'activo' }).then(setAnimales); }, []);
+  useEffect(() => { load(); }, []);
 
   const save = async (e) => {
     e.preventDefault();
+    if (!form.animal_id) { alert('Selecciona un animal'); return; }
     try {
       await api.createPesaje(form);
       setShowModal(false);
@@ -41,7 +43,7 @@ export default function Pesajes() {
             <tbody>
               {pesajes.map(p => (
                 <tr key={p.id}>
-                  <td>{p.fecha}</td>
+                  <td>{formatDate(p.fecha)}</td>
                   <td><Link to={`/animales/${p.animal_id}`}>{p.numero_trazabilidad} {p.animal_nombre && `(${p.animal_nombre})`}</Link></td>
                   <td><strong>{p.peso_kg} kg</strong></td>
                   <td><span className="badge badge-green">{p.tipo}</span></td>
@@ -62,15 +64,12 @@ export default function Pesajes() {
             <form onSubmit={save}>
               <div className="form-group">
                 <label>Animal *</label>
-                <select required value={form.animal_id || ''} onChange={e => setForm({ ...form, animal_id: parseInt(e.target.value) })}>
-                  <option value="">Seleccionar animal...</option>
-                  {animales.map(a => <option key={a.id} value={a.id}>{a.numero_trazabilidad} - {a.nombre || a.raza}</option>)}
-                </select>
+                <AnimalSearch value={form.animal_id} onChange={id => setForm({ ...form, animal_id: id })} />
               </div>
               <div className="form-row">
                 <div className="form-group">
                   <label>Peso (kg) *</label>
-                  <input type="number" step="0.1" required value={form.peso_kg || ''} onChange={e => setForm({ ...form, peso_kg: parseFloat(e.target.value) })} />
+                  <input type="number" step="0.1" required value={form.peso_kg || ''} onChange={e => setForm({ ...form, peso_kg: parseFloat(e.target.value) })} placeholder="Ej: 350.5" style={{ fontSize: '1.2rem', fontWeight: 700, textAlign: 'center' }} />
                 </div>
                 <div className="form-group">
                   <label>Fecha *</label>

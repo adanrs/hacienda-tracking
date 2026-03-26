@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Search, Eye, Trash2, Edit } from 'lucide-react';
 import { api } from '../services/api';
+import { formatDate } from '../components/DateFormat';
+import { CowIcon } from '../components/CowIcon';
 
 const estadoBadge = { activo: 'badge-green', vendido: 'badge-blue', muerto: 'badge-red', trasladado: 'badge-yellow' };
 
@@ -90,10 +92,12 @@ export default function Animales() {
           <table>
             <thead>
               <tr>
+                <th></th>
                 <th>No. Trazabilidad</th>
                 <th>Nombre</th>
                 <th>Raza</th>
                 <th>Sexo</th>
+                <th>Peso Actual</th>
                 <th>Potrero</th>
                 <th>Estado</th>
                 <th>Acciones</th>
@@ -102,10 +106,12 @@ export default function Animales() {
             <tbody>
               {animales.map(a => (
                 <tr key={a.id}>
+                  <td><CowIcon size={28} weight={a.peso_actual} color={a.sexo === 'macho' ? '#2563eb' : '#ec4899'} /></td>
                   <td><strong>{a.numero_trazabilidad}</strong></td>
                   <td>{a.nombre || '-'}</td>
                   <td>{a.raza}</td>
                   <td>{a.sexo}</td>
+                  <td>{a.peso_actual ? <strong>{a.peso_actual} kg</strong> : <span style={{color:'#9ca3af'}}>-</span>}</td>
                   <td>{a.potrero_nombre || '-'}</td>
                   <td><span className={`badge ${estadoBadge[a.estado] || 'badge-gray'}`}>{a.estado}</span></td>
                   <td>
@@ -117,7 +123,7 @@ export default function Animales() {
                   </td>
                 </tr>
               ))}
-              {animales.length === 0 && <tr><td colSpan={7} className="empty-state">No se encontraron animales</td></tr>}
+              {animales.length === 0 && <tr><td colSpan={9} className="empty-state">No se encontraron animales</td></tr>}
             </tbody>
           </table>
         </div>

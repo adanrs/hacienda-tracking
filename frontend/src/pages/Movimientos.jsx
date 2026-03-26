@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { api } from '../services/api';
 import { Link } from 'react-router-dom';
+import AnimalSearch from '../components/AnimalSearch';
+import { formatDate } from '../components/DateFormat';
 
 export default function Movimientos() {
   const [movimientos, setMovimientos] = useState([]);
-  const [animales, setAnimales] = useState([]);
   const [potreros, setPotreros] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({});
@@ -13,12 +14,12 @@ export default function Movimientos() {
   const load = () => api.getMovimientos().then(setMovimientos).catch(console.error);
   useEffect(() => {
     load();
-    api.getAnimales({ estado: 'activo' }).then(setAnimales);
     api.getPotreros().then(setPotreros);
   }, []);
 
   const save = async (e) => {
     e.preventDefault();
+    if (!form.animal_id) { alert('Selecciona un animal'); return; }
     try {
       await api.createMovimiento(form);
       setShowModal(false);
@@ -40,7 +41,7 @@ export default function Movimientos() {
             <tbody>
               {movimientos.map(m => (
                 <tr key={m.id}>
-                  <td>{m.fecha}</td>
+                  <td>{formatDate(m.fecha)}</td>
                   <td><Link to={`/animales/${m.animal_id}`}>{m.numero_trazabilidad} {m.animal_nombre && `(${m.animal_nombre})`}</Link></td>
                   <td>{m.origen_nombre || '-'}</td>
                   <td>{m.destino_nombre || '-'}</td>
@@ -61,10 +62,7 @@ export default function Movimientos() {
             <form onSubmit={save}>
               <div className="form-group">
                 <label>Animal *</label>
-                <select required value={form.animal_id || ''} onChange={e => setForm({ ...form, animal_id: parseInt(e.target.value) })}>
-                  <option value="">Seleccionar...</option>
-                  {animales.map(a => <option key={a.id} value={a.id}>{a.numero_trazabilidad} - {a.nombre || a.raza}</option>)}
-                </select>
+                <AnimalSearch value={form.animal_id} onChange={id => setForm({ ...form, animal_id: id })} />
               </div>
               <div className="form-row">
                 <div className="form-group">

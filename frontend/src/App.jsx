@@ -1,5 +1,8 @@
-import { Routes, Route, NavLink } from 'react-router-dom';
-import { LayoutDashboard, Bug as Cow, Weight, Heart, ArrowRightLeft, Baby, MapPin } from 'lucide-react';
+import { Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Bug as Cow, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User } from 'lucide-react';
+import { AuthProvider, useAuth } from './components/AuthContext';
+import { CowWalking } from './components/CowIcon';
+import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Animales from './pages/Animales';
 import AnimalDetalle from './pages/AnimalDetalle';
@@ -8,6 +11,7 @@ import Salud from './pages/Salud';
 import Movimientos from './pages/Movimientos';
 import Reproduccion from './pages/Reproduccion';
 import Potreros from './pages/Potreros';
+import Usuarios from './pages/Usuarios';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -19,11 +23,32 @@ const navItems = [
   { to: '/potreros', icon: MapPin, label: 'Potreros' },
 ];
 
-export default function App() {
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', flexDirection: 'column', gap: 16 }}>
+      <CowWalking size={64} />
+      <p style={{ color: '#6b7280' }}>Cargando...</p>
+    </div>
+  );
+  if (!user) return <Navigate to="/login" />;
+  return children;
+}
+
+function AppLayout() {
+  const { user, logout, isAdmin } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   return (
     <div className="layout">
       <aside className="sidebar">
         <div className="sidebar-header">
+          <div style={{ fontSize: 32 }}>&#x1F404;</div>
           <h1>Hacienda Tempisque</h1>
           <p>Sistema de Trazabilidad</p>
         </div>
@@ -34,7 +59,34 @@ export default function App() {
               <span>{label}</span>
             </NavLink>
           ))}
+          {isAdmin && (
+            <NavLink to="/usuarios" className={({ isActive }) => isActive ? 'active' : ''}>
+              <Users size={20} />
+              <span>Usuarios</span>
+            </NavLink>
+          )}
         </nav>
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <User size={16} color="#fff" />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '0.82rem', color: '#fff', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.nombre}</div>
+              <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>{user?.rol}</div>
+            </div>
+          </div>
+          <button onClick={handleLogout} style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+            background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 6, color: 'rgba(255,255,255,0.7)',
+            cursor: 'pointer', fontSize: '0.82rem', transition: 'all 0.2s'
+          }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(220,38,38,0.3)'; e.currentTarget.style.color = '#fff'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+          >
+            <LogOut size={16} /> Cerrar Sesion
+          </button>
+        </div>
       </aside>
       <main className="main-content">
         <Routes>
@@ -46,8 +98,20 @@ export default function App() {
           <Route path="/movimientos" element={<Movimientos />} />
           <Route path="/reproduccion" element={<Reproduccion />} />
           <Route path="/potreros" element={<Potreros />} />
+          <Route path="/usuarios" element={<Usuarios />} />
         </Routes>
       </main>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/*" element={<ProtectedRoute><AppLayout /></ProtectedRoute>} />
+      </Routes>
+    </AuthProvider>
   );
 }
