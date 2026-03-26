@@ -1,7 +1,7 @@
 const router = require('express').Router();
-const db = require('../models/database');
+const { pool } = require('../models/database');
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const { animal_id, tipo, desde, hasta } = req.query;
   let sql = `SELECT e.*, a.numero_trazabilidad, a.nombre as animal_nombre FROM eventos_salud e JOIN animales a ON e.animal_id = a.id WHERE 1=1`;
   const params = [];
@@ -10,37 +10,46 @@ router.get('/', (req, res) => {
   if (desde) { sql += ` AND e.fecha >= ?`; params.push(desde); }
   if (hasta) { sql += ` AND e.fecha <= ?`; params.push(hasta); }
   sql += ` ORDER BY e.fecha DESC`;
-  res.json(db.prepare(sql).all(...params));
+  try {
+    const [rows] = await pool.query(sql, params);
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { animal_id, tipo, fecha, descripcion, producto, dosis, veterinario, costo, proxima_fecha, notas } = req.body;
   if (!animal_id || !tipo || !fecha || !descripcion) {
     return res.status(400).json({ error: 'animal_id, tipo, fecha y descripcion son requeridos' });
   }
-  const result = db.prepare(`
-    INSERT INTO eventos_salud (animal_id, tipo, fecha, descripcion, producto, dosis, veterinario, costo, proxima_fecha, notas)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(animal_id, tipo, fecha, descripcion, producto, dosis, veterinario, costo || 0, proxima_fecha, notas);
-  res.status(201).json(db.prepare('SELECT * FROM eventos_salud WHERE id = ?').get(result.lastInsertRowid));
+  try {
+    const [result] = await pool.query(`
+      INSERT INTO eventos_salud (animal_id, tipo, fecha, descripcion, producto, dosis, veterinario, costo, proxima_fecha, notas)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [animal_id, tipo, fecha, descripcion, producto, dosis, veterinario, costo || 0, proxima_fecha || null, notas]);
+    const [rows] = await pool.query('SELECT * FROM eventos_salud WHERE id = ?', [result.insertId]);
+    res.status(201).json(rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.delete('/:id', (req, res) => {
-  const result = db.prepare('DELETE FROM eventos_salud WHERE id = ?').run(req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: 'Evento no encontrado' });
-  res.json({ message: 'Evento eliminado' });
+router.delete('/:id', async (req, res) => {
+  try {
+    const [result] = await pool.query('DELETE FROM eventos_salud WHERE id = ?', [req.params.id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Evento no encontrado' });
+    res.json({ message: 'Evento eliminado' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET upcoming health events (alerts)
-router.get('/alertas/proximas', (req, res) => {
+router.get('/alertas/proximas', async (req, res) => {
   const dias = req.query.dias || 30;
-  const alertas = db.prepare(`
-    SELECT e.*, a.numero_trazabilidad, a.nombre as animal_nombre
-    FROM eventos_salud e JOIN animales a ON e.animal_id = a.id
-    WHERE e.proxima_fecha IS NOT NULL AND e.proxima_fecha <= date('now', '+' || ? || ' days') AND e.proxima_fecha >= date('now')
-    ORDER BY e.proxima_fecha ASC
-  `).all(dias);
-  res.json(alertas);
+  try {
+    const [rows] = await pool.query(`
+      SELECT e.*, a.numero_trazabilidad, a.nombre as animal_nombre
+      FROM eventos_salud e JOIN animales a ON e.animal_id = a.id
+      WHERE e.proxima_fecha IS NOT NULL AND e.proxima_fecha <= DATE_ADD(CURDATE(), INTERVAL ? DAY) AND e.proxima_fecha >= CURDATE()
+      ORDER BY e.proxima_fecha ASC
+    `, [parseInt(dias)]);
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;

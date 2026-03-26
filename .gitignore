@@ -9,3 +9,4 @@ uploads/
 .DS_Store
 Thumbs.db
 .claude/
+azure-backend-update.yaml

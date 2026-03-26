@@ -1,4 +1,23 @@
 services:
+  mysql:
+    image: mysql:8.0
+    container_name: hacienda-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: hacienda_root
+      MYSQL_DATABASE: hacienda_tracking
+      MYSQL_USER: hacienda_admin
+      MYSQL_PASSWORD: hacienda_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   backend:
     build: ./backend
     container_name: hacienda-backend
@@ -6,10 +25,16 @@ services:
       - "8001:8001"
     volumes:
       - ./backend/src:/app/src
-      - backend-data:/app/data
     environment:
       - PORT=8001
       - NODE_ENV=development
+      - DB_HOST=mysql
+      - DB_USER=hacienda_admin
+      - DB_PASSWORD=hacienda_pass
+      - DB_NAME=hacienda_tracking
+    depends_on:
+      mysql:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
@@ -27,4 +52,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  backend-data:
+  mysql-data:

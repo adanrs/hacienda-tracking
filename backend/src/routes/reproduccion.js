@@ -1,7 +1,7 @@
 const router = require('express').Router();
-const db = require('../models/database');
+const { pool } = require('../models/database');
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const { hembra_id, resultado } = req.query;
   let sql = `
     SELECT r.*, h.numero_trazabilidad as hembra_trazabilidad, h.nombre as hembra_nombre,
@@ -16,34 +16,43 @@ router.get('/', (req, res) => {
   if (hembra_id) { sql += ` AND r.hembra_id = ?`; params.push(hembra_id); }
   if (resultado) { sql += ` AND r.resultado = ?`; params.push(resultado); }
   sql += ` ORDER BY r.fecha_servicio DESC`;
-  res.json(db.prepare(sql).all(...params));
+  try {
+    const [rows] = await pool.query(sql, params);
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { hembra_id, macho_id, tipo, fecha_servicio, fecha_parto_estimada, resultado, notas } = req.body;
-  if (!hembra_id || !tipo || !fecha_servicio) {
-    return res.status(400).json({ error: 'hembra_id, tipo y fecha_servicio son requeridos' });
-  }
-  const result = db.prepare(`
-    INSERT INTO reproduccion (hembra_id, macho_id, tipo, fecha_servicio, fecha_parto_estimada, resultado, notas)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(hembra_id, macho_id || null, tipo, fecha_servicio, fecha_parto_estimada, resultado || 'gestante', notas);
-  res.status(201).json(db.prepare('SELECT * FROM reproduccion WHERE id = ?').get(result.lastInsertRowid));
+  if (!hembra_id || !tipo || !fecha_servicio) return res.status(400).json({ error: 'hembra_id, tipo y fecha_servicio son requeridos' });
+  try {
+    const [result] = await pool.query(`
+      INSERT INTO reproduccion (hembra_id, macho_id, tipo, fecha_servicio, fecha_parto_estimada, resultado, notas)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, [hembra_id, macho_id || null, tipo, fecha_servicio, fecha_parto_estimada || null, resultado || 'gestante', notas]);
+    const [rows] = await pool.query('SELECT * FROM reproduccion WHERE id = ?', [result.insertId]);
+    res.status(201).json(rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const fields = req.body;
   const keys = Object.keys(fields).filter(k => k !== 'id');
   const sets = keys.map(k => `${k} = ?`).join(', ');
   const values = keys.map(k => fields[k] === '' ? null : fields[k]);
-  db.prepare(`UPDATE reproduccion SET ${sets} WHERE id = ?`).run(...values, req.params.id);
-  res.json(db.prepare('SELECT * FROM reproduccion WHERE id = ?').get(req.params.id));
+  try {
+    await pool.query(`UPDATE reproduccion SET ${sets} WHERE id = ?`, [...values, req.params.id]);
+    const [rows] = await pool.query('SELECT * FROM reproduccion WHERE id = ?', [req.params.id]);
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.delete('/:id', (req, res) => {
-  const result = db.prepare('DELETE FROM reproduccion WHERE id = ?').run(req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: 'Registro no encontrado' });
-  res.json({ message: 'Registro eliminado' });
+router.delete('/:id', async (req, res) => {
+  try {
+    const [result] = await pool.query('DELETE FROM reproduccion WHERE id = ?', [req.params.id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Registro no encontrado' });
+    res.json({ message: 'Registro eliminado' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;

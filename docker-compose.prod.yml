@@ -4,11 +4,15 @@ services:
     container_name: hacienda-backend
     ports:
       - "8001:8001"
-    volumes:
-      - backend-data:/app/data
     environment:
       - PORT=8001
       - NODE_ENV=production
+      - DB_HOST=${DB_HOST}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - DB_SSL=true
+      - JWT_SECRET=${JWT_SECRET}
     command: ["npm", "start"]
     restart: always
 
@@ -17,13 +21,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.prod
       args:
-        VITE_API_URL: /api
+        VITE_API_URL: ${VITE_API_URL:-/api}
     container_name: hacienda-frontend
     ports:
       - "8000:8000"
     depends_on:
       - backend
     restart: always
-
-volumes:
-  backend-data:

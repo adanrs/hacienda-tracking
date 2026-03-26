@@ -1,7 +1,7 @@
 const router = require('express').Router();
-const db = require('../models/database');
+const { pool } = require('../models/database');
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const { animal_id, desde, hasta } = req.query;
   let sql = `SELECT p.*, a.numero_trazabilidad, a.nombre as animal_nombre FROM pesajes p JOIN animales a ON p.animal_id = a.id WHERE 1=1`;
   const params = [];
@@ -9,45 +9,51 @@ router.get('/', (req, res) => {
   if (desde) { sql += ` AND p.fecha >= ?`; params.push(desde); }
   if (hasta) { sql += ` AND p.fecha <= ?`; params.push(hasta); }
   sql += ` ORDER BY p.fecha DESC`;
-  res.json(db.prepare(sql).all(...params));
+  try {
+    const [rows] = await pool.query(sql, params);
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { animal_id, peso_kg, fecha, tipo, notas } = req.body;
   if (!animal_id || !peso_kg || !fecha) {
     return res.status(400).json({ error: 'animal_id, peso_kg y fecha son requeridos' });
   }
-
-  const addPesaje = db.transaction(() => {
-    const result = db.prepare('INSERT INTO pesajes (animal_id, peso_kg, fecha, tipo, notas) VALUES (?, ?, ?, ?, ?)').run(animal_id, peso_kg, fecha, tipo || 'rutinario', notas);
-
-    // Update peso_actual on animal with the latest weigh-in by date
-    const latest = db.prepare('SELECT peso_kg FROM pesajes WHERE animal_id = ? ORDER BY fecha DESC, id DESC LIMIT 1').get(animal_id);
-    if (latest) {
-      db.prepare('UPDATE animales SET peso_actual = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(latest.peso_kg, animal_id);
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [result] = await conn.query('INSERT INTO pesajes (animal_id, peso_kg, fecha, tipo, notas) VALUES (?, ?, ?, ?, ?)', [animal_id, peso_kg, fecha, tipo || 'rutinario', notas]);
+    const [latest] = await conn.query('SELECT peso_kg FROM pesajes WHERE animal_id = ? ORDER BY fecha DESC, id DESC LIMIT 1', [animal_id]);
+    if (latest.length) {
+      await conn.query('UPDATE animales SET peso_actual = ? WHERE id = ?', [latest[0].peso_kg, animal_id]);
     }
-
-    return result;
-  });
-
-  const result = addPesaje();
-  res.status(201).json(db.prepare('SELECT * FROM pesajes WHERE id = ?').get(result.lastInsertRowid));
+    await conn.commit();
+    const [rows] = await pool.query('SELECT * FROM pesajes WHERE id = ?', [result.insertId]);
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ error: err.message });
+  } finally { conn.release(); }
 });
 
-router.delete('/:id', (req, res) => {
-  const pesaje = db.prepare('SELECT * FROM pesajes WHERE id = ?').get(req.params.id);
-  if (!pesaje) return res.status(404).json({ error: 'Pesaje no encontrado' });
+router.delete('/:id', async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const [pesajes] = await conn.query('SELECT * FROM pesajes WHERE id = ?', [req.params.id]);
+    if (!pesajes.length) return res.status(404).json({ error: 'Pesaje no encontrado' });
+    const pesaje = pesajes[0];
 
-  const removePesaje = db.transaction(() => {
-    db.prepare('DELETE FROM pesajes WHERE id = ?').run(req.params.id);
-
-    // Recalculate peso_actual after deletion
-    const latest = db.prepare('SELECT peso_kg FROM pesajes WHERE animal_id = ? ORDER BY fecha DESC, id DESC LIMIT 1').get(pesaje.animal_id);
-    db.prepare('UPDATE animales SET peso_actual = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(latest ? latest.peso_kg : null, pesaje.animal_id);
-  });
-
-  removePesaje();
-  res.json({ message: 'Pesaje eliminado' });
+    await conn.beginTransaction();
+    await conn.query('DELETE FROM pesajes WHERE id = ?', [req.params.id]);
+    const [latest] = await conn.query('SELECT peso_kg FROM pesajes WHERE animal_id = ? ORDER BY fecha DESC, id DESC LIMIT 1', [pesaje.animal_id]);
+    await conn.query('UPDATE animales SET peso_actual = ? WHERE id = ?', [latest.length ? latest[0].peso_kg : null, pesaje.animal_id]);
+    await conn.commit();
+    res.json({ message: 'Pesaje eliminado' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ error: err.message });
+  } finally { conn.release(); }
 });
 
 module.exports = router;
