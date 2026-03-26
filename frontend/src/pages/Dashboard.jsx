@@ -141,14 +141,15 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {topGDP.map((g, i) => {
-                  const gdpClass = g.gdp > 0.8 ? 'gdp-good' : g.gdp >= 0.5 ? 'gdp-mid' : 'gdp-low';
+                  const gdp = parseFloat(g.gdp) || 0;
+                  const gdpClass = gdp > 0.8 ? 'gdp-good' : gdp >= 0.5 ? 'gdp-mid' : 'gdp-low';
                   return (
                     <tr key={i}>
-                      <td><Link to={`/animales/${g.animal_id}`}>{g.numero_trazabilidad}</Link></td>
-                      <td>{g.peso_nacimiento ? `${g.peso_nacimiento}` : '-'}</td>
-                      <td>{g.peso_actual ? `${g.peso_actual}` : '-'}</td>
-                      <td>{g.dias || '-'}</td>
-                      <td><span className={gdpClass}>{g.gdp ? g.gdp.toFixed(3) : '-'}</span></td>
+                      <td><Link to={`/animales/${g.id}`}>{g.numero_trazabilidad} {g.nombre && `(${g.nombre})`}</Link></td>
+                      <td>{g.peso_nacimiento || '-'}</td>
+                      <td>{g.peso_actual || '-'}</td>
+                      <td>{g.dias_vida || '-'}</td>
+                      <td><span className={gdpClass}>{gdp ? gdp.toFixed(3) : '-'}</span></td>
                     </tr>
                   );
                 })}
