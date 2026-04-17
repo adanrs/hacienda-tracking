@@ -84,8 +84,9 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
+  const validColumns = ['numero_trazabilidad', 'nombre', 'tipo', 'raza', 'sexo', 'fecha_nacimiento', 'peso_nacimiento', 'peso_actual', 'color', 'marca_hierro', 'estado', 'madre_id', 'padre_id', 'potrero_id', 'foto_url', 'notas'];
   const fields = req.body;
-  const keys = Object.keys(fields).filter(k => k !== 'id');
+  const keys = Object.keys(fields).filter(k => validColumns.includes(k));
   if (!keys.length) return res.status(400).json({ error: 'No hay campos para actualizar' });
 
   const sets = keys.map(k => `${k} = ?`).join(', ');
@@ -180,6 +181,62 @@ router.get('/:id/timeline', async (req, res) => {
         tipo: 'corte',
         descripcion: `Corte ${c.tipo_corte}: ${c.peso_kg} kg - Calidad: ${c.calidad}`,
         data: c
+      });
+    }
+
+    const [deshuese] = await pool.query('SELECT * FROM deshuese WHERE animal_id = ? ORDER BY fecha ASC', [animalId]);
+    for (const d of deshuese) {
+      events.push({
+        fecha: d.fecha,
+        tipo: 'deshuese',
+        descripcion: `Deshuese lote ${d.numero_lote} - ${d.peso_entrada || 'N/A'} kg - ${d.estado}`,
+        data: d
+      });
+    }
+
+    const [primales] = await pool.query('SELECT * FROM primales WHERE animal_id = ? ORDER BY created_at ASC', [animalId]);
+    for (const p of primales) {
+      events.push({
+        fecha: p.created_at,
+        tipo: 'primal',
+        descripcion: `Primal ${p.codigo} (${p.tipo_primal}): ${p.peso_kg} kg${p.marmoleo ? ` BMS ${p.marmoleo}` : ''}`,
+        data: p
+      });
+      if (p.fecha_ingreso_custodia) {
+        events.push({
+          fecha: p.fecha_ingreso_custodia,
+          tipo: 'custodia',
+          descripcion: `Ingreso a custodia - ${p.codigo}`,
+          data: p
+        });
+      }
+      if (p.fecha_maduracion_inicio) {
+        events.push({
+          fecha: p.fecha_maduracion_inicio,
+          tipo: 'maduracion',
+          descripcion: `Inicio de maduracion - ${p.codigo}`,
+          data: p
+        });
+      }
+    }
+
+    const [porcionados] = await pool.query('SELECT * FROM porcionado WHERE animal_id = ? ORDER BY fecha ASC', [animalId]);
+    for (const p of porcionados) {
+      events.push({
+        fecha: p.fecha,
+        tipo: 'porcionado',
+        descripcion: `Porcionado - Trimming ${p.trimming_kg || 0} kg, BCH ${p.bch_kg || 0} kg`,
+        data: p
+      });
+    }
+
+    const [stickers] = await pool.query('SELECT * FROM stickers WHERE animal_id = ? ORDER BY created_at ASC', [animalId]);
+    for (const s of stickers) {
+      events.push({
+        fecha: s.fecha_empaque || s.created_at,
+        tipo: 'sticker',
+        descripcion: `Sticker ${s.codigo_barras} - ${s.tipo_corte}: ${s.peso_kg} kg`,
+        data: s
       });
     }
 

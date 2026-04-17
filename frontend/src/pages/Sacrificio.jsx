@@ -81,6 +81,7 @@ export default function Sacrificio() {
                 <th>Peso Canal Caliente</th>
                 <th>Peso Canal Frio</th>
                 <th>Rendimiento</th>
+                <th>Marmoleo</th>
                 <th>Inspector</th>
                 <th>Resultado</th>
                 <th>Acciones</th>
@@ -97,6 +98,7 @@ export default function Sacrificio() {
                     <td>{s.peso_canal_caliente ? `${s.peso_canal_caliente} kg` : '-'}</td>
                     <td>{s.peso_canal_frio ? `${s.peso_canal_frio} kg` : '-'}</td>
                     <td>{rend ? <span className={rendimientoClass(parseFloat(rend))}>{rend}%</span> : '-'}</td>
+                    <td>{s.marmoleo ? <span className="badge badge-blue">BMS {s.marmoleo}</span> : '-'}</td>
                     <td>{s.inspector || '-'}</td>
                     <td><span className={`badge ${resultadoBadge[s.resultado_inspeccion] || 'badge-gray'}`}>{s.resultado_inspeccion || '-'}</span></td>
                     <td>
@@ -107,7 +109,7 @@ export default function Sacrificio() {
                   </tr>
                 );
               })}
-              {sacrificios.length === 0 && <tr><td colSpan={9} className="empty-state">No se encontraron sacrificios</td></tr>}
+              {sacrificios.length === 0 && <tr><td colSpan={10} className="empty-state">No se encontraron sacrificios</td></tr>}
             </tbody>
           </table>
         </div>
@@ -147,6 +149,16 @@ export default function Sacrificio() {
                 <div className="form-group">
                   <label>Peso Canal Frio (kg)</label>
                   <input type="number" step="0.1" value={form.peso_canal_frio || ''} onChange={e => setForm({ ...form, peso_canal_frio: parseFloat(e.target.value) || '' })} />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Marmoleo (BMS 1-12)</label>
+                  <input type="number" min="1" max="12" value={form.marmoleo || ''} onChange={e => setForm({ ...form, marmoleo: parseInt(e.target.value) || '' })} placeholder="Escala BMS japonesa" />
+                </div>
+                <div className="form-group">
+                  <label>Fecha de Colgado (canal caliente)</label>
+                  <input type="datetime-local" value={form.fecha_colgado || ''} onChange={e => setForm({ ...form, fecha_colgado: e.target.value })} />
                 </div>
               </div>
               {liveRendimiento !== null && (

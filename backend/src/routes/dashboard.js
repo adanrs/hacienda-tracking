@@ -51,10 +51,38 @@ router.get('/', async (req, res) => {
       ORDER BY gdp DESC LIMIT 20
     `);
 
+    const [[{ total: primalesEnCustodia }]] = await pool.query("SELECT COUNT(*) as total FROM primales WHERE estado IN ('en_custodia','en_maduracion')");
+    const [[{ total: deshueseAbiertos }]] = await pool.query("SELECT COUNT(*) as total FROM deshuese WHERE estado = 'abierto'");
+    const [[{ total: ordenesPendientes }]] = await pool.query("SELECT COUNT(*) as total FROM ordenes_salida WHERE estado IN ('pendiente','en_preparacion')");
+    const [[{ total: devolucionesSinReprocesar }]] = await pool.query("SELECT COUNT(*) as total FROM devoluciones WHERE reprocesado = 0");
+
+    const [maduracionAlertas] = await pool.query(`
+      SELECT p.id, p.codigo, p.tipo_primal, p.marmoleo, p.fecha_maduracion_inicio,
+        DATEDIFF(NOW(), p.fecha_maduracion_inicio) as dias_maduracion,
+        a.numero_trazabilidad,
+        CASE
+          WHEN DATEDIFF(NOW(), p.fecha_maduracion_inicio) >= 30 THEN 'vencido'
+          WHEN DATEDIFF(NOW(), p.fecha_maduracion_inicio) >= 28 THEN 'urgente'
+          WHEN DATEDIFF(NOW(), p.fecha_maduracion_inicio) >= 21 THEN 'proximo'
+          ELSE 'normal'
+        END as nivel
+      FROM primales p
+      JOIN animales a ON p.animal_id = a.id
+      WHERE p.estado = 'en_maduracion' AND p.fecha_maduracion_inicio IS NOT NULL
+        AND DATEDIFF(NOW(), p.fecha_maduracion_inicio) >= 21
+      ORDER BY dias_maduracion DESC
+      LIMIT 20
+    `);
+
     res.json({
-      resumen: { totalAnimales, totalPotreros, gestacionesActivas: gestacionesActivas.length, nacimientosMes },
+      resumen: {
+        totalAnimales, totalPotreros, gestacionesActivas: gestacionesActivas.length, nacimientosMes,
+        primalesEnCustodia, deshueseAbiertos, ordenesPendientes, devolucionesSinReprocesar,
+        maduracionAlertasCount: maduracionAlertas.length
+      },
       porSexo, porRaza, porPotrero,
-      pesajesRecientes, eventosProximos, gestacionesActivas, topGDP
+      pesajesRecientes, eventosProximos, gestacionesActivas, topGDP,
+      maduracionAlertas
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

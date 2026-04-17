@@ -8,8 +8,8 @@ import { CowWeightIndicator } from '../components/CowIcon';
 
 const estadoBadge = { activo: 'badge-green', vendido: 'badge-blue', muerto: 'badge-red', trasladado: 'badge-yellow' };
 const saludBadge = { vacunacion: 'badge-green', desparasitacion: 'badge-blue', tratamiento: 'badge-yellow', cirugia: 'badge-red', examen: 'badge-gray', otro: 'badge-gray' };
-const timelineDotColor = { pesaje: '#16a34a', vacunacion: '#2563eb', movimiento: '#f59e0b', sacrificio: '#dc2626', corte: '#7c3aed', transporte: '#ea580c' };
-const timelineBadgeClass = { pesaje: 'badge-green', vacunacion: 'badge-blue', movimiento: 'badge-yellow', sacrificio: 'badge-red', corte: 'badge-purple', transporte: 'badge-orange' };
+const timelineDotColor = { pesaje: '#16a34a', vacunacion: '#2563eb', movimiento: '#f59e0b', sacrificio: '#dc2626', corte: '#7c3aed', transporte: '#ea580c', deshuese: '#0891b2', primal: '#0ea5e9', custodia: '#64748b', maduracion: '#ca8a04', porcionado: '#be185d', sticker: '#94a3b8' };
+const timelineBadgeClass = { pesaje: 'badge-green', vacunacion: 'badge-blue', movimiento: 'badge-yellow', sacrificio: 'badge-red', corte: 'badge-purple', transporte: 'badge-orange', deshuese: 'badge-blue', primal: 'badge-blue', custodia: 'badge-gray', maduracion: 'badge-yellow', porcionado: 'badge-purple', sticker: 'badge-gray' };
 
 export default function AnimalDetalle() {
   const { id } = useParams();

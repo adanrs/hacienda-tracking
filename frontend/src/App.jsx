@@ -1,5 +1,5 @@
 import { Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Bug as Cow, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Scissors } from 'lucide-react';
+import { LayoutDashboard, Bug as Cow, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Scissors, Package, Snowflake, Clock, Boxes, FileOutput, RotateCcw, Barcode } from 'lucide-react';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { CowWalking } from './components/CowIcon';
 import Login from './pages/Login';
@@ -15,6 +15,14 @@ import Usuarios from './pages/Usuarios';
 import Transporte from './pages/Transporte';
 import Sacrificio from './pages/Sacrificio';
 import Cortes from './pages/Cortes';
+import Deshuese from './pages/Deshuese';
+import Bodegas from './pages/Bodegas';
+import Custodia from './pages/Custodia';
+import Maduracion from './pages/Maduracion';
+import Porcionado from './pages/Porcionado';
+import Cajas from './pages/Cajas';
+import OrdenesSalida from './pages/OrdenesSalida';
+import Devoluciones from './pages/Devoluciones';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -26,7 +34,15 @@ const navItems = [
   { to: '/potreros', icon: MapPin, label: 'Potreros' },
   { to: '/transporte', icon: Truck, label: 'Transporte' },
   { to: '/sacrificio', icon: Warehouse, label: 'Sacrificio' },
+  { to: '/deshuese', icon: Scissors, label: 'Deshuese' },
+  { to: '/custodia', icon: Package, label: 'Custodia' },
+  { to: '/maduracion', icon: Clock, label: 'Maduracion' },
+  { to: '/porcionado', icon: Boxes, label: 'Porcionado' },
   { to: '/cortes', icon: Scissors, label: 'Cortes' },
+  { to: '/cajas', icon: Barcode, label: 'Cajas' },
+  { to: '/ordenes-salida', icon: FileOutput, label: 'Ordenes' },
+  { to: '/devoluciones', icon: RotateCcw, label: 'Devoluciones' },
+  { to: '/bodegas', icon: Snowflake, label: 'Bodegas' },
 ];
 
 function ProtectedRoute({ children }) {
@@ -106,7 +122,15 @@ function AppLayout() {
           <Route path="/potreros" element={<Potreros />} />
           <Route path="/transporte" element={<Transporte />} />
           <Route path="/sacrificio" element={<Sacrificio />} />
+          <Route path="/deshuese" element={<Deshuese />} />
+          <Route path="/custodia" element={<Custodia />} />
+          <Route path="/maduracion" element={<Maduracion />} />
+          <Route path="/porcionado" element={<Porcionado />} />
           <Route path="/cortes" element={<Cortes />} />
+          <Route path="/cajas" element={<Cajas />} />
+          <Route path="/ordenes-salida" element={<OrdenesSalida />} />
+          <Route path="/devoluciones" element={<Devoluciones />} />
+          <Route path="/bodegas" element={<Bodegas />} />
           <Route path="/usuarios" element={<Usuarios />} />
         </Routes>
       </main>

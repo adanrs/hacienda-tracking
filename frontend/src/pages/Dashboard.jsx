@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Bug as Cow, MapPin, Baby, Calendar, AlertTriangle } from 'lucide-react';
+import { Bug as Cow, MapPin, Baby, Calendar, AlertTriangle, Clock, Package, FileOutput, RotateCcw } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { api } from '../services/api';
 import { formatDate } from '../components/DateFormat';
@@ -19,7 +19,9 @@ export default function Dashboard() {
   if (loading) return <div className="empty-state"><CowWalking size={64} /><p style={{ marginTop: 12 }}>Cargando dashboard...</p></div>;
   if (!data) return <div className="empty-state">Error al cargar datos</div>;
 
-  const { resumen, porSexo, porRaza, porPotrero, pesajesRecientes, eventosProximos, gestacionesActivas, topGDP } = data;
+  const { resumen, porSexo, porRaza, porPotrero, pesajesRecientes, eventosProximos, gestacionesActivas, topGDP, maduracionAlertas = [] } = data;
+  const vencidos = maduracionAlertas.filter(m => m.nivel === 'vencido');
+  const urgentes = maduracionAlertas.filter(m => m.nivel === 'urgente');
 
   return (
     <div>
@@ -57,6 +59,71 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      <div className="stats-grid" style={{ marginTop: 16 }}>
+        <Link to="/custodia" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="stat-icon blue"><Package size={24} /></div>
+          <div>
+            <div className="stat-value">{resumen.primalesEnCustodia ?? 0}</div>
+            <div className="stat-label">Primales en Custodia</div>
+          </div>
+        </Link>
+        <Link to="/maduracion" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="stat-icon yellow"><Clock size={24} /></div>
+          <div>
+            <div className="stat-value" style={{ color: vencidos.length > 0 ? '#dc2626' : undefined }}>{resumen.maduracionAlertasCount ?? 0}</div>
+            <div className="stat-label">Alertas Maduracion</div>
+          </div>
+        </Link>
+        <Link to="/ordenes-salida" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="stat-icon green"><FileOutput size={24} /></div>
+          <div>
+            <div className="stat-value">{resumen.ordenesPendientes ?? 0}</div>
+            <div className="stat-label">Ordenes Pendientes</div>
+          </div>
+        </Link>
+        <Link to="/devoluciones" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="stat-icon red"><RotateCcw size={24} /></div>
+          <div>
+            <div className="stat-value">{resumen.devolucionesSinReprocesar ?? 0}</div>
+            <div className="stat-label">Devoluciones Sin Reprocesar</div>
+          </div>
+        </Link>
+      </div>
+
+      {maduracionAlertas.length > 0 && (
+        <div className="card" style={{ marginTop: 16, borderLeft: `4px solid ${vencidos.length ? '#dc2626' : urgentes.length ? '#f59e0b' : '#eab308'}` }}>
+          <div className="card-header">
+            <h3>
+              <AlertTriangle size={18} color={vencidos.length ? '#dc2626' : '#f59e0b'} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+              Alertas de Maduracion ({maduracionAlertas.length})
+            </h3>
+            <Link to="/maduracion" style={{ fontSize: '0.85rem' }}>Ver todos</Link>
+          </div>
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr><th>Codigo</th><th>Animal</th><th>Tipo</th><th>Marmoleo</th><th>Dias</th><th>Nivel</th></tr>
+              </thead>
+              <tbody>
+                {maduracionAlertas.slice(0, 10).map(m => {
+                  const nivelBadge = m.nivel === 'vencido' ? 'badge-red' : m.nivel === 'urgente' ? 'badge-yellow' : 'badge-blue';
+                  return (
+                    <tr key={m.id}>
+                      <td><code>{m.codigo}</code></td>
+                      <td><Link to={`/animales/${m.animal_id || ''}`}>{m.numero_trazabilidad}</Link></td>
+                      <td>{m.tipo_primal}</td>
+                      <td>{m.marmoleo ? `BMS ${m.marmoleo}` : '-'}</td>
+                      <td><strong style={{ color: m.nivel === 'vencido' ? '#dc2626' : m.nivel === 'urgente' ? '#f59e0b' : '#0ea5e9' }}>{m.dias_maduracion}</strong></td>
+                      <td><span className={`badge ${nivelBadge}`}>{m.nivel}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="grid-2">
         <div className="card">

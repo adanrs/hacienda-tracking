@@ -105,4 +105,72 @@ export const api = {
 
   // Timeline
   getTimeline: (animalId) => request(`/animales/${animalId}/timeline`),
+
+  // Bodegas
+  getBodegas: () => request('/bodegas'),
+  createBodega: (data) => request('/bodegas', { method: 'POST', body: JSON.stringify(data) }),
+  updateBodega: (id, data) => request(`/bodegas/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteBodega: (id) => request(`/bodegas/${id}`, { method: 'DELETE' }),
+
+  // Deshuese
+  getDeshuese: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/deshuese${qs ? '?' + qs : ''}`); },
+  getDeshueseOne: (id) => request(`/deshuese/${id}`),
+  createDeshuese: (data) => request('/deshuese', { method: 'POST', body: JSON.stringify(data) }),
+  updateDeshuese: (id, data) => request(`/deshuese/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteDeshuese: (id) => request(`/deshuese/${id}`, { method: 'DELETE' }),
+  uploadDeshuesePdf: async (id, file) => {
+    const fd = new FormData();
+    fd.append('pdf', file);
+    const token = localStorage.getItem('token');
+    const API_BASE = import.meta.env.VITE_API_URL || '/api';
+    const res = await fetch(`${API_BASE}/deshuese/${id}/pdf`, { method: 'POST', body: fd, headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Error al subir PDF');
+    return res.json();
+  },
+
+  // Primales
+  getPrimales: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/primales${qs ? '?' + qs : ''}`); },
+  getPrimal: (id) => request(`/primales/${id}`),
+  createPrimal: (data) => request('/primales', { method: 'POST', body: JSON.stringify(data) }),
+  updatePrimal: (id, data) => request(`/primales/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deletePrimal: (id) => request(`/primales/${id}`, { method: 'DELETE' }),
+
+  // Custodia
+  getCustodia: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/custodia${qs ? '?' + qs : ''}`); },
+  recibirCustodia: (data) => request('/custodia/recibir', { method: 'POST', body: JSON.stringify(data) }),
+  moverBodega: (data) => request('/custodia/mover', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Maduracion
+  getMaduracion: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/maduracion${qs ? '?' + qs : ''}`); },
+  getAlertasMaduracion: () => request('/maduracion/alertas'),
+  iniciarMaduracion: (primal_id) => request('/maduracion/iniciar', { method: 'POST', body: JSON.stringify({ primal_id }) }),
+
+  // Porcionado
+  getPorcionado: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/porcionado${qs ? '?' + qs : ''}`); },
+  createPorcionado: (data) => request('/porcionado', { method: 'POST', body: JSON.stringify(data) }),
+  deletePorcionado: (id) => request(`/porcionado/${id}`, { method: 'DELETE' }),
+
+  // Cajas
+  getCajas: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/cajas${qs ? '?' + qs : ''}`); },
+  getCaja: (id) => request(`/cajas/${id}`),
+  createCaja: (data) => request('/cajas', { method: 'POST', body: JSON.stringify(data) }),
+  updateCaja: (id, data) => request(`/cajas/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  cerrarCaja: (id) => request(`/cajas/${id}/cerrar`, { method: 'POST' }),
+
+  // Stickers
+  getStickers: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/stickers${qs ? '?' + qs : ''}`); },
+  createSticker: (data) => request('/stickers', { method: 'POST', body: JSON.stringify(data) }),
+  scanSticker: (codigo_barras) => request('/stickers/scan', { method: 'POST', body: JSON.stringify({ codigo_barras }) }),
+
+  // Ordenes de salida
+  getOrdenesSalida: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/ordenes-salida${qs ? '?' + qs : ''}`); },
+  getOrdenSalida: (id) => request(`/ordenes-salida/${id}`),
+  createOrdenSalida: (data) => request('/ordenes-salida', { method: 'POST', body: JSON.stringify(data) }),
+  updateOrdenSalida: (id, data) => request(`/ordenes-salida/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  despacharOrden: (id) => request(`/ordenes-salida/${id}/despachar`, { method: 'POST' }),
+
+  // Devoluciones
+  getDevoluciones: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/devoluciones${qs ? '?' + qs : ''}`); },
+  createDevolucion: (data) => request('/devoluciones', { method: 'POST', body: JSON.stringify(data) }),
+  marcarReprocesada: (id) => request(`/devoluciones/${id}/reprocesar`, { method: 'POST' }),
 };

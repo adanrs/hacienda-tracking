@@ -50,6 +50,16 @@ app.use('/api/dashboard', authMiddleware, require('./routes/dashboard'));
 app.use('/api/transporte', authMiddleware, require('./routes/transporte'));
 app.use('/api/sacrificio', authMiddleware, require('./routes/sacrificio'));
 app.use('/api/cortes', authMiddleware, require('./routes/cortes'));
+app.use('/api/bodegas', authMiddleware, require('./routes/bodegas'));
+app.use('/api/deshuese', authMiddleware, require('./routes/deshuese'));
+app.use('/api/primales', authMiddleware, require('./routes/primales'));
+app.use('/api/custodia', authMiddleware, require('./routes/custodia'));
+app.use('/api/maduracion', authMiddleware, require('./routes/maduracion'));
+app.use('/api/porcionado', authMiddleware, require('./routes/porcionado'));
+app.use('/api/cajas', authMiddleware, require('./routes/cajas'));
+app.use('/api/stickers', authMiddleware, require('./routes/stickers'));
+app.use('/api/ordenes-salida', authMiddleware, require('./routes/ordenes-salida'));
+app.use('/api/devoluciones', authMiddleware, require('./routes/devoluciones'));
 
 // Start with DB init
 async function start() {
