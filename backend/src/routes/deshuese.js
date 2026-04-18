@@ -159,6 +159,46 @@ router.delete('/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+router.put('/:id/primales', async (req, res) => {
+  const { primales = [], reprorratear } = req.body;
+  if (!Array.isArray(primales) || !primales.length) {
+    return res.status(400).json({ error: 'primales (array) requerido' });
+  }
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [deshueseRow] = await conn.query('SELECT * FROM deshuese WHERE id = ?', [req.params.id]);
+    if (!deshueseRow.length) { await conn.rollback(); return res.status(404).json({ error: 'Deshuese no encontrado' }); }
+    const isAdmin = req.user && req.user.rol === 'admin';
+    if (deshueseRow[0].estado === 'cerrado' && !isAdmin) {
+      await conn.rollback();
+      return res.status(403).json({ error: 'Deshuese cerrado: solo admin puede modificar prorrateo' });
+    }
+
+    const peso_entrada = parseFloat(deshueseRow[0].peso_entrada || 0);
+    let totalPeso = 0;
+    for (const p of primales) totalPeso += parseFloat(p.peso_kg || 0);
+
+    for (const p of primales) {
+      if (!p.id) continue;
+      let peso_prorrateado = p.peso_prorrateado != null ? parseFloat(p.peso_prorrateado) : null;
+      if (reprorratear && peso_entrada > 0 && totalPeso > 0) {
+        peso_prorrateado = parseFloat(((parseFloat(p.peso_kg) / totalPeso) * peso_entrada).toFixed(3));
+      }
+      await conn.query(`
+        UPDATE primales SET peso_kg = ?, peso_prorrateado = ?, marmoleo = ?, tipo_primal = ?
+        WHERE id = ? AND deshuese_id = ?
+      `, [p.peso_kg, peso_prorrateado, p.marmoleo || null, p.tipo_primal, p.id, req.params.id]);
+    }
+    await conn.commit();
+    const [pris] = await pool.query('SELECT * FROM primales WHERE deshuese_id = ? ORDER BY id ASC', [req.params.id]);
+    res.json({ primales: pris });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ error: err.message });
+  } finally { conn.release(); }
+});
+
 router.post('/:id/pdf', (req, res) => {
   upload.single('pdf')(req, res, async (err) => {
     if (err) return res.status(400).json({ error: err.message });

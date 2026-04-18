@@ -151,15 +151,23 @@ export default function Sacrificio() {
                   <input type="number" step="0.1" value={form.peso_canal_frio || ''} onChange={e => setForm({ ...form, peso_canal_frio: parseFloat(e.target.value) || '' })} />
                 </div>
               </div>
-              <div className="form-row">
+              <div className="form-row-3">
                 <div className="form-group">
                   <label>Marmoleo (BMS 1-12)</label>
-                  <input type="number" min="1" max="12" value={form.marmoleo || ''} onChange={e => setForm({ ...form, marmoleo: parseInt(e.target.value) || '' })} placeholder="Escala BMS japonesa" />
+                  <input type="number" min="1" max="12" value={form.marmoleo || ''} onChange={e => setForm({ ...form, marmoleo: parseInt(e.target.value) || '' })} placeholder="Se mide 24-48h post-sacrificio" />
                 </div>
                 <div className="form-group">
-                  <label>Fecha de Colgado (canal caliente)</label>
-                  <input type="datetime-local" value={form.fecha_colgado || ''} onChange={e => setForm({ ...form, fecha_colgado: e.target.value })} />
+                  <label>Ojo de Ribeye (cm²)</label>
+                  <input type="number" step="0.01" value={form.ojo_ribeye_cm2 || ''} onChange={e => setForm({ ...form, ojo_ribeye_cm2: parseFloat(e.target.value) || '' })} placeholder="Opcional" />
                 </div>
+                <div className="form-group">
+                  <label>Fecha Medición MBS</label>
+                  <input type="datetime-local" value={form.fecha_marmoleo || ''} onChange={e => setForm({ ...form, fecha_marmoleo: e.target.value })} />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Fecha de Colgado (canal caliente)</label>
+                <input type="datetime-local" value={form.fecha_colgado || ''} onChange={e => setForm({ ...form, fecha_colgado: e.target.value })} />
               </div>
               {liveRendimiento !== null && (
                 <div style={{ padding: '8px 12px', background: '#f0fdf4', borderRadius: 8, marginBottom: 16, textAlign: 'center' }}>

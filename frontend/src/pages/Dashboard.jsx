@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Bug as Cow, MapPin, Baby, Calendar, AlertTriangle, Clock, Package, FileOutput, RotateCcw } from 'lucide-react';
+import { Bug as Cow, MapPin, Baby, Calendar, AlertTriangle, Clock, Package, FileOutput, FileInput, RotateCcw, Utensils } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { api } from '../services/api';
 import { formatDate } from '../components/DateFormat';
@@ -20,6 +20,7 @@ export default function Dashboard() {
   if (!data) return <div className="empty-state">Error al cargar datos</div>;
 
   const { resumen, porSexo, porRaza, porPotrero, pesajesRecientes, eventosProximos, gestacionesActivas, topGDP, maduracionAlertas = [] } = data;
+  const olvidados = maduracionAlertas.filter(m => m.nivel === 'olvidado');
   const vencidos = maduracionAlertas.filter(m => m.nivel === 'vencido');
   const urgentes = maduracionAlertas.filter(m => m.nivel === 'urgente');
 
@@ -87,6 +88,30 @@ export default function Dashboard() {
           <div>
             <div className="stat-value">{resumen.devolucionesSinReprocesar ?? 0}</div>
             <div className="stat-label">Devoluciones Sin Reprocesar</div>
+          </div>
+        </Link>
+      </div>
+
+      <div className="stats-grid" style={{ marginTop: 16 }}>
+        <Link to="/maduracion" className="stat-card" style={{ textDecoration: 'none', color: 'inherit', borderLeft: olvidados.length > 0 ? '4px solid #7f1d1d' : undefined }}>
+          <div className="stat-icon red"><AlertTriangle size={24} /></div>
+          <div>
+            <div className="stat-value" style={{ color: olvidados.length > 0 ? '#7f1d1d' : undefined }}>{resumen.olvidadosCount ?? 0}</div>
+            <div className="stat-label">Primales Olvidados (&gt;45d)</div>
+          </div>
+        </Link>
+        <Link to="/paqueteria" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="stat-icon yellow"><Utensils size={24} /></div>
+          <div>
+            <div className="stat-value">{resumen.paqueteriaEnProceso ?? 0}</div>
+            <div className="stat-label">Paquetería en Proceso</div>
+          </div>
+        </Link>
+        <Link to="/ordenes-entrada" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="stat-icon blue"><FileInput size={24} /></div>
+          <div>
+            <div className="stat-value">{resumen.ordenesEntradaPendientes ?? 0}</div>
+            <div className="stat-label">Ord. Entrada Pendientes</div>
           </div>
         </Link>
       </div>

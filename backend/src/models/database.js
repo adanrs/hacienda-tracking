@@ -186,6 +186,8 @@ async function initDB() {
 
     try { await conn.query(`ALTER TABLE sacrificios ADD COLUMN marmoleo INT AFTER rendimiento_canal`); } catch (e) {}
     try { await conn.query(`ALTER TABLE sacrificios ADD COLUMN fecha_colgado DATETIME AFTER marmoleo`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE sacrificios ADD COLUMN ojo_ribeye_cm2 DECIMAL(6,2) AFTER marmoleo`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE sacrificios ADD COLUMN fecha_marmoleo DATETIME AFTER ojo_ribeye_cm2`); } catch (e) {}
 
     await conn.query(`
       CREATE TABLE IF NOT EXISTS cortes (
@@ -418,6 +420,85 @@ async function initDB() {
         FOREIGN KEY (primal_id) REFERENCES primales(id) ON DELETE SET NULL
       )
     `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS productos_paqueteria (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        numero_lote VARCHAR(50) UNIQUE NOT NULL,
+        tipo_producto ENUM('carne_molida','chorizo','tortas','hamburguesa','otro') NOT NULL,
+        fecha DATETIME NOT NULL,
+        peso_entrada_kg DECIMAL(10,3) NOT NULL,
+        peso_final_kg DECIMAL(10,3),
+        rendimiento_pct DECIMAL(5,2),
+        aditivos_kg DECIMAL(8,3) DEFAULT 0,
+        responsable VARCHAR(200),
+        estado ENUM('en_proceso','terminado','despachado') DEFAULT 'en_proceso',
+        notas TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_lote (numero_lote),
+        INDEX idx_tipo (tipo_producto)
+      )
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS paqueteria_fuentes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        paqueteria_id INT NOT NULL,
+        animal_id INT NOT NULL,
+        origen ENUM('trim','bch','porcionado_trim','porcionado_bch','otro') NOT NULL,
+        peso_kg DECIMAL(8,3) NOT NULL,
+        porcionado_id INT,
+        deshuese_id INT,
+        proporcion_pct DECIMAL(5,2),
+        notas TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (paqueteria_id) REFERENCES productos_paqueteria(id) ON DELETE CASCADE,
+        FOREIGN KEY (animal_id) REFERENCES animales(id) ON DELETE CASCADE,
+        FOREIGN KEY (porcionado_id) REFERENCES porcionado(id) ON DELETE SET NULL,
+        FOREIGN KEY (deshuese_id) REFERENCES deshuese(id) ON DELETE SET NULL,
+        INDEX idx_paqueteria (paqueteria_id),
+        INDEX idx_animal (animal_id)
+      )
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS ordenes_entrada (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        numero VARCHAR(50) UNIQUE NOT NULL,
+        fecha DATETIME NOT NULL,
+        origen VARCHAR(300),
+        bodega_destino_id INT,
+        estado ENUM('pendiente','recibida','cancelada') DEFAULT 'pendiente',
+        responsable VARCHAR(200),
+        fecha_recepcion DATETIME,
+        notas TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (bodega_destino_id) REFERENCES bodegas(id) ON DELETE SET NULL
+      )
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS ordenes_entrada_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        orden_id INT NOT NULL,
+        primal_id INT,
+        caja_id INT,
+        cantidad INT DEFAULT 1,
+        peso_esperado_kg DECIMAL(8,3),
+        peso_recibido_kg DECIMAL(8,3),
+        recibido TINYINT DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (orden_id) REFERENCES ordenes_entrada(id) ON DELETE CASCADE,
+        FOREIGN KEY (primal_id) REFERENCES primales(id) ON DELETE SET NULL,
+        FOREIGN KEY (caja_id) REFERENCES cajas(id) ON DELETE SET NULL,
+        INDEX idx_orden (orden_id)
+      )
+    `);
+
+    try { await conn.query(`ALTER TABLE movimientos_bodega MODIFY COLUMN tipo ENUM('ingreso_custodia','paso_maduracion','salida_porcionado','devolucion','recepcion_entrada','otro') NOT NULL`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE movimientos_bodega ADD COLUMN orden_entrada_id INT AFTER orden_salida_id`); } catch (e) {}
 
     const [bodegasExist] = await conn.query('SELECT COUNT(*) as c FROM bodegas');
     if (bodegasExist[0].c === 0) {

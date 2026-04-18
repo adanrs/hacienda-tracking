@@ -25,6 +25,7 @@ router.get('/alertas', async (req, res) => {
         DATEDIFF(NOW(), p.fecha_maduracion_inicio) AS dias_maduracion,
         a.numero_trazabilidad,
         CASE
+          WHEN DATEDIFF(NOW(), p.fecha_maduracion_inicio) >= 45 THEN 'olvidado'
           WHEN DATEDIFF(NOW(), p.fecha_maduracion_inicio) >= 30 THEN 'vencido'
           WHEN DATEDIFF(NOW(), p.fecha_maduracion_inicio) >= 28 THEN 'urgente'
           ELSE 'proximo'
@@ -37,6 +38,15 @@ router.get('/alertas', async (req, res) => {
     `);
     res.json(rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/config', async (req, res) => {
+  res.json({
+    umbral_listo: 21,
+    umbral_urgente: 28,
+    umbral_vencido: 30,
+    umbral_olvidado: 45,
+  });
 });
 
 router.post('/iniciar', async (req, res) => {

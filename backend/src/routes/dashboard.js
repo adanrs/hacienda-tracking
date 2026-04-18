@@ -61,6 +61,7 @@ router.get('/', async (req, res) => {
         DATEDIFF(NOW(), p.fecha_maduracion_inicio) as dias_maduracion,
         a.numero_trazabilidad,
         CASE
+          WHEN DATEDIFF(NOW(), p.fecha_maduracion_inicio) >= 45 THEN 'olvidado'
           WHEN DATEDIFF(NOW(), p.fecha_maduracion_inicio) >= 30 THEN 'vencido'
           WHEN DATEDIFF(NOW(), p.fecha_maduracion_inicio) >= 28 THEN 'urgente'
           WHEN DATEDIFF(NOW(), p.fecha_maduracion_inicio) >= 21 THEN 'proximo'
@@ -74,11 +75,16 @@ router.get('/', async (req, res) => {
       LIMIT 20
     `);
 
+    const [[{ total: paqueteriaEnProceso }]] = await pool.query("SELECT COUNT(*) as total FROM productos_paqueteria WHERE estado = 'en_proceso'");
+    const [[{ total: ordenesEntradaPendientes }]] = await pool.query("SELECT COUNT(*) as total FROM ordenes_entrada WHERE estado = 'pendiente'");
+    const olvidadosCount = maduracionAlertas.filter(a => a.nivel === 'olvidado').length;
+
     res.json({
       resumen: {
         totalAnimales, totalPotreros, gestacionesActivas: gestacionesActivas.length, nacimientosMes,
         primalesEnCustodia, deshueseAbiertos, ordenesPendientes, devolucionesSinReprocesar,
-        maduracionAlertasCount: maduracionAlertas.length
+        maduracionAlertasCount: maduracionAlertas.length,
+        olvidadosCount, paqueteriaEnProceso, ordenesEntradaPendientes
       },
       porSexo, porRaza, porPotrero,
       pesajesRecientes, eventosProximos, gestacionesActivas, topGDP,

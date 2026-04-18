@@ -103,8 +103,24 @@ router.post('/:id/despachar', async (req, res) => {
     const [ordenRows] = await conn.query('SELECT * FROM ordenes_salida WHERE id = ?', [req.params.id]);
     if (!ordenRows.length) { await conn.rollback(); return res.status(404).json({ error: 'Orden no encontrada' }); }
     const orden = ordenRows[0];
-    await conn.query("UPDATE ordenes_salida SET estado = 'despachada' WHERE id = ?", [req.params.id]);
+
     const [items] = await conn.query('SELECT * FROM ordenes_salida_items WHERE orden_id = ?', [req.params.id]);
+    const cajasIds = items.map(it => it.caja_id).filter(Boolean);
+    if (cajasIds.length) {
+      const [cajasIncompletas] = await conn.query(
+        `SELECT codigo, estado FROM cajas WHERE id IN (${cajasIds.map(() => '?').join(',')}) AND estado NOT IN ('completa','despachada')`,
+        cajasIds
+      );
+      if (cajasIncompletas.length) {
+        await conn.rollback();
+        return res.status(400).json({
+          error: 'Solo se despachan cajas completas',
+          cajas_incompletas: cajasIncompletas.map(c => c.codigo),
+        });
+      }
+    }
+
+    await conn.query("UPDATE ordenes_salida SET estado = 'despachada' WHERE id = ?", [req.params.id]);
     for (const it of items) {
       if (it.caja_id) {
         await conn.query("UPDATE cajas SET estado = 'despachada' WHERE id = ?", [it.caja_id]);

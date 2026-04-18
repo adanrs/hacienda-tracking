@@ -1,5 +1,5 @@
 import { Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Bug as Cow, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Scissors, Package, Snowflake, Clock, Boxes, FileOutput, RotateCcw, Barcode } from 'lucide-react';
+import { LayoutDashboard, Bug as Cow, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Scissors, Package, Snowflake, Clock, Boxes, FileOutput, FileInput, RotateCcw, Barcode, Utensils } from 'lucide-react';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { CowWalking } from './components/CowIcon';
 import Login from './pages/Login';
@@ -22,7 +22,9 @@ import Maduracion from './pages/Maduracion';
 import Porcionado from './pages/Porcionado';
 import Cajas from './pages/Cajas';
 import OrdenesSalida from './pages/OrdenesSalida';
+import OrdenesEntrada from './pages/OrdenesEntrada';
 import Devoluciones from './pages/Devoluciones';
+import Paqueteria from './pages/Paqueteria';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -38,9 +40,11 @@ const navItems = [
   { to: '/custodia', icon: Package, label: 'Custodia' },
   { to: '/maduracion', icon: Clock, label: 'Maduracion' },
   { to: '/porcionado', icon: Boxes, label: 'Porcionado' },
+  { to: '/paqueteria', icon: Utensils, label: 'Paqueteria' },
   { to: '/cortes', icon: Scissors, label: 'Cortes' },
   { to: '/cajas', icon: Barcode, label: 'Cajas' },
-  { to: '/ordenes-salida', icon: FileOutput, label: 'Ordenes' },
+  { to: '/ordenes-entrada', icon: FileInput, label: 'Ord. Entrada' },
+  { to: '/ordenes-salida', icon: FileOutput, label: 'Ord. Salida' },
   { to: '/devoluciones', icon: RotateCcw, label: 'Devoluciones' },
   { to: '/bodegas', icon: Snowflake, label: 'Bodegas' },
 ];
@@ -129,6 +133,8 @@ function AppLayout() {
           <Route path="/cortes" element={<Cortes />} />
           <Route path="/cajas" element={<Cajas />} />
           <Route path="/ordenes-salida" element={<OrdenesSalida />} />
+          <Route path="/ordenes-entrada" element={<OrdenesEntrada />} />
+          <Route path="/paqueteria" element={<Paqueteria />} />
           <Route path="/devoluciones" element={<Devoluciones />} />
           <Route path="/bodegas" element={<Bodegas />} />
           <Route path="/usuarios" element={<Usuarios />} />

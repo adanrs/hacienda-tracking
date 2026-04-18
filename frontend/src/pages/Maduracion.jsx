@@ -4,7 +4,7 @@ import { AlertTriangle, Send } from 'lucide-react';
 import { api } from '../services/api';
 import { formatDate } from '../components/DateFormat';
 
-const nivelBadge = { proximo: 'badge-green', urgente: 'badge-yellow', vencido: 'badge-red' };
+const nivelBadge = { proximo: 'badge-green', urgente: 'badge-yellow', vencido: 'badge-red', olvidado: 'badge-red' };
 
 function diasDesde(fecha) {
   if (!fecha) return null;
@@ -15,6 +15,7 @@ function diasDesde(fecha) {
 
 function diasBadge(dias) {
   if (dias === null || dias === undefined) return 'badge-gray';
+  if (dias >= 45) return 'badge-red';
   if (dias >= 30) return 'badge-red';
   if (dias >= 28) return 'badge-yellow';
   if (dias >= 21) return 'badge-yellow';
@@ -22,6 +23,7 @@ function diasBadge(dias) {
 }
 
 function diasColor(dias) {
+  if (dias >= 45) return '#7f1d1d';
   if (dias >= 30) return '#dc2626';
   if (dias >= 28) return '#f97316';
   if (dias >= 21) return '#eab308';
@@ -43,7 +45,7 @@ export default function Maduracion() {
     api.getBodegas().then(setBodegas).catch(console.error);
   }, []);
 
-  const counts = { proximo: 0, urgente: 0, vencido: 0 };
+  const counts = { proximo: 0, urgente: 0, vencido: 0, olvidado: 0 };
   alertas.forEach(a => { if (counts[a.nivel] !== undefined) counts[a.nivel]++; });
 
   const bodegasPorcionado = bodegas.filter(b => b.tipo === 'porcionado');
@@ -64,37 +66,43 @@ export default function Maduracion() {
         <h2>Maduracion</h2>
       </div>
 
-      {(counts.vencido > 0 || counts.urgente > 0) && (
+      {(counts.olvidado > 0 || counts.vencido > 0 || counts.urgente > 0) && (
         <div style={{
           padding: '12px 16px', marginBottom: 16, borderRadius: 8,
-          background: counts.vencido > 0 ? '#fef2f2' : '#fffbeb',
-          border: `1px solid ${counts.vencido > 0 ? '#fecaca' : '#fde68a'}`,
-          color: counts.vencido > 0 ? '#991b1b' : '#92400e',
+          background: counts.olvidado > 0 ? '#7f1d1d' : counts.vencido > 0 ? '#fef2f2' : '#fffbeb',
+          border: `1px solid ${counts.olvidado > 0 ? '#991b1b' : counts.vencido > 0 ? '#fecaca' : '#fde68a'}`,
+          color: counts.olvidado > 0 ? '#fff' : counts.vencido > 0 ? '#991b1b' : '#92400e',
           display: 'flex', alignItems: 'center', gap: 8
         }}>
           <AlertTriangle size={18} />
           <strong>
-            {counts.vencido > 0
-              ? `${counts.vencido} primales vencidos requieren accion inmediata`
-              : `${counts.urgente} primales en estado urgente`}
+            {counts.olvidado > 0
+              ? `${counts.olvidado} primales OLVIDADOS (>45 dias sin movimiento) - revisión urgente`
+              : counts.vencido > 0
+                ? `${counts.vencido} primales vencidos requieren accion inmediata`
+                : `${counts.urgente} primales en estado urgente`}
           </strong>
         </div>
       )}
 
       <div className="card" style={{ marginBottom: 16 }}>
         <h3 style={{ marginBottom: 12 }}>Alertas de Maduracion</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
           <div style={{ textAlign: 'center', padding: 12, background: '#f0fdf4', borderRadius: 8 }}>
             <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#16a34a' }}>{counts.proximo}</div>
-            <span className="badge badge-green">Proximo</span>
+            <span className="badge badge-green">Próximo (21-27d)</span>
           </div>
           <div style={{ textAlign: 'center', padding: 12, background: '#fffbeb', borderRadius: 8 }}>
             <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#eab308' }}>{counts.urgente}</div>
-            <span className="badge badge-yellow">Urgente</span>
+            <span className="badge badge-yellow">Urgente (28-29d)</span>
           </div>
           <div style={{ textAlign: 'center', padding: 12, background: '#fef2f2', borderRadius: 8 }}>
             <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#dc2626' }}>{counts.vencido}</div>
-            <span className="badge badge-red">Vencido</span>
+            <span className="badge badge-red">Vencido (30-44d)</span>
+          </div>
+          <div style={{ textAlign: 'center', padding: 12, background: '#7f1d1d', borderRadius: 8, color: '#fff' }}>
+            <div style={{ fontSize: '1.8rem', fontWeight: 700 }}>{counts.olvidado}</div>
+            <span className="badge badge-red">Olvidado (&gt;45d)</span>
           </div>
         </div>
 

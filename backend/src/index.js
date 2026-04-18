@@ -59,7 +59,9 @@ app.use('/api/porcionado', authMiddleware, require('./routes/porcionado'));
 app.use('/api/cajas', authMiddleware, require('./routes/cajas'));
 app.use('/api/stickers', authMiddleware, require('./routes/stickers'));
 app.use('/api/ordenes-salida', authMiddleware, require('./routes/ordenes-salida'));
+app.use('/api/ordenes-entrada', authMiddleware, require('./routes/ordenes-entrada'));
 app.use('/api/devoluciones', authMiddleware, require('./routes/devoluciones'));
+app.use('/api/paqueteria', authMiddleware, require('./routes/paqueteria'));
 
 // Start with DB init
 async function start() {

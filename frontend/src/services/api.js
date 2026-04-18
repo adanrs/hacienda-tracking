@@ -173,4 +173,28 @@ export const api = {
   getDevoluciones: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/devoluciones${qs ? '?' + qs : ''}`); },
   createDevolucion: (data) => request('/devoluciones', { method: 'POST', body: JSON.stringify(data) }),
   marcarReprocesada: (id) => request(`/devoluciones/${id}/reprocesar`, { method: 'POST' }),
+
+  // Sacrificio extras
+  registrarMarmoleo: (id, data) => request(`/sacrificio/${id}/marmoleo`, { method: 'POST', body: JSON.stringify(data) }),
+
+  // Deshuese prorrateo edicion
+  updateDeshuesePrimales: (id, primales, reprorratear = false) =>
+    request(`/deshuese/${id}/primales`, { method: 'PUT', body: JSON.stringify({ primales, reprorratear }) }),
+
+  // Ordenes de entrada
+  getOrdenesEntrada: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/ordenes-entrada${qs ? '?' + qs : ''}`); },
+  getOrdenEntrada: (id) => request(`/ordenes-entrada/${id}`),
+  createOrdenEntrada: (data) => request('/ordenes-entrada', { method: 'POST', body: JSON.stringify(data) }),
+  recibirOrdenEntrada: (id, items_recibidos = []) =>
+    request(`/ordenes-entrada/${id}/recibir`, { method: 'POST', body: JSON.stringify({ items_recibidos }) }),
+  deleteOrdenEntrada: (id) => request(`/ordenes-entrada/${id}`, { method: 'DELETE' }),
+
+  // Paqueteria
+  getPaqueteria: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/paqueteria${qs ? '?' + qs : ''}`); },
+  getPaqueteriaOne: (id) => request(`/paqueteria/${id}`),
+  createPaqueteria: (data) => request('/paqueteria', { method: 'POST', body: JSON.stringify(data) }),
+  terminarPaqueteria: (id, peso_final_kg) =>
+    request(`/paqueteria/${id}/terminar`, { method: 'POST', body: JSON.stringify({ peso_final_kg }) }),
+  getPaqueteriaProrrateo: (id) => request(`/paqueteria/${id}/prorrateo`),
+  deletePaqueteria: (id) => request(`/paqueteria/${id}`, { method: 'DELETE' }),
 };
