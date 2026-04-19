@@ -145,7 +145,10 @@ export default function Deshuese() {
             <form onSubmit={save}>
               <div className="form-group">
                 <label>Sacrificio *</label>
-                <select required value={form.sacrificio_id || ''} onChange={e => setForm({ ...form, sacrificio_id: e.target.value })}>
+                <select required value={form.sacrificio_id || ''} onChange={e => {
+                  const s = sacrificios.find(x => String(x.id) === String(e.target.value));
+                  setForm({ ...form, sacrificio_id: e.target.value, animal_id: s?.animal_id || null });
+                }}>
                   <option value="">Seleccionar...</option>
                   {sacrificios.map(s => (
                     <option key={s.id} value={s.id}>
