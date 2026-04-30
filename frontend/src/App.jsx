@@ -1,5 +1,5 @@
 import { Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Bug as Cow, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Scissors, Package, Snowflake, Clock, Boxes, FileOutput, FileInput, RotateCcw, Barcode, Utensils } from 'lucide-react';
+import { LayoutDashboard, Bug as Cow, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Scissors, Package, Snowflake, Clock, Boxes, FileOutput, FileInput, RotateCcw, Barcode, Utensils, BookOpen } from 'lucide-react';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { CowWalking } from './components/CowIcon';
 import Login from './pages/Login';
@@ -25,6 +25,7 @@ import OrdenesSalida from './pages/OrdenesSalida';
 import OrdenesEntrada from './pages/OrdenesEntrada';
 import Devoluciones from './pages/Devoluciones';
 import Paqueteria from './pages/Paqueteria';
+import CatalogoCortes from './pages/CatalogoCortes';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -47,6 +48,7 @@ const navItems = [
   { to: '/ordenes-salida', icon: FileOutput, label: 'Ord. Salida' },
   { to: '/devoluciones', icon: RotateCcw, label: 'Devoluciones' },
   { to: '/bodegas', icon: Snowflake, label: 'Bodegas' },
+  { to: '/catalogo-cortes', icon: BookOpen, label: 'Catalogo Cortes' },
 ];
 
 function ProtectedRoute({ children }) {
@@ -137,6 +139,7 @@ function AppLayout() {
           <Route path="/paqueteria" element={<Paqueteria />} />
           <Route path="/devoluciones" element={<Devoluciones />} />
           <Route path="/bodegas" element={<Bodegas />} />
+          <Route path="/catalogo-cortes" element={<CatalogoCortes />} />
           <Route path="/usuarios" element={<Usuarios />} />
         </Routes>
       </main>

@@ -500,6 +500,102 @@ async function initDB() {
     try { await conn.query(`ALTER TABLE movimientos_bodega MODIFY COLUMN tipo ENUM('ingreso_custodia','paso_maduracion','salida_porcionado','devolucion','recepcion_entrada','otro') NOT NULL`); } catch (e) {}
     try { await conn.query(`ALTER TABLE movimientos_bodega ADD COLUMN orden_entrada_id INT AFTER orden_salida_id`); } catch (e) {}
 
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS catalogo_cortes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        codigo VARCHAR(20) UNIQUE NOT NULL,
+        nombre VARCHAR(200) NOT NULL,
+        abreviatura VARCHAR(50),
+        tipo ENUM('primal','retail','subproducto','grasa','trim','bch','otro') DEFAULT 'primal',
+        vida_util_dias INT DEFAULT 90,
+        vida_congelado_dias INT DEFAULT 365,
+        activo TINYINT DEFAULT 1,
+        notas TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_codigo (codigo),
+        INDEX idx_nombre (nombre)
+      )
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS config_planta (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        nombre VARCHAR(200) NOT NULL,
+        marca_comercial VARCHAR(200),
+        direccion_linea1 VARCHAR(300),
+        direccion_linea2 VARCHAR(300),
+        pais VARCHAR(100) DEFAULT 'COSTA RICA',
+        numero_mag VARCHAR(50),
+        consecutivo_mag INT DEFAULT 0,
+        activa TINYINT DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+
+    try { await conn.query(`ALTER TABLE sacrificios ADD COLUMN numero_mag VARCHAR(50) AFTER lote_sacrificio`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE sacrificios ADD COLUMN lote_mag VARCHAR(50) AFTER numero_mag`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE sacrificios ADD COLUMN tara_kg DECIMAL(8,3) AFTER lote_mag`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE sacrificios ADD COLUMN cuenta INT AFTER tara_kg`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE sacrificios ADD COLUMN ruta INT AFTER cuenta`); } catch (e) {}
+
+    try { await conn.query(`ALTER TABLE stickers MODIFY COLUMN codigo_barras VARCHAR(100) NULL`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE stickers ADD COLUMN codigo_cue VARCHAR(20) AFTER codigo_barras`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE stickers ADD COLUMN codigo_box VARCHAR(20) AFTER codigo_cue`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE stickers ADD COLUMN codigo_peso VARCHAR(20) AFTER codigo_box`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE stickers ADD COLUMN codigo_lot VARCHAR(20) AFTER codigo_peso`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE stickers ADD COLUMN corte_codigo VARCHAR(20) AFTER tipo_corte`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE stickers ADD COLUMN fecha_mejor_antes DATE AFTER fecha_empaque`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE stickers ADD COLUMN fecha_congelar_hasta DATE AFTER fecha_mejor_antes`); } catch (e) {}
+    try { await conn.query(`CREATE INDEX idx_sticker_cue ON stickers (codigo_cue)`); } catch (e) {}
+    try { await conn.query(`CREATE INDEX idx_sticker_lot ON stickers (codigo_lot)`); } catch (e) {}
+    try { await conn.query(`CREATE INDEX idx_sticker_box ON stickers (codigo_box)`); } catch (e) {}
+
+    const [cortesExist] = await conn.query('SELECT COUNT(*) as c FROM catalogo_cortes');
+    if (cortesExist[0].c === 0) {
+      await conn.query(`INSERT INTO catalogo_cortes (codigo, nombre, abreviatura, tipo, vida_util_dias, vida_congelado_dias) VALUES
+        ('21231','DELMONICO','DELMO','primal',90,365),
+        ('21253','RIBEYE STEAK','RIBEY','retail',90,365),
+        ('21001','ARRACHERA','ARRA','primal',90,365),
+        ('21002','LOMO ENTRANA','LENT','primal',90,365),
+        ('21003','DIAFRAGMA','DIAF','primal',90,365),
+        ('21004','COSTILLA DE PECHO','CPEC','primal',90,365),
+        ('21005','LOMO PALETA','LPAL','primal',90,365),
+        ('21006','CACHO DE VUELTA DE LOMO','CVLO','primal',90,365),
+        ('21007','GUITARRILLA LIMPIA','GUIT','primal',90,365),
+        ('21008','CECINA LIMPIA','CECI','primal',90,365),
+        ('21009','CACHO DE PALETA','CPAL','primal',90,365),
+        ('21010','CENTRO DE QUITLINENA','CQUI','primal',90,365),
+        ('21011','PECHO BRS','PBRS','primal',90,365),
+        ('21012','PETTITE FAJITAS','PETT','primal',90,365),
+        ('21013','PUNTA DE SOLOMO','PSOL','primal',90,365),
+        ('21014','FALDILLA FLS TORTILLA','FLS','primal',90,365),
+        ('21015','BOLITA','BOLI','primal',90,365),
+        ('21016','MANO DE PIEDRA','MPIE','primal',90,365),
+        ('21017','POSTA DE RATON','PRAT','primal',90,365),
+        ('21018','POSTA DE SOLOMO','PSOLM','primal',90,365),
+        ('21019','TAPA POSTA DE CUARTO GRACILIS','TGRA','primal',90,365),
+        ('21020','VUELTA DE LOMO SIN TAPA','VLST','primal',90,365),
+        ('21021','LOMITO','LOMT','primal',90,365),
+        ('21022','T-BONE Y PORTERHOUSE','TBPO','primal',90,365),
+        ('21023','LOMITO CABEZA','LCAB','primal',90,365),
+        ('21024','LOMO CHURRASCO','LCHU','primal',90,365),
+        ('21025','LOMO CHURRASCO BONE-IN BMS>3','LCBO','primal',90,365),
+        ('21026','OSOBUCO','OSOB','primal',90,365),
+        ('30001','GRASA RINODADA','GRAS','grasa',60,365),
+        ('30002','TRIM EXTRA LIMPIO','TRIM','trim',60,365),
+        ('30003','BCH BEEF CHUCK','BCH','bch',60,365)
+      `);
+    }
+
+    const [plantaExist] = await conn.query('SELECT COUNT(*) as c FROM config_planta WHERE activa = 1');
+    if (plantaExist[0].c === 0) {
+      await conn.query(`INSERT INTO config_planta (nombre, marca_comercial, direccion_linea1, direccion_linea2, pais, numero_mag) VALUES
+        ('CISA COSTA RICA','WAGYU CROSS','EL ARREO 1.5 KM O. FIRESTONE','RIBERA DE BELEN HEREDIA','COSTA RICA','MAG #12')
+      `);
+    }
+
     const [bodegasExist] = await conn.query('SELECT COUNT(*) as c FROM bodegas');
     if (bodegasExist[0].c === 0) {
       await conn.query(`INSERT INTO bodegas (codigo, nombre, tipo, temperatura_c) VALUES

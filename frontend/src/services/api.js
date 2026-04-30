@@ -189,6 +189,12 @@ export const api = {
     request(`/ordenes-entrada/${id}/recibir`, { method: 'POST', body: JSON.stringify({ items_recibidos }) }),
   deleteOrdenEntrada: (id) => request(`/ordenes-entrada/${id}`, { method: 'DELETE' }),
 
+  // Catalogo de cortes
+  getCatalogoCortes: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/catalogo-cortes${qs ? '?' + qs : ''}`); },
+  createCatalogoCorte: (data) => request('/catalogo-cortes', { method: 'POST', body: JSON.stringify(data) }),
+  updateCatalogoCorte: (id, data) => request(`/catalogo-cortes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteCatalogoCorte: (id) => request(`/catalogo-cortes/${id}`, { method: 'DELETE' }),
+
   // Paqueteria
   getPaqueteria: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/paqueteria${qs ? '?' + qs : ''}`); },
   getPaqueteriaOne: (id) => request(`/paqueteria/${id}`),

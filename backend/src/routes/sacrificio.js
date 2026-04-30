@@ -25,7 +25,7 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { animal_id, fecha, peso_vivo, peso_canal_caliente, peso_canal_frio, marmoleo, ojo_ribeye_cm2, fecha_marmoleo, fecha_colgado, inspector, resultado_inspeccion, lote_sacrificio, notas } = req.body;
+  const { animal_id, fecha, peso_vivo, peso_canal_caliente, peso_canal_frio, marmoleo, ojo_ribeye_cm2, fecha_marmoleo, fecha_colgado, inspector, resultado_inspeccion, lote_sacrificio, notas, numero_mag, lote_mag, tara_kg, cuenta, ruta } = req.body;
   if (!animal_id || !fecha) {
     return res.status(400).json({ error: 'animal_id y fecha son requeridos' });
   }
@@ -34,9 +34,9 @@ router.post('/', async (req, res) => {
   try {
     await conn.beginTransaction();
     const [result] = await conn.query(`
-      INSERT INTO sacrificios (animal_id, fecha, peso_vivo, peso_canal_caliente, peso_canal_frio, rendimiento_canal, marmoleo, ojo_ribeye_cm2, fecha_marmoleo, fecha_colgado, inspector, resultado_inspeccion, lote_sacrificio, notas)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [animal_id, fecha, peso_vivo || null, peso_canal_caliente || null, peso_canal_frio || null, rendimiento_canal, marmoleo || null, ojo_ribeye_cm2 || null, fecha_marmoleo || null, fecha_colgado || null, inspector, resultado_inspeccion || 'aprobado', lote_sacrificio, notas]);
+      INSERT INTO sacrificios (animal_id, fecha, peso_vivo, peso_canal_caliente, peso_canal_frio, rendimiento_canal, marmoleo, ojo_ribeye_cm2, fecha_marmoleo, fecha_colgado, inspector, resultado_inspeccion, lote_sacrificio, notas, numero_mag, lote_mag, tara_kg, cuenta, ruta)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [animal_id, fecha, peso_vivo || null, peso_canal_caliente || null, peso_canal_frio || null, rendimiento_canal, marmoleo || null, ojo_ribeye_cm2 || null, fecha_marmoleo || null, fecha_colgado || null, inspector, resultado_inspeccion || 'aprobado', lote_sacrificio, notas, numero_mag || null, lote_mag || null, tara_kg || null, cuenta || null, ruta || null]);
     await conn.query("UPDATE animales SET estado = 'sacrificado' WHERE id = ?", [animal_id]);
     await conn.commit();
     const [rows] = await pool.query('SELECT * FROM sacrificios WHERE id = ?', [result.insertId]);

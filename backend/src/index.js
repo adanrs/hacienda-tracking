@@ -50,6 +50,8 @@ app.use('/api/dashboard', authMiddleware, require('./routes/dashboard'));
 app.use('/api/transporte', authMiddleware, require('./routes/transporte'));
 app.use('/api/sacrificio', authMiddleware, require('./routes/sacrificio'));
 app.use('/api/cortes', authMiddleware, require('./routes/cortes'));
+app.use('/api/catalogo-cortes', authMiddleware, require('./routes/catalogo-cortes'));
+app.use('/api/config-planta', authMiddleware, require('./routes/config-planta'));
 app.use('/api/bodegas', authMiddleware, require('./routes/bodegas'));
 app.use('/api/deshuese', authMiddleware, require('./routes/deshuese'));
 app.use('/api/primales', authMiddleware, require('./routes/primales'));

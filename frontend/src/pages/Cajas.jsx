@@ -109,14 +109,31 @@ export default function Cajas() {
 
             <div className="print-area">
               <h4 style={{ marginBottom: 10 }}>Stickers ({stickers.length})</h4>
-              {stickers.map(s => (
-                <div key={s.id} style={{ padding: 10, border: '1px solid #e5e7eb', borderRadius: 6, marginBottom: 8 }}>
-                  <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '1.05rem' }}><Barcode size={14} style={{ verticalAlign: 'middle' }} /> {s.codigo_barras}</div>
-                  <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>
-                    {s.tipo_corte || '-'} - {s.peso_kg ? `${parseFloat(s.peso_kg).toFixed(2)} kg` : '-'}
+              {stickers.map(s => {
+                const kg = s.peso_kg ? parseFloat(s.peso_kg) : 0;
+                const lb = (kg * 2.20462).toFixed(2);
+                return (
+                  <div key={s.id} style={{ padding: 10, border: '1px solid #e5e7eb', borderRadius: 6, marginBottom: 8 }}>
+                    <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.5 }}>
+                      <div>CUE: {s.codigo_cue || '-'}</div>
+                      <div>BOX: {s.codigo_box || '-'}</div>
+                      <div>PESO: {s.peso_kg ? `${kg.toFixed(2)} KG / ${lb} LB` : '-'}</div>
+                      <div>LOT: {s.codigo_lot || '-'}</div>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: 6 }}>
+                      <div>{s.tipo_corte || '-'}</div>
+                      <div>Empaque: {formatDate(s.fecha_empaque)}</div>
+                      <div>Mejor consumir antes: {formatDate(s.fecha_mejor_antes)}</div>
+                      <div>Congelar hasta: {formatDate(s.fecha_congelar_hasta)}</div>
+                      {s.codigo_barras && (
+                        <div style={{ marginTop: 4, fontFamily: 'monospace' }}>
+                          <Barcode size={12} style={{ verticalAlign: 'middle' }} /> {s.codigo_barras}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {stickers.length === 0 && <div className="empty-state">Sin stickers</div>}
             </div>
 
@@ -149,8 +166,16 @@ export default function Cajas() {
               <div style={{ marginTop: 12, padding: 12, background: '#f0fdf4', borderRadius: 8 }}>
                 <div><strong>Animal:</strong> {scanResult.numero_trazabilidad || '-'}</div>
                 <div><strong>Corte:</strong> {scanResult.tipo_corte || '-'}</div>
-                <div><strong>Peso:</strong> {scanResult.peso_kg ? `${parseFloat(scanResult.peso_kg).toFixed(2)} kg` : '-'}</div>
+                {scanResult.peso_kg && (
+                  <div><strong>Peso:</strong> {parseFloat(scanResult.peso_kg).toFixed(2)} KG / {(parseFloat(scanResult.peso_kg) * 2.20462).toFixed(2)} LB</div>
+                )}
+                {scanResult.codigo_cue && <div><strong>CUE:</strong> {scanResult.codigo_cue}</div>}
+                {scanResult.codigo_box && <div><strong>BOX:</strong> {scanResult.codigo_box}</div>}
+                {scanResult.codigo_lot && <div><strong>LOT:</strong> {scanResult.codigo_lot}</div>}
                 {scanResult.caja_codigo && <div><strong>Caja:</strong> {scanResult.caja_codigo}</div>}
+                {scanResult.fecha_empaque && <div><strong>Empaque:</strong> {formatDate(scanResult.fecha_empaque)}</div>}
+                {scanResult.fecha_mejor_antes && <div><strong>Mejor consumir antes:</strong> {formatDate(scanResult.fecha_mejor_antes)}</div>}
+                {scanResult.fecha_congelar_hasta && <div><strong>Congelar hasta:</strong> {formatDate(scanResult.fecha_congelar_hasta)}</div>}
               </div>
             )}
           </div>

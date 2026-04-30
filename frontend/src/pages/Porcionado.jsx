@@ -10,12 +10,15 @@ const MAX_STICKERS_PER_CAJA = 3;
 export default function Porcionado() {
   const [items, setItems] = useState([]);
   const [primales, setPrimales] = useState([]);
+  const [catalogoCortes, setCatalogoCortes] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({});
   const [createdId, setCreatedId] = useState(null);
   const [showStickersFlow, setShowStickersFlow] = useState(false);
   const [cajaId, setCajaId] = useState(null);
   const [stickers, setStickers] = useState([]);
+  const [createdStickers, setCreatedStickers] = useState([]);
+  const [fechaEmpaqueCaja, setFechaEmpaqueCaja] = useState('');
 
   const load = () => api.getPorcionado().then(setItems).catch(console.error);
 
@@ -24,6 +27,7 @@ export default function Porcionado() {
     api.getPrimales().then(ps => {
       setPrimales(ps.filter(p => ['en_porcionado', 'en_custodia', 'en_maduracion'].includes(p.estado)));
     }).catch(console.error);
+    api.getCatalogoCortes().then(setCatalogoCortes).catch(console.error);
   }, []);
 
   const openNew = () => {
@@ -32,6 +36,8 @@ export default function Porcionado() {
     setShowStickersFlow(false);
     setCajaId(null);
     setStickers([]);
+    setCreatedStickers([]);
+    setFechaEmpaqueCaja('');
     setShowModal(true);
   };
 
@@ -52,13 +58,16 @@ export default function Porcionado() {
       load();
       if (confirm('Porcionado creado. ¿Generar stickers y caja?')) {
         const primal = primales.find(p => String(p.id) === String(form.primal_id));
+        const fechaEmp = (form.fecha || '').split('T')[0] || new Date().toISOString().split('T')[0];
         const caja = await api.createCaja({
           porcionado_id: res.id || res.porcionado_id,
           tipo_corte: primal?.tipo_primal || 'Mixto',
-          fecha_empaque: (form.fecha || '').split('T')[0] || new Date().toISOString().split('T')[0]
+          fecha_empaque: fechaEmp
         });
         setCajaId(caja.id);
-        setStickers([{ tipo_corte: primal?.tipo_primal || '', peso_kg: '' }]);
+        setFechaEmpaqueCaja(fechaEmp);
+        setStickers([{ tipo_corte: primal?.tipo_primal || '', corte_codigo: '', peso_kg: '', codigo_box: '', codigo_lot: '' }]);
+        setCreatedStickers([]);
         setShowStickersFlow(true);
       } else {
         setShowModal(false);
@@ -68,22 +77,42 @@ export default function Porcionado() {
 
   const addSticker = () => {
     if (stickers.length >= MAX_STICKERS_PER_CAJA) { alert(`Maximo ${MAX_STICKERS_PER_CAJA} stickers por caja`); return; }
-    setStickers([...stickers, { tipo_corte: '', peso_kg: '' }]);
+    setStickers([...stickers, { tipo_corte: '', corte_codigo: '', peso_kg: '', codigo_box: '', codigo_lot: '' }]);
   };
   const updateSticker = (i, k, v) => {
     const n = [...stickers]; n[i] = { ...n[i], [k]: v }; setStickers(n);
+  };
+  const updateStickerCorte = (i, codigo) => {
+    const c = catalogoCortes.find(x => x.codigo === codigo);
+    const n = [...stickers];
+    n[i] = { ...n[i], corte_codigo: codigo, tipo_corte: c ? c.nombre : '' };
+    setStickers(n);
   };
   const removeSticker = (i) => setStickers(stickers.filter((_, idx) => idx !== i));
 
   const saveStickersAndClose = async () => {
     try {
+      const created = [];
       for (const s of stickers) {
         if (!s.peso_kg) continue;
-        await api.createSticker({ caja_id: cajaId, tipo_corte: s.tipo_corte, peso_kg: parseFloat(s.peso_kg) });
+        const body = {
+          caja_id: cajaId,
+          tipo_corte: s.tipo_corte,
+          peso_kg: parseFloat(s.peso_kg),
+          fecha_empaque: fechaEmpaqueCaja || undefined,
+        };
+        if (s.corte_codigo) body.corte_codigo = s.corte_codigo;
+        if (s.codigo_box) body.codigo_box = s.codigo_box;
+        if (s.codigo_lot) body.codigo_lot = s.codigo_lot;
+        const res = await api.createSticker(body);
+        created.push(res);
       }
+      setCreatedStickers(created);
       await api.cerrarCaja(cajaId);
-      setShowModal(false);
       load();
+      if (created.length === 0) {
+        setShowModal(false);
+      }
     } catch (err) { alert(err.message); }
   };
 
@@ -213,26 +242,68 @@ export default function Porcionado() {
                   Caja creada. Agrega hasta {MAX_STICKERS_PER_CAJA} stickers.
                 </div>
                 {stickers.map((s, i) => (
-                  <div key={i} className="form-row" style={{ alignItems: 'end' }}>
-                    <div className="form-group">
-                      <label>Tipo corte</label>
-                      <input value={s.tipo_corte} onChange={e => updateSticker(i, 'tipo_corte', e.target.value)} />
-                    </div>
-                    <div className="form-group" style={{ display: 'flex', gap: 6 }}>
-                      <div style={{ flex: 1 }}>
+                  <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: 6, padding: 10, marginBottom: 10 }}>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Corte (catalogo)</label>
+                        <select value={s.corte_codigo || ''} onChange={e => updateStickerCorte(i, e.target.value)}>
+                          <option value="">Seleccionar...</option>
+                          {catalogoCortes.map(c => (
+                            <option key={c.codigo} value={c.codigo}>{c.codigo} — {c.nombre}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-group">
                         <label>Peso (kg)</label>
                         <input type="number" step="0.01" value={s.peso_kg} onChange={e => updateSticker(i, 'peso_kg', e.target.value)} />
                       </div>
-                      <button type="button" className="btn-icon" onClick={() => removeSticker(i)} style={{ marginBottom: 2 }}><Trash2 size={16} color="#dc2626" /></button>
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Numero de caja (BOX)</label>
+                        <input value={s.codigo_box || ''} onChange={e => updateSticker(i, 'codigo_box', e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label>Lote / # Deshuese (LOT)</label>
+                        <input value={s.codigo_lot || ''} onChange={e => updateSticker(i, 'codigo_lot', e.target.value)} placeholder="se completa automatico del deshuese" />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button type="button" className="btn-icon" onClick={() => removeSticker(i)}><Trash2 size={16} color="#dc2626" /></button>
                     </div>
                   </div>
                 ))}
                 <button type="button" className="btn btn-secondary" onClick={addSticker} disabled={stickers.length >= MAX_STICKERS_PER_CAJA}>
                   <Plus size={14} /> Agregar sticker
                 </button>
+
+                {createdStickers.length > 0 && (
+                  <div style={{ marginTop: 16 }}>
+                    <h4 style={{ marginBottom: 8 }}>Stickers generados</h4>
+                    {createdStickers.map(st => {
+                      const lb = st.peso_kg ? (parseFloat(st.peso_kg) * 2.20462).toFixed(2) : '0.00';
+                      return (
+                        <div key={st.id} style={{ padding: 10, border: '1px solid #e5e7eb', borderRadius: 6, marginBottom: 8, fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                          <div>CUE: {st.codigo_cue || '-'}</div>
+                          <div>BOX: {st.codigo_box || '-'}</div>
+                          <div>PESO: {st.peso_kg ? `${parseFloat(st.peso_kg).toFixed(2)} KG / ${lb} LB` : '-'}</div>
+                          <div>LOT: {st.codigo_lot || '-'}</div>
+                          <div style={{ marginTop: 6, color: '#6b7280' }}>
+                            <div>Empaque: {formatDate(st.fecha_empaque)}</div>
+                            <div>Mejor consumir antes: {formatDate(st.fecha_mejor_antes)}</div>
+                            <div>Congelar hasta: {formatDate(st.fecha_congelar_hasta)}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 <div className="modal-actions">
-                  <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cerrar sin guardar</button>
-                  <button type="button" className="btn btn-primary" onClick={saveStickersAndClose}><Check size={14} /> Guardar y cerrar caja</button>
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>{createdStickers.length > 0 ? 'Cerrar' : 'Cerrar sin guardar'}</button>
+                  {createdStickers.length === 0 && (
+                    <button type="button" className="btn btn-primary" onClick={saveStickersAndClose}><Check size={14} /> Guardar y cerrar caja</button>
+                  )}
                 </div>
               </div>
             )}

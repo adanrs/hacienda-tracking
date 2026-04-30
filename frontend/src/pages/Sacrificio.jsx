@@ -76,6 +76,7 @@ export default function Sacrificio() {
             <thead>
               <tr>
                 <th>Fecha</th>
+                <th>Nº MAG</th>
                 <th>Animal</th>
                 <th>Peso Vivo</th>
                 <th>Peso Canal Caliente</th>
@@ -93,6 +94,7 @@ export default function Sacrificio() {
                 return (
                   <tr key={s.id}>
                     <td>{formatDate(s.fecha)}</td>
+                    <td>{s.numero_mag || '-'}</td>
                     <td>{s.animal_id ? <Link to={`/animales/${s.animal_id}`}>{s.numero_trazabilidad || 'Ver animal'}</Link> : '-'}</td>
                     <td>{s.peso_vivo ? `${s.peso_vivo} kg` : '-'}</td>
                     <td>{s.peso_canal_caliente ? `${s.peso_canal_caliente} kg` : '-'}</td>
@@ -109,7 +111,7 @@ export default function Sacrificio() {
                   </tr>
                 );
               })}
-              {sacrificios.length === 0 && <tr><td colSpan={10} className="empty-state">No se encontraron sacrificios</td></tr>}
+              {sacrificios.length === 0 && <tr><td colSpan={11} className="empty-state">No se encontraron sacrificios</td></tr>}
             </tbody>
           </table>
         </div>
@@ -149,6 +151,33 @@ export default function Sacrificio() {
                 <div className="form-group">
                   <label>Peso Canal Frio (kg)</label>
                   <input type="number" step="0.1" value={form.peso_canal_frio || ''} onChange={e => setForm({ ...form, peso_canal_frio: parseFloat(e.target.value) || '' })} />
+                </div>
+              </div>
+              <div style={{ marginTop: 16, marginBottom: 12, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
+                <h4 style={{ fontSize: '0.95rem', color: '#374151', margin: 0, marginBottom: 12 }}>Informacion MAG / Matadero</h4>
+                <div className="form-row-3">
+                  <div className="form-group">
+                    <label>Consecutivo MAG</label>
+                    <input value={form.numero_mag || ''} onChange={e => setForm({ ...form, numero_mag: e.target.value })} placeholder="ej: 3337" />
+                  </div>
+                  <div className="form-group">
+                    <label>Lote MAG</label>
+                    <input value={form.lote_mag || ''} onChange={e => setForm({ ...form, lote_mag: e.target.value })} placeholder="ej: 37" />
+                  </div>
+                  <div className="form-group">
+                    <label>Tara (kg)</label>
+                    <input type="number" step="0.001" value={form.tara_kg || ''} onChange={e => setForm({ ...form, tara_kg: parseFloat(e.target.value) || '' })} />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Cuenta</label>
+                    <input type="number" step="1" value={form.cuenta || ''} onChange={e => setForm({ ...form, cuenta: parseInt(e.target.value) || '' })} />
+                  </div>
+                  <div className="form-group">
+                    <label>Ruta</label>
+                    <input type="number" step="1" value={form.ruta || ''} onChange={e => setForm({ ...form, ruta: parseInt(e.target.value) || '' })} />
+                  </div>
                 </div>
               </div>
               <div className="form-row-3">
