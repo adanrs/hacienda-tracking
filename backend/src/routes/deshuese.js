@@ -213,4 +213,50 @@ router.post('/:id/pdf', (req, res) => {
   });
 });
 
+const memUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype !== 'application/pdf') return cb(new Error('Solo se permiten archivos PDF'));
+    cb(null, true);
+  }
+});
+
+function tryParsePrimales(text) {
+  const TIPOS = ['LOMO','COSTILLA','PIERNA','PALETA','PECHO','FALDA','AGUJA','BCH','TRIM','RIBEYE','DELMONICO','SOLOMO','LOMITO','BOLITA','OSOBUCO','CHURRASCO','POSTA','TAPA','VUELTA','ARRACHERA','CECINA','GUITARRILLA','DIAFRAGMA','CHUCK','BRISKET'];
+  const rows = [];
+  const lines = text.split(/\r?\n/);
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    const upper = line.toUpperCase();
+    const tipo = TIPOS.find(t => upper.includes(t));
+    if (!tipo) continue;
+    const weights = line.match(/\d+[.,]\d+/g) || line.match(/\d{1,4}/g) || [];
+    const peso = weights.length ? parseFloat(weights[weights.length - 1].replace(',', '.')) : null;
+    if (peso == null || isNaN(peso) || peso <= 0 || peso > 1000) continue;
+    rows.push({ tipo_primal: tipo[0] + tipo.slice(1).toLowerCase(), peso_kg: peso, raw: line });
+  }
+  return rows;
+}
+
+router.post('/parse-pdf', (req, res) => {
+  memUpload.single('pdf')(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: 'Archivo PDF requerido' });
+    try {
+      const pdfParse = require('pdf-parse/lib/pdf-parse');
+      const data = await pdfParse(req.file.buffer);
+      const primales_guess = tryParsePrimales(data.text || '');
+      res.json({
+        text: data.text || '',
+        numpages: data.numpages,
+        primales_guess,
+        filename: req.file.originalname,
+        size: req.file.size
+      });
+    } catch (e) { res.status(500).json({ error: 'Error parseando PDF: ' + e.message }); }
+  });
+});
+
 module.exports = router;

@@ -16,11 +16,16 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { sacrificio_id, animal_id, tipo_corte, peso_kg, calidad, destino, lote_empaque, fecha_empaque, notas } = req.body;
-  if (!sacrificio_id || !animal_id || !tipo_corte || !peso_kg) {
-    return res.status(400).json({ error: 'sacrificio_id, animal_id, tipo_corte y peso_kg son requeridos' });
+  let { sacrificio_id, animal_id, tipo_corte, peso_kg, calidad, destino, lote_empaque, fecha_empaque, notas } = req.body;
+  if (!sacrificio_id || !tipo_corte || peso_kg == null || peso_kg === '') {
+    return res.status(400).json({ error: 'sacrificio_id, tipo_corte y peso_kg son requeridos' });
   }
   try {
+    if (!animal_id) {
+      const [s] = await pool.query('SELECT animal_id FROM sacrificios WHERE id = ?', [sacrificio_id]);
+      if (!s.length) return res.status(404).json({ error: 'Sacrificio no encontrado' });
+      animal_id = s[0].animal_id;
+    }
     const [result] = await pool.query(`
       INSERT INTO cortes (sacrificio_id, animal_id, tipo_corte, peso_kg, calidad, destino, lote_empaque, fecha_empaque, notas)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)

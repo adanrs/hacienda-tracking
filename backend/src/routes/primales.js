@@ -42,16 +42,17 @@ router.post('/', async (req, res) => {
   const {
     codigo, deshuese_id, animal_id, tipo_primal, peso_kg, peso_prorrateado,
     marmoleo, bodega_actual_id, estado, fecha_ingreso_custodia,
-    fecha_maduracion_inicio, notas
+    fecha_maduracion_inicio, notas, ubicacion_bodega, dias_maduracion_target,
+    nota_supervisor, congelado, fecha_congelado
   } = req.body;
   if (!codigo || !deshuese_id || !animal_id || !tipo_primal || peso_kg == null) {
     return res.status(400).json({ error: 'codigo, deshuese_id, animal_id, tipo_primal y peso_kg son requeridos' });
   }
   try {
     const [result] = await pool.query(`
-      INSERT INTO primales (codigo, deshuese_id, animal_id, tipo_primal, peso_kg, peso_prorrateado, marmoleo, bodega_actual_id, estado, fecha_ingreso_custodia, fecha_maduracion_inicio, notas)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [codigo, deshuese_id, animal_id, tipo_primal, peso_kg, peso_prorrateado || null, marmoleo || null, bodega_actual_id || null, estado || 'en_deshuese', fecha_ingreso_custodia || null, fecha_maduracion_inicio || null, notas || null]);
+      INSERT INTO primales (codigo, deshuese_id, animal_id, tipo_primal, peso_kg, peso_prorrateado, marmoleo, bodega_actual_id, estado, fecha_ingreso_custodia, fecha_maduracion_inicio, notas, ubicacion_bodega, dias_maduracion_target, nota_supervisor, congelado, fecha_congelado)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [codigo, deshuese_id, animal_id, tipo_primal, peso_kg, peso_prorrateado || null, marmoleo || null, bodega_actual_id || null, estado || 'en_deshuese', fecha_ingreso_custodia || null, fecha_maduracion_inicio || null, notas || null, ubicacion_bodega || null, dias_maduracion_target != null ? dias_maduracion_target : 30, nota_supervisor || null, congelado ? 1 : 0, fecha_congelado || null]);
     const [rows] = await pool.query('SELECT * FROM primales WHERE id = ?', [result.insertId]);
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -87,6 +88,22 @@ router.delete('/:id', async (req, res) => {
     const [result] = await pool.query('DELETE FROM primales WHERE id = ?', [req.params.id]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Primal no encontrado' });
     res.json({ message: 'Primal eliminado' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/:id/congelar', async (req, res) => {
+  try {
+    const [existing] = await pool.query('SELECT id FROM primales WHERE id = ?', [req.params.id]);
+    if (!existing.length) return res.status(404).json({ error: 'Primal no encontrado' });
+    try {
+      await pool.query(`UPDATE primales SET congelado = 1, fecha_congelado = NOW(), estado = 'congelado' WHERE id = ?`, [req.params.id]);
+    } catch (e) {
+      if (e.code === 'WARN_DATA_TRUNCATED' || e.code === 'ER_DATA_TRUNCATED' || e.code === 'ER_TRUNCATED_WRONG_VALUE_FOR_FIELD') {
+        await pool.query(`UPDATE primales SET congelado = 1, fecha_congelado = NOW() WHERE id = ?`, [req.params.id]);
+      } else { throw e; }
+    }
+    const [rows] = await pool.query('SELECT * FROM primales WHERE id = ?', [req.params.id]);
+    res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

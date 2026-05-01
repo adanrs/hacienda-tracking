@@ -25,7 +25,7 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/recibir', async (req, res) => {
-  const { primal_id, bodega_destino_id, responsable, notas } = req.body;
+  const { primal_id, bodega_destino_id, responsable, notas, ubicacion_bodega } = req.body;
   if (!primal_id || !bodega_destino_id) {
     return res.status(400).json({ error: 'primal_id y bodega_destino_id son requeridos' });
   }
@@ -38,10 +38,17 @@ router.post('/recibir', async (req, res) => {
       return res.status(404).json({ error: 'Primal no encontrado' });
     }
     const origen = existing[0].bodega_actual_id;
-    await conn.query(`
-      UPDATE primales SET estado = 'en_custodia', bodega_actual_id = ?, fecha_ingreso_custodia = NOW()
-      WHERE id = ?
-    `, [bodega_destino_id, primal_id]);
+    if (ubicacion_bodega) {
+      await conn.query(`
+        UPDATE primales SET estado = 'en_custodia', bodega_actual_id = ?, fecha_ingreso_custodia = NOW(), ubicacion_bodega = ?
+        WHERE id = ?
+      `, [bodega_destino_id, ubicacion_bodega, primal_id]);
+    } else {
+      await conn.query(`
+        UPDATE primales SET estado = 'en_custodia', bodega_actual_id = ?, fecha_ingreso_custodia = NOW()
+        WHERE id = ?
+      `, [bodega_destino_id, primal_id]);
+    }
     await conn.query(`
       INSERT INTO movimientos_bodega (primal_id, bodega_origen_id, bodega_destino_id, tipo, fecha, responsable, confirmado, notas)
       VALUES (?, ?, ?, 'ingreso_custodia', NOW(), ?, 1, ?)
@@ -56,7 +63,7 @@ router.post('/recibir', async (req, res) => {
 });
 
 router.post('/mover', async (req, res) => {
-  const { primal_id, bodega_destino_id, tipo, responsable, notas } = req.body;
+  const { primal_id, bodega_destino_id, tipo, responsable, notas, ubicacion_bodega, nota_supervisor } = req.body;
   if (!primal_id || !bodega_destino_id || !tipo) {
     return res.status(400).json({ error: 'primal_id, bodega_destino_id y tipo son requeridos' });
   }
@@ -69,10 +76,11 @@ router.post('/mover', async (req, res) => {
       return res.status(404).json({ error: 'Primal no encontrado' });
     }
     const origen = existing[0].bodega_actual_id;
+    const notasMov = nota_supervisor ? (notas ? `${notas} | Supervisor: ${nota_supervisor}` : `Supervisor: ${nota_supervisor}`) : (notas || null);
     await conn.query(`
       INSERT INTO movimientos_bodega (primal_id, bodega_origen_id, bodega_destino_id, tipo, fecha, responsable, confirmado, notas)
       VALUES (?, ?, ?, ?, NOW(), ?, 1, ?)
-    `, [primal_id, origen || null, bodega_destino_id, tipo, responsable || null, notas || null]);
+    `, [primal_id, origen || null, bodega_destino_id, tipo, responsable || null, notasMov]);
 
     if (tipo === 'paso_maduracion') {
       await conn.query(`
@@ -87,6 +95,14 @@ router.post('/mover', async (req, res) => {
     } else {
       await conn.query('UPDATE primales SET bodega_actual_id = ? WHERE id = ?', [bodega_destino_id, primal_id]);
     }
+
+    if (ubicacion_bodega) {
+      await conn.query('UPDATE primales SET ubicacion_bodega = ? WHERE id = ?', [ubicacion_bodega, primal_id]);
+    }
+    if (nota_supervisor) {
+      await conn.query('UPDATE primales SET nota_supervisor = ? WHERE id = ?', [nota_supervisor, primal_id]);
+    }
+
     await conn.commit();
     const [rows] = await pool.query('SELECT * FROM primales WHERE id = ?', [primal_id]);
     res.json(rows[0]);
@@ -94,6 +110,24 @@ router.post('/mover', async (req, res) => {
     await conn.rollback();
     res.status(500).json({ error: err.message });
   } finally { conn.release(); }
+});
+
+router.get('/alertas-maduracion', async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT p.*, a.numero_trazabilidad, a.nombre as animal_nombre,
+        DATEDIFF(NOW(), p.fecha_maduracion_inicio) AS dias_actual,
+        p.dias_maduracion_target,
+        (p.dias_maduracion_target - DATEDIFF(NOW(), p.fecha_maduracion_inicio)) AS dias_restantes
+      FROM primales p
+      JOIN animales a ON p.animal_id = a.id
+      WHERE p.estado = 'en_maduracion'
+        AND p.fecha_maduracion_inicio IS NOT NULL
+        AND (p.dias_maduracion_target - DATEDIFF(NOW(), p.fecha_maduracion_inicio)) <= 5
+      ORDER BY dias_restantes ASC
+    `);
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.get('/movimientos', async (req, res) => {

@@ -63,6 +63,7 @@ export default function Transporte() {
                 <th>Tipo</th>
                 <th>Destino</th>
                 <th>Transportista</th>
+                <th>Pasaje</th>
                 <th>Placa</th>
                 <th>Guia</th>
                 <th>Estado</th>
@@ -77,6 +78,7 @@ export default function Transporte() {
                   <td>{t.tipo || '-'}</td>
                   <td>{t.destino || '-'}</td>
                   <td>{t.transportista || '-'}</td>
+                  <td>{t.tipo_pasaje || '-'}</td>
                   <td>{t.placa_vehiculo || '-'}</td>
                   <td>{t.guia_movilizacion || '-'}</td>
                   <td><span className={`badge ${estadoBadge[t.estado] || 'badge-gray'}`}>{t.estado}</span></td>
@@ -87,7 +89,7 @@ export default function Transporte() {
                   </td>
                 </tr>
               ))}
-              {transportes.length === 0 && <tr><td colSpan={9} className="empty-state">No se encontraron transportes</td></tr>}
+              {transportes.length === 0 && <tr><td colSpan={10} className="empty-state">No se encontraron transportes</td></tr>}
             </tbody>
           </table>
         </div>
@@ -150,6 +152,38 @@ export default function Transporte() {
               <div className="form-group">
                 <label>Guia de Movilizacion</label>
                 <input value={form.guia_movilizacion || ''} onChange={e => setForm({ ...form, guia_movilizacion: e.target.value })} />
+              </div>
+              <div style={{ marginTop: 16, marginBottom: 12, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
+                <h4 style={{ fontSize: '0.95rem', color: '#374151', margin: 0, marginBottom: 12 }}>Datos Finca</h4>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Tipo Pasaje</label>
+                    <select value={form.tipo_pasaje || ''} onChange={e => setForm({ ...form, tipo_pasaje: e.target.value })}>
+                      <option value="">--</option>
+                      <option value="F1">F1</option>
+                      <option value="F2">F2</option>
+                      <option value="F3">F3</option>
+                      <option value="F4">F4</option>
+                      <option value="F8">F8</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 28 }}>
+                      <input type="checkbox" checked={!!form.satisface_retiro} onChange={e => setForm({ ...form, satisface_retiro: e.target.checked })} />
+                      Satisface Retiro
+                    </label>
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Peso Pie Finca (kg)</label>
+                    <input type="number" step="0.1" value={form.peso_pie_finca || ''} onChange={e => setForm({ ...form, peso_pie_finca: parseFloat(e.target.value) || '' })} />
+                  </div>
+                  <div className="form-group">
+                    <label>Condición Corporal (1-12)</label>
+                    <input type="number" min="1" max="12" value={form.condicion_corporal || ''} onChange={e => setForm({ ...form, condicion_corporal: parseInt(e.target.value) || '' })} />
+                  </div>
+                </div>
               </div>
               <div className="form-group">
                 <label>Notas</label>

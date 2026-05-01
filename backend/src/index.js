@@ -64,6 +64,8 @@ app.use('/api/ordenes-salida', authMiddleware, require('./routes/ordenes-salida'
 app.use('/api/ordenes-entrada', authMiddleware, require('./routes/ordenes-entrada'));
 app.use('/api/devoluciones', authMiddleware, require('./routes/devoluciones'));
 app.use('/api/paqueteria', authMiddleware, require('./routes/paqueteria'));
+app.use('/api/alertas-bms', authMiddleware, require('./routes/alertas-bms'));
+app.use('/api/temperaturas-bodega', authMiddleware, require('./routes/temperaturas-bodega'));
 
 // Start with DB init
 async function start() {

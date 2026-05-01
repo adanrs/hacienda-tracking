@@ -39,7 +39,15 @@ export default function Custodia() {
 
   const bodegasCustodia = bodegas.filter(b => b.tipo === 'custodia' || b.tipo === 'maduracion');
 
-  const openMover = (p) => { setMoverForm({ primal_id: p.id, tipo: 'movimiento' }); setShowMover(true); };
+  const openMover = (p) => { setMoverForm({ primal_id: p.id, tipo: 'paso_maduracion' }); setShowMover(true); };
+
+  const onMoverDestinoChange = (id) => {
+    const b = bodegas.find(x => String(x.id) === String(id));
+    let tipo = moverForm.tipo;
+    if (b && b.tipo === 'maduracion') tipo = 'paso_maduracion';
+    else if (b && b.tipo === 'porcionado') tipo = 'salida_porcionado';
+    setMoverForm({ ...moverForm, bodega_destino_id: id, tipo });
+  };
 
   const submitMover = async (e) => {
     e.preventDefault();
@@ -50,10 +58,22 @@ export default function Custodia() {
     } catch (err) { alert(err.message); }
   };
 
+  const onScanRecibir = (codigo) => {
+    if (!codigo) return;
+    const match = primalesDisponibles.find(p => String(p.codigo).toLowerCase() === String(codigo).toLowerCase());
+    if (match) {
+      setRecibirForm(f => ({ ...f, primal_id: match.id, scan: '' }));
+    } else {
+      alert(`Primal con codigo "${codigo}" no encontrado o no disponible (debe estar en_deshuese)`);
+      setRecibirForm(f => ({ ...f, scan: '' }));
+    }
+  };
+
   const submitRecibir = async (e) => {
     e.preventDefault();
     try {
-      await api.recibirCustodia(recibirForm);
+      const { scan, ...payload } = recibirForm;
+      await api.recibirCustodia(payload);
       setShowRecibir(false);
       setRecibirForm({});
       load();
@@ -90,6 +110,7 @@ export default function Custodia() {
                 <th>Peso</th>
                 <th>Marmoleo</th>
                 <th>Bodega</th>
+                <th>Ubicación</th>
                 <th>Estado</th>
                 <th>Dias</th>
                 <th>Acciones</th>
@@ -106,6 +127,7 @@ export default function Custodia() {
                     <td>{p.peso_kg ? `${parseFloat(p.peso_kg).toFixed(2)} kg` : '-'}</td>
                     <td>{p.marmoleo ? <span className="badge badge-blue">BMS {p.marmoleo}</span> : '-'}</td>
                     <td>{p.bodega_codigo || '-'}</td>
+                    <td>{p.ubicacion_bodega || '-'}</td>
                     <td><span className={`badge ${estadoBadge[p.estado] || 'badge-gray'}`}>{p.estado}</span></td>
                     <td>{dias !== null ? `${dias}d` : '-'}</td>
                     <td>
@@ -119,7 +141,7 @@ export default function Custodia() {
                   </tr>
                 );
               })}
-              {primales.length === 0 && <tr><td colSpan={9} className="empty-state">No hay primales en custodia</td></tr>}
+              {primales.length === 0 && <tr><td colSpan={10} className="empty-state">No hay primales en custodia</td></tr>}
             </tbody>
           </table>
         </div>
@@ -135,18 +157,23 @@ export default function Custodia() {
             <form onSubmit={submitMover}>
               <div className="form-group">
                 <label>Bodega Destino *</label>
-                <select required value={moverForm.bodega_destino_id || ''} onChange={e => setMoverForm({ ...moverForm, bodega_destino_id: e.target.value })}>
+                <select required value={moverForm.bodega_destino_id || ''} onChange={e => onMoverDestinoChange(e.target.value)}>
                   <option value="">Seleccionar...</option>
                   {bodegas.map(b => <option key={b.id} value={b.id}>{b.codigo} - {b.nombre} ({b.tipo})</option>)}
                 </select>
               </div>
               <div className="form-group">
                 <label>Tipo Movimiento</label>
-                <select value={moverForm.tipo || 'movimiento'} onChange={e => setMoverForm({ ...moverForm, tipo: e.target.value })}>
-                  <option value="movimiento">Movimiento</option>
-                  <option value="salida_maduracion">Salida maduracion</option>
-                  <option value="salida_porcionado">Salida porcionado</option>
+                <select value={moverForm.tipo || 'otro'} onChange={e => setMoverForm({ ...moverForm, tipo: e.target.value })}>
+                  <option value="paso_maduracion">Pasar a maduracion</option>
+                  <option value="salida_porcionado">Salida a porcionado</option>
+                  <option value="devolucion">Devolucion</option>
+                  <option value="otro">Otro movimiento</option>
                 </select>
+              </div>
+              <div className="form-group">
+                <label>Ubicación física en bodega (rack/posición)</label>
+                <input value={moverForm.ubicacion_bodega || ''} onChange={e => setMoverForm({ ...moverForm, ubicacion_bodega: e.target.value })} placeholder="ej. Rack 3 - Pos B2" />
               </div>
               <div className="form-group">
                 <label>Responsable</label>
@@ -155,6 +182,10 @@ export default function Custodia() {
               <div className="form-group">
                 <label>Notas</label>
                 <textarea rows={2} value={moverForm.notas || ''} onChange={e => setMoverForm({ ...moverForm, notas: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label>Nota supervisor (si peso no coincide u otra observación)</label>
+                <textarea rows={2} value={moverForm.nota_supervisor || ''} onChange={e => setMoverForm({ ...moverForm, nota_supervisor: e.target.value })} />
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowMover(false)}>Cancelar</button>
@@ -174,6 +205,16 @@ export default function Custodia() {
             </div>
             <form onSubmit={submitRecibir}>
               <div className="form-group">
+                <label>Escanear codigo de primal</label>
+                <input
+                  autoFocus
+                  placeholder="Pistola scanner: enfoca y dispara"
+                  value={recibirForm.scan || ''}
+                  onChange={e => setRecibirForm({ ...recibirForm, scan: e.target.value })}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); onScanRecibir((recibirForm.scan || '').trim()); } }}
+                />
+              </div>
+              <div className="form-group">
                 <label>Primal *</label>
                 <select required value={recibirForm.primal_id || ''} onChange={e => setRecibirForm({ ...recibirForm, primal_id: e.target.value })}>
                   <option value="">Seleccionar...</option>
@@ -188,6 +229,10 @@ export default function Custodia() {
                   <option value="">Seleccionar...</option>
                   {bodegas.filter(b => b.tipo === 'custodia').map(b => <option key={b.id} value={b.id}>{b.codigo} - {b.nombre}</option>)}
                 </select>
+              </div>
+              <div className="form-group">
+                <label>Ubicación física en bodega (rack/posición)</label>
+                <input value={recibirForm.ubicacion_bodega || ''} onChange={e => setRecibirForm({ ...recibirForm, ubicacion_bodega: e.target.value })} placeholder="ej. Rack 3 - Pos B2" />
               </div>
               <div className="form-group">
                 <label>Responsable</label>

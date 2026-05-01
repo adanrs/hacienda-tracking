@@ -127,6 +127,15 @@ export const api = {
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Error al subir PDF');
     return res.json();
   },
+  parseDeshuesePdf: async (file) => {
+    const fd = new FormData();
+    fd.append('pdf', file);
+    const token = localStorage.getItem('token');
+    const API_BASE = import.meta.env.VITE_API_URL || '/api';
+    const res = await fetch(`${API_BASE}/deshuese/parse-pdf`, { method: 'POST', body: fd, headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Error parseando PDF');
+    return res.json();
+  },
 
   // Primales
   getPrimales: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/primales${qs ? '?' + qs : ''}`); },
@@ -203,4 +212,16 @@ export const api = {
     request(`/paqueteria/${id}/terminar`, { method: 'POST', body: JSON.stringify({ peso_final_kg }) }),
   getPaqueteriaProrrateo: (id) => request(`/paqueteria/${id}/prorrateo`),
   deletePaqueteria: (id) => request(`/paqueteria/${id}`, { method: 'DELETE' }),
+
+  // Alertas BMS por pasaje
+  getAlertasBms: () => request('/alertas-bms'),
+
+  // Alertas maduración (próximos a cumplir target)
+  getAlertasMaduracion: () => request('/custodia/alertas-maduracion'),
+
+  // Temperaturas bodega
+  getTemperaturasBodega: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/temperaturas-bodega${qs ? '?' + qs : ''}`); },
+  createTemperaturaBodega: (data) => request('/temperaturas-bodega', { method: 'POST', body: JSON.stringify(data) }),
+  deleteTemperaturaBodega: (id) => request(`/temperaturas-bodega/${id}`, { method: 'DELETE' }),
+  getResumenTemperaturas: (bodega_id) => request(`/temperaturas-bodega/resumen/${bodega_id}`),
 };

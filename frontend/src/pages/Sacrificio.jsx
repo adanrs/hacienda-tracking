@@ -7,6 +7,8 @@ import AnimalSearch from '../components/AnimalSearch';
 
 const resultadoBadge = { aprobado: 'badge-green', rechazado: 'badge-red', pendiente: 'badge-yellow', condicional: 'badge-blue' };
 
+const BMS_TH = { F1: 3, F2: 5, F3: 7, F4: 7, F8: 8 };
+
 function rendimientoClass(r) {
   if (r === null || r === undefined) return '';
   if (r > 50) return 'rendimiento-high';
@@ -76,6 +78,7 @@ export default function Sacrificio() {
             <thead>
               <tr>
                 <th>Fecha</th>
+                <th>Pasaje</th>
                 <th>Nº MAG</th>
                 <th>Animal</th>
                 <th>Peso Vivo</th>
@@ -94,6 +97,7 @@ export default function Sacrificio() {
                 return (
                   <tr key={s.id}>
                     <td>{formatDate(s.fecha)}</td>
+                    <td>{s.tipo_pasaje || '-'}</td>
                     <td>{s.numero_mag || '-'}</td>
                     <td>{s.animal_id ? <Link to={`/animales/${s.animal_id}`}>{s.numero_trazabilidad || 'Ver animal'}</Link> : '-'}</td>
                     <td>{s.peso_vivo ? `${s.peso_vivo} kg` : '-'}</td>
@@ -111,7 +115,7 @@ export default function Sacrificio() {
                   </tr>
                 );
               })}
-              {sacrificios.length === 0 && <tr><td colSpan={11} className="empty-state">No se encontraron sacrificios</td></tr>}
+              {sacrificios.length === 0 && <tr><td colSpan={12} className="empty-state">No se encontraron sacrificios</td></tr>}
             </tbody>
           </table>
         </div>
@@ -129,7 +133,7 @@ export default function Sacrificio() {
                 <label>Animal *</label>
                 <AnimalSearch value={form.animal_id} onChange={id => setForm({ ...form, animal_id: id })} />
               </div>
-              <div className="form-row">
+              <div className="form-row-3">
                 <div className="form-group">
                   <label>Fecha *</label>
                   <input type="datetime-local" required value={form.fecha || ''} onChange={e => setForm({ ...form, fecha: e.target.value })} />
@@ -137,6 +141,17 @@ export default function Sacrificio() {
                 <div className="form-group">
                   <label>Lote Sacrificio</label>
                   <input value={form.lote_sacrificio || ''} onChange={e => setForm({ ...form, lote_sacrificio: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label>Tipo Pasaje</label>
+                  <select value={form.tipo_pasaje || ''} onChange={e => setForm({ ...form, tipo_pasaje: e.target.value })}>
+                    <option value="">--</option>
+                    <option value="F1">F1</option>
+                    <option value="F2">F2</option>
+                    <option value="F3">F3</option>
+                    <option value="F4">F4</option>
+                    <option value="F8">F8</option>
+                  </select>
                 </div>
               </div>
               <div className="form-row-3">
@@ -192,6 +207,42 @@ export default function Sacrificio() {
                 <div className="form-group">
                   <label>Fecha Medición MBS</label>
                   <input type="datetime-local" value={form.fecha_marmoleo || ''} onChange={e => setForm({ ...form, fecha_marmoleo: e.target.value })} />
+                </div>
+              </div>
+              {form.tipo_pasaje && form.marmoleo && BMS_TH[form.tipo_pasaje] && form.marmoleo < BMS_TH[form.tipo_pasaje] && (
+                <div style={{ background: '#fef2f2', color: '#dc2626', padding: 8, borderRadius: 6, marginBottom: 12 }}>
+                  ⚠ BMS {form.marmoleo} debajo del umbral {BMS_TH[form.tipo_pasaje]} para pasaje {form.tipo_pasaje}
+                </div>
+              )}
+              <div style={{ marginTop: 8, marginBottom: 12, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
+                <h4 style={{ fontSize: '0.95rem', color: '#374151', margin: 0, marginBottom: 12 }}>Detalles Carcasa</h4>
+                <div className="form-row-3">
+                  <div className="form-group">
+                    <label>Músculo (1-4)</label>
+                    <input type="number" min="1" max="4" value={form.musculo || ''} onChange={e => setForm({ ...form, musculo: parseInt(e.target.value) || '' })} />
+                  </div>
+                  <div className="form-group">
+                    <label>Dentición (1-4)</label>
+                    <input type="number" min="1" max="4" value={form.denticion || ''} onChange={e => setForm({ ...form, denticion: parseInt(e.target.value) || '' })} />
+                  </div>
+                  <div className="form-group">
+                    <label>Encarnada</label>
+                    <input value={form.encarnada || ''} onChange={e => setForm({ ...form, encarnada: e.target.value })} />
+                  </div>
+                </div>
+                <div className="form-row-3">
+                  <div className="form-group">
+                    <label>Golpe</label>
+                    <input value={form.golpe || ''} onChange={e => setForm({ ...form, golpe: e.target.value })} />
+                  </div>
+                  <div className="form-group">
+                    <label>pH 24h</label>
+                    <input type="number" step="0.01" value={form.ph_24h || ''} onChange={e => setForm({ ...form, ph_24h: parseFloat(e.target.value) || '' })} />
+                  </div>
+                  <div className="form-group">
+                    <label>Temp 24h (°C)</label>
+                    <input type="number" step="0.1" value={form.temp_24h || ''} onChange={e => setForm({ ...form, temp_24h: parseFloat(e.target.value) || '' })} />
+                  </div>
                 </div>
               </div>
               <div className="form-group">

@@ -500,6 +500,49 @@ async function initDB() {
     try { await conn.query(`ALTER TABLE movimientos_bodega MODIFY COLUMN tipo ENUM('ingreso_custodia','paso_maduracion','salida_porcionado','devolucion','recepcion_entrada','otro') NOT NULL`); } catch (e) {}
     try { await conn.query(`ALTER TABLE movimientos_bodega ADD COLUMN orden_entrada_id INT AFTER orden_salida_id`); } catch (e) {}
 
+    try { await conn.query(`ALTER TABLE transporte ADD COLUMN tipo_pasaje VARCHAR(10) AFTER tipo`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE transporte ADD COLUMN satisface_retiro TINYINT DEFAULT 0 AFTER tipo_pasaje`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE transporte ADD COLUMN peso_pie_finca DECIMAL(8,2) AFTER satisface_retiro`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE transporte ADD COLUMN condicion_corporal INT AFTER peso_pie_finca`); } catch (e) {}
+
+    try { await conn.query(`ALTER TABLE sacrificios ADD COLUMN tipo_pasaje VARCHAR(10) AFTER lote_sacrificio`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE sacrificios ADD COLUMN musculo INT AFTER ojo_ribeye_cm2`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE sacrificios ADD COLUMN denticion INT AFTER musculo`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE sacrificios ADD COLUMN encarnada VARCHAR(50) AFTER denticion`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE sacrificios ADD COLUMN golpe VARCHAR(100) AFTER encarnada`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE sacrificios ADD COLUMN ph_24h DECIMAL(5,2) AFTER golpe`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE sacrificios ADD COLUMN temp_24h DECIMAL(5,2) AFTER ph_24h`); } catch (e) {}
+
+    try { await conn.query(`ALTER TABLE primales ADD COLUMN ubicacion_bodega VARCHAR(100) AFTER bodega_actual_id`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE primales ADD COLUMN dias_maduracion_target INT DEFAULT 30 AFTER dias_maduracion`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE primales ADD COLUMN nota_supervisor TEXT AFTER notas`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE primales ADD COLUMN congelado TINYINT DEFAULT 0 AFTER estado`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE primales ADD COLUMN fecha_congelado DATETIME AFTER congelado`); } catch (e) {}
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS temperaturas_maduracion (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        bodega_id INT,
+        primal_id INT,
+        fecha DATETIME NOT NULL,
+        temperatura_c DECIMAL(5,2) NOT NULL,
+        responsable VARCHAR(200),
+        cumple TINYINT DEFAULT 1,
+        notas TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (bodega_id) REFERENCES bodegas(id) ON DELETE CASCADE,
+        FOREIGN KEY (primal_id) REFERENCES primales(id) ON DELETE SET NULL,
+        INDEX idx_bodega_fecha (bodega_id, fecha),
+        INDEX idx_primal (primal_id)
+      )
+    `);
+
+    try { await conn.query(`ALTER TABLE paqueteria_fuentes ADD COLUMN temporalidad ENUM('fresco','madurado','congelado') DEFAULT 'fresco' AFTER origen`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE paqueteria_fuentes ADD COLUMN dias_desde_deshuese INT AFTER temporalidad`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE paqueteria_fuentes ADD COLUMN codigo_box VARCHAR(20) AFTER dias_desde_deshuese`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE paqueteria_fuentes ADD COLUMN codigo_lot VARCHAR(20) AFTER codigo_box`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE paqueteria_fuentes ADD COLUMN fecha_ingreso DATETIME AFTER codigo_lot`); } catch (e) {}
+
     await conn.query(`
       CREATE TABLE IF NOT EXISTS catalogo_cortes (
         id INT AUTO_INCREMENT PRIMARY KEY,

@@ -25,7 +25,7 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { animal_id, fecha, peso_vivo, peso_canal_caliente, peso_canal_frio, marmoleo, ojo_ribeye_cm2, fecha_marmoleo, fecha_colgado, inspector, resultado_inspeccion, lote_sacrificio, notas, numero_mag, lote_mag, tara_kg, cuenta, ruta } = req.body;
+  const { animal_id, fecha, peso_vivo, peso_canal_caliente, peso_canal_frio, marmoleo, ojo_ribeye_cm2, fecha_marmoleo, fecha_colgado, inspector, resultado_inspeccion, lote_sacrificio, notas, numero_mag, lote_mag, tara_kg, cuenta, ruta, tipo_pasaje, musculo, denticion, encarnada, golpe, ph_24h, temp_24h } = req.body;
   if (!animal_id || !fecha) {
     return res.status(400).json({ error: 'animal_id y fecha son requeridos' });
   }
@@ -34,9 +34,9 @@ router.post('/', async (req, res) => {
   try {
     await conn.beginTransaction();
     const [result] = await conn.query(`
-      INSERT INTO sacrificios (animal_id, fecha, peso_vivo, peso_canal_caliente, peso_canal_frio, rendimiento_canal, marmoleo, ojo_ribeye_cm2, fecha_marmoleo, fecha_colgado, inspector, resultado_inspeccion, lote_sacrificio, notas, numero_mag, lote_mag, tara_kg, cuenta, ruta)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [animal_id, fecha, peso_vivo || null, peso_canal_caliente || null, peso_canal_frio || null, rendimiento_canal, marmoleo || null, ojo_ribeye_cm2 || null, fecha_marmoleo || null, fecha_colgado || null, inspector, resultado_inspeccion || 'aprobado', lote_sacrificio, notas, numero_mag || null, lote_mag || null, tara_kg || null, cuenta || null, ruta || null]);
+      INSERT INTO sacrificios (animal_id, fecha, peso_vivo, peso_canal_caliente, peso_canal_frio, rendimiento_canal, marmoleo, ojo_ribeye_cm2, fecha_marmoleo, fecha_colgado, inspector, resultado_inspeccion, lote_sacrificio, notas, numero_mag, lote_mag, tara_kg, cuenta, ruta, tipo_pasaje, musculo, denticion, encarnada, golpe, ph_24h, temp_24h)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [animal_id, fecha, peso_vivo || null, peso_canal_caliente || null, peso_canal_frio || null, rendimiento_canal, marmoleo || null, ojo_ribeye_cm2 || null, fecha_marmoleo || null, fecha_colgado || null, inspector, resultado_inspeccion || 'aprobado', lote_sacrificio, notas, numero_mag || null, lote_mag || null, tara_kg || null, cuenta || null, ruta || null, tipo_pasaje || null, musculo || null, denticion || null, encarnada || null, golpe || null, ph_24h || null, temp_24h || null]);
     await conn.query("UPDATE animales SET estado = 'sacrificado' WHERE id = ?", [animal_id]);
     await conn.commit();
     const [rows] = await pool.query('SELECT * FROM sacrificios WHERE id = ?', [result.insertId]);
@@ -48,9 +48,17 @@ router.post('/', async (req, res) => {
   } finally { conn.release(); }
 });
 
+const SACRIFICIO_COLUMNS = new Set([
+  'fecha','peso_vivo','peso_canal_caliente','peso_canal_frio','rendimiento_canal',
+  'marmoleo','ojo_ribeye_cm2','fecha_marmoleo','fecha_colgado','inspector',
+  'resultado_inspeccion','lote_sacrificio','notas',
+  'numero_mag','lote_mag','tara_kg','cuenta','ruta',
+  'tipo_pasaje','musculo','denticion','encarnada','golpe','ph_24h','temp_24h'
+]);
+
 router.put('/:id', async (req, res) => {
   const fields = req.body;
-  const keys = Object.keys(fields).filter(k => k !== 'id' && k !== 'animal_id');
+  const keys = Object.keys(fields).filter(k => SACRIFICIO_COLUMNS.has(k));
   if (!keys.length) return res.status(400).json({ error: 'No hay campos para actualizar' });
 
   // Recalculate rendimiento_canal if relevant fields are being updated
@@ -67,7 +75,14 @@ router.put('/:id', async (req, res) => {
   }
 
   const sets = keys.map(k => `${k} = ?`).join(', ');
-  const values = keys.map(k => fields[k] === '' ? null : fields[k]);
+  const values = keys.map(k => {
+    let v = fields[k];
+    if (v === '') return null;
+    if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) {
+      v = v.replace('T', ' ').replace(/\.\d+Z$/, '').replace(/Z$/, '');
+    }
+    return v;
+  });
   try {
     await pool.query(`UPDATE sacrificios SET ${sets} WHERE id = ?`, [...values, req.params.id]);
     const [rows] = await pool.query('SELECT * FROM sacrificios WHERE id = ?', [req.params.id]);
@@ -77,12 +92,12 @@ router.put('/:id', async (req, res) => {
 });
 
 router.post('/:id/marmoleo', async (req, res) => {
-  const { marmoleo, ojo_ribeye_cm2, fecha_marmoleo } = req.body;
+  const { marmoleo, ojo_ribeye_cm2, fecha_marmoleo, musculo, denticion, encarnada, golpe, ph_24h, temp_24h } = req.body;
   if (marmoleo == null) return res.status(400).json({ error: 'marmoleo es requerido' });
   try {
     const [result] = await pool.query(
-      'UPDATE sacrificios SET marmoleo = ?, ojo_ribeye_cm2 = ?, fecha_marmoleo = ? WHERE id = ?',
-      [marmoleo, ojo_ribeye_cm2 || null, fecha_marmoleo || new Date(), req.params.id]
+      'UPDATE sacrificios SET marmoleo = ?, ojo_ribeye_cm2 = ?, fecha_marmoleo = ?, musculo = ?, denticion = ?, encarnada = ?, golpe = ?, ph_24h = ?, temp_24h = ? WHERE id = ?',
+      [marmoleo, ojo_ribeye_cm2 || null, fecha_marmoleo || new Date(), musculo || null, denticion || null, encarnada || null, golpe || null, ph_24h || null, temp_24h || null, req.params.id]
     );
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Sacrificio no encontrado' });
     const [rows] = await pool.query('SELECT * FROM sacrificios WHERE id = ?', [req.params.id]);

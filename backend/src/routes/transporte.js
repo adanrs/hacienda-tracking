@@ -17,27 +17,34 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { animal_id, tipo, destino, fecha_salida, fecha_llegada, transportista, placa_vehiculo, guia_movilizacion, estado, notas } = req.body;
+  const { animal_id, tipo, destino, fecha_salida, fecha_llegada, transportista, placa_vehiculo, guia_movilizacion, estado, notas, tipo_pasaje, satisface_retiro, peso_pie_finca, condicion_corporal } = req.body;
   if (!animal_id || !fecha_salida) {
     return res.status(400).json({ error: 'animal_id y fecha_salida son requeridos' });
   }
   try {
     const [result] = await pool.query(`
-      INSERT INTO transporte (animal_id, tipo, destino, fecha_salida, fecha_llegada, transportista, placa_vehiculo, guia_movilizacion, estado, notas)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [animal_id, tipo || 'otro', destino, fecha_salida, fecha_llegada || null, transportista, placa_vehiculo, guia_movilizacion, estado || 'programado', notas]);
+      INSERT INTO transporte (animal_id, tipo, destino, fecha_salida, fecha_llegada, transportista, placa_vehiculo, guia_movilizacion, estado, notas, tipo_pasaje, satisface_retiro, peso_pie_finca, condicion_corporal)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [animal_id, tipo || 'otro', destino, fecha_salida, fecha_llegada || null, transportista, placa_vehiculo, guia_movilizacion, estado || 'programado', notas, tipo_pasaje || null, satisface_retiro != null ? satisface_retiro : null, peso_pie_finca || null, condicion_corporal || null]);
     const [rows] = await pool.query('SELECT * FROM transporte WHERE id = ?', [result.insertId]);
     res.status(201).json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+const TRANSPORTE_COLUMNS = new Set([
+  'tipo','destino','fecha_salida','fecha_llegada','transportista','placa_vehiculo',
+  'guia_movilizacion','estado','notas',
+  'tipo_pasaje','satisface_retiro','peso_pie_finca','condicion_corporal'
+]);
+
 router.put('/:id', async (req, res) => {
-  const { estado } = req.body;
-  if (!estado) {
-    return res.status(400).json({ error: 'estado es requerido' });
-  }
+  const fields = req.body;
+  const keys = Object.keys(fields).filter(k => TRANSPORTE_COLUMNS.has(k));
+  if (!keys.length) return res.status(400).json({ error: 'No hay campos para actualizar' });
+  const sets = keys.map(k => `${k} = ?`).join(', ');
+  const values = keys.map(k => fields[k] === '' ? null : fields[k]);
   try {
-    await pool.query('UPDATE transporte SET estado = ? WHERE id = ?', [estado, req.params.id]);
+    await pool.query(`UPDATE transporte SET ${sets} WHERE id = ?`, [...values, req.params.id]);
     const [rows] = await pool.query('SELECT * FROM transporte WHERE id = ?', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Transporte no encontrado' });
     res.json(rows[0]);

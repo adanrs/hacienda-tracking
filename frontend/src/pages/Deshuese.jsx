@@ -18,6 +18,10 @@ export default function Deshuese() {
   const [prorrateo, setProrrateo] = useState(false);
   const fileInputRef = useRef();
   const [uploadId, setUploadId] = useState(null);
+  const [pdfFile, setPdfFile] = useState(null);
+  const [pdfParseResult, setPdfParseResult] = useState(null);
+  const [parsingPdf, setParsingPdf] = useState(false);
+  const newPdfRef = useRef();
 
   const load = () => api.getDeshuese().then(setItems).catch(console.error);
 
@@ -34,7 +38,26 @@ export default function Deshuese() {
     setForm({ estado: 'abierto' });
     setPrimalesList([{ tipo_primal: 'Lomo', peso_kg: '', marmoleo: '' }]);
     setProrrateo(false);
+    setPdfFile(null);
+    setPdfParseResult(null);
     setShowModal(true);
+  };
+
+  const onPdfPicked = async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    setPdfFile(f);
+    setParsingPdf(true);
+    try {
+      const r = await api.parseDeshuesePdf(f);
+      setPdfParseResult(r);
+      if (r.primales_guess && r.primales_guess.length) {
+        if (confirm(`Detecte ${r.primales_guess.length} primales en el PDF. Cargarlos al formulario? (puedes editarlos despues)`)) {
+          setPrimalesList(r.primales_guess.map(p => ({ tipo_primal: p.tipo_primal, peso_kg: p.peso_kg, marmoleo: '' })));
+        }
+      }
+    } catch (err) { alert(err.message); }
+    finally { setParsingPdf(false); }
   };
 
   const openEdit = (d) => {
@@ -57,8 +80,12 @@ export default function Deshuese() {
     e.preventDefault();
     try {
       const payload = { ...form, primales: primalesList.filter(p => p.peso_kg), prorrateo };
-      if (editItem) await api.updateDeshuese(editItem.id, payload);
-      else await api.createDeshuese(payload);
+      let created;
+      if (editItem) created = await api.updateDeshuese(editItem.id, payload);
+      else created = await api.createDeshuese(payload);
+      if (!editItem && pdfFile && created && created.id) {
+        try { await api.uploadDeshuesePdf(created.id, pdfFile); } catch (e) { console.error('PDF upload failed:', e.message); }
+      }
       setShowModal(false);
       load();
     } catch (err) { alert(err.message); }
@@ -181,6 +208,26 @@ export default function Deshuese() {
 
               {!editItem && (
                 <>
+                  <div style={{ marginTop: 12, marginBottom: 8, padding: 12, background: '#f9fafb', border: '1px dashed #d1d5db', borderRadius: 6 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <strong style={{ fontSize: '0.9rem' }}><FileText size={14} style={{ verticalAlign: 'middle' }} /> Cargar PDF de arreo (opcional)</strong>
+                      <input type="file" ref={newPdfRef} accept="application/pdf" style={{ display: 'none' }} onChange={onPdfPicked} />
+                      <button type="button" className="btn btn-secondary" onClick={() => newPdfRef.current.click()} disabled={parsingPdf}>
+                        <Upload size={14} /> {parsingPdf ? 'Parseando...' : (pdfFile ? 'Cambiar PDF' : 'Subir PDF')}
+                      </button>
+                    </div>
+                    {pdfFile && (
+                      <div style={{ fontSize: '0.82rem', color: '#6b7280' }}>
+                        {pdfFile.name} ({(pdfFile.size / 1024).toFixed(1)} KB){pdfParseResult ? ` - ${pdfParseResult.numpages} pag, ${pdfParseResult.primales_guess?.length || 0} primales detectados` : ''}
+                      </div>
+                    )}
+                    {pdfParseResult && pdfParseResult.text && (
+                      <details style={{ marginTop: 6 }}>
+                        <summary style={{ cursor: 'pointer', fontSize: '0.82rem', color: '#374151' }}>Ver texto extraido del PDF</summary>
+                        <textarea readOnly rows={6} value={pdfParseResult.text} style={{ width: '100%', marginTop: 4, fontFamily: 'monospace', fontSize: '0.8rem' }} />
+                      </details>
+                    )}
+                  </div>
                   <div style={{ marginTop: 12, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <strong>Primales</strong>
                     <button type="button" className="btn btn-secondary" onClick={addPrimalRow}><Plus size={14} /> Agregar</button>

@@ -179,6 +179,29 @@ export default function Porcionado() {
             {!showStickersFlow && (
               <form onSubmit={save}>
                 <div className="form-group">
+                  <label>Escanear codigo de primal</label>
+                  <input
+                    autoFocus
+                    placeholder="Pistola scanner: enfoca y dispara"
+                    value={form.scan || ''}
+                    onChange={e => setForm({ ...form, scan: e.target.value })}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const codigo = (form.scan || '').trim();
+                        if (!codigo) return;
+                        const match = primales.find(p => String(p.codigo).toLowerCase() === codigo.toLowerCase());
+                        if (match) {
+                          setForm({ ...form, primal_id: match.id, scan: '', peso_inicial: form.peso_inicial || match.peso_kg });
+                        } else {
+                          alert(`Primal con codigo "${codigo}" no encontrado o no disponible`);
+                          setForm({ ...form, scan: '' });
+                        }
+                      }
+                    }}
+                  />
+                </div>
+                <div className="form-group">
                   <label>Primal *</label>
                   <select required value={form.primal_id || ''} onChange={e => setForm({ ...form, primal_id: e.target.value })}>
                     <option value="">Seleccionar...</option>
