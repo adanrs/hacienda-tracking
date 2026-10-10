@@ -9,6 +9,8 @@
 .usage.json
 azure-backend-update.yaml
 data/
+# Módulos de datos versionados del backend (catálogo CIISA)
+!backend/src/data/
 dist/
 node_modules/
 Thumbs.db

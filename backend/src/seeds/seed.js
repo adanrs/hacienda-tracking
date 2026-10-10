@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const { pool, initDB } = require('../models/database');
+const { sembrarCatalogoCiisa } = require('./catalogo-ciisa');
 
 async function runSeed() {
   await initDB();
@@ -15,6 +16,9 @@ async function runSeed() {
       ['operador.campo', bcrypt.hashSync(operPwd, 12), 'Operador Campo', 'operador@haciendatempisque.com', 'operador']);
     console.log('Users created: admin.tempisque / operador.campo');
   }
+
+  // Catálogo real CIISA v10: idempotente, corre en cada seed (antes del corte por datos de ejemplo)
+  await sembrarCatalogoCiisa(pool);
 
   const [existingPotreros] = await pool.query('SELECT id FROM potreros LIMIT 1');
   if (existingPotreros.length) { console.log('Data already seeded, skipping...'); return; }
