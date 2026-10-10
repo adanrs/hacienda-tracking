@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit } from 'lucide-react';
 import { api } from '../services/api';
+import { aviso } from '../components/ui/avisos';
 import { Link } from 'react-router-dom';
 import AnimalSearch from '../components/AnimalSearch';
 import { formatDate } from '../components/DateFormat';
@@ -13,7 +14,7 @@ export default function Reproduccion() {
   const [editReg, setEditReg] = useState(null);
   const [form, setForm] = useState({ tipo: 'monta_natural', resultado: 'gestante' });
 
-  const load = () => api.getReproduccion().then(setRegistros).catch(console.error);
+  const load = () => api.getReproduccion().then(setRegistros).catch(aviso.errorCarga());
   useEffect(() => { load(); }, []);
 
   const openEdit = (r) => { setEditReg(r); setForm({ ...r }); setShowModal(true); };
@@ -21,7 +22,7 @@ export default function Reproduccion() {
 
   const save = async (e) => {
     e.preventDefault();
-    if (!form.hembra_id) { alert('Selecciona una hembra'); return; }
+    if (!form.hembra_id) { aviso.error('Seleccione una hembra'); return; }
     try {
       if (editReg) {
         await api.updateReproduccion(editReg.id, form);
@@ -30,7 +31,7 @@ export default function Reproduccion() {
       }
       setShowModal(false);
       load();
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
   return (
@@ -66,7 +67,7 @@ export default function Reproduccion() {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h3>{editReg ? 'Editar Registro' : 'Nuevo Registro'}</h3><button className="btn-icon" onClick={() => setShowModal(false)}>&times;</button></div>
+            <div className="modal-header"><h3>{editReg ? 'Editar Registro' : 'Nuevo Registro'}</h3><button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowModal(false)}>&times;</button></div>
             <form onSubmit={save}>
               <div className="form-row">
                 <div className="form-group">

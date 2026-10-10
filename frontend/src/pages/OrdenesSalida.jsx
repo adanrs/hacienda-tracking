@@ -1,12 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Send, FileOutput, Edit } from 'lucide-react';
+import { Plus, Trash2, Send, FileOutput, CircleX } from 'lucide-react';
 import { api } from '../services/api';
+import { confirmar } from '../components/ui/confirmar';
+import { aviso } from '../components/ui/avisos';
+import Escaner from '../components/ui/Escaner';
+import { FilaEstado } from '../components/ui/Estados';
 import { formatDate } from '../components/DateFormat';
 
 const estadoBadge = { pendiente: 'badge-yellow', en_preparacion: 'badge-blue', despachada: 'badge-green', cancelada: 'badge-gray' };
 
 export default function OrdenesSalida() {
   const [ordenes, setOrdenes] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState(null);
   const [bodegas, setBodegas] = useState([]);
   const [cajas, setCajas] = useState([]);
   const [primales, setPrimales] = useState([]);
@@ -15,12 +21,36 @@ export default function OrdenesSalida() {
   const [form, setForm] = useState({});
   const [items, setItems] = useState([]);
 
-  const load = () => api.getOrdenesSalida().then(setOrdenes).catch(console.error);
+  const load = () => {
+    setCargando(true);
+    setErrorCarga(null);
+    return api.getOrdenesSalida()
+      .then(setOrdenes)
+      .catch(err => setErrorCarga(err.message))
+      .finally(() => setCargando(false));
+  };
+
+  // Escanear para agregar: cajas cerradas o primales.
+  const leerItem = async (codigo) => {
+    const c = codigo.toLowerCase();
+    const caja = cajas.find(x => String(x.codigo).toLowerCase() === c);
+    const primal = caja ? null : primales.find(x => String(x.codigo).toLowerCase() === c);
+    const encontrado = caja || primal;
+    if (!encontrado) throw new Error(`${codigo} no es una caja cerrada ni un primal disponible`);
+    const tipo = caja ? 'caja' : 'primal';
+    if (items.some(it => it.tipo === tipo && String(it.ref_id) === String(encontrado.id))) {
+      throw new Error(`${codigo} ya está en la orden`);
+    }
+    const nuevo = { tipo, ref_id: encontrado.id, cantidad: 1, peso_kg: encontrado.peso_total_kg || encontrado.peso_kg || '' };
+    setItems(prev => (prev.length === 1 && !prev[0].ref_id ? [nuevo] : [...prev, nuevo]));
+    return { ok: true, titulo: `${caja ? 'Caja' : 'Primal'} agregado`, detalle: `${encontrado.codigo} · ${encontrado.tipo_corte || encontrado.tipo_primal || ''}` };
+  };
+
   useEffect(() => {
     load();
-    api.getBodegas().then(setBodegas).catch(console.error);
-    api.getCajas({ estado: 'cerrada' }).then(setCajas).catch(console.error);
-    api.getPrimales().then(setPrimales).catch(console.error);
+    api.getBodegas().then(setBodegas).catch(aviso.errorCarga('las bodegas'));
+    api.getCajas({ estado: 'cerrada' }).then(setCajas).catch(aviso.errorCarga('las cajas'));
+    api.getPrimales().then(setPrimales).catch(aviso.errorCarga('los primales'));
   }, []);
 
   const openNew = () => {
@@ -32,36 +62,38 @@ export default function OrdenesSalida() {
   const addItem = () => setItems([...items, { tipo: 'caja', ref_id: '', cantidad: 1, peso_kg: '' }]);
   const removeItem = (i) => setItems(items.filter((_, idx) => idx !== i));
   const updateItem = (i, k, v) => { const n = [...items]; n[i] = { ...n[i], [k]: v }; setItems(n); };
+  const cambiarTipo = (i, tipo) => { const n = [...items]; n[i] = { ...n[i], tipo, ref_id: '' }; setItems(n); };
 
   const save = async (e) => {
     e.preventDefault();
     try {
       const payload = { ...form, items: items.filter(it => it.ref_id) };
       await api.createOrdenSalida(payload);
+      aviso.ok(`Orden de salida creada con ${payload.items.length} ítem(s)`);
       setShowNew(false);
       load();
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
   const ver = async (id) => {
-    try { const r = await api.getOrdenSalida(id); setShowView(r); } catch (err) { alert(err.message); }
+    try { const r = await api.getOrdenSalida(id); setShowView(r); } catch (err) { aviso.error(err.message); }
   };
 
   const despachar = async (id) => {
-    if (!confirm('Despachar esta orden?')) return;
-    try { await api.despacharOrden(id); load(); } catch (err) { alert(err.message); }
+    if (!(await confirmar({ titulo: '¿Despachar esta orden?', mensaje: 'Los ítems saldrán del inventario de la bodega.', textoConfirmar: 'Despachar' }))) return;
+    try { await api.despacharOrden(id); aviso.ok('Orden despachada'); load(); } catch (err) { aviso.error(err.message); }
   };
 
   const cancelar = async (id) => {
-    if (!confirm('Cancelar esta orden?')) return;
-    try { await api.updateOrdenSalida(id, { estado: 'cancelada' }); load(); } catch (err) { alert(err.message); }
+    if (!(await confirmar({ titulo: '¿Anular esta orden de salida?', mensaje: 'La orden quedará cancelada y no se podrá despachar.', textoConfirmar: 'Anular orden', textoCancelar: 'Volver', peligro: true }))) return;
+    try { await api.updateOrdenSalida(id, { estado: 'cancelada' }); aviso.ok('Orden anulada'); load(); } catch (err) { aviso.error(err.message); }
   };
 
   return (
     <div>
       <div className="page-header">
-        <h2>Ordenes de Salida</h2>
-        <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nueva Orden</button>
+        <h2>Órdenes de salida</h2>
+        <button type="button" className="btn btn-primary btn-lg" onClick={openNew}><Plus size={20} aria-hidden="true" /> Nueva orden</button>
       </div>
 
       <div className="card">
@@ -69,18 +101,18 @@ export default function OrdenesSalida() {
           <table>
             <thead>
               <tr>
-                <th>Numero</th>
+                <th>Número</th>
                 <th>Fecha</th>
                 <th>Solicitante</th>
                 <th>Destino</th>
                 <th>Bodega</th>
                 <th>Estado</th>
-                <th>Items</th>
+                <th>Ítems</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {ordenes.map(o => (
+              {!cargando && !errorCarga && ordenes.map(o => (
                 <tr key={o.id}>
                   <td><strong>{o.numero || `#${o.id}`}</strong></td>
                   <td>{formatDate(o.fecha)}</td>
@@ -91,96 +123,114 @@ export default function OrdenesSalida() {
                   <td>{o.items_count || 0}</td>
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="btn-icon" onClick={() => ver(o.id)}><FileOutput size={16} /></button>
+                      <button type="button" className="btn-icon" onClick={() => ver(o.id)} title="Ver detalle" aria-label={`Ver detalle de la orden ${o.numero || o.id}`}><FileOutput size={18} aria-hidden="true" /></button>
                       {o.estado !== 'despachada' && o.estado !== 'cancelada' && (
-                        <button className="btn-icon" onClick={() => despachar(o.id)} title="Despachar"><Send size={16} color="#16a34a" /></button>
+                        <button type="button" className="btn-icon ok" onClick={() => despachar(o.id)} title="Despachar" aria-label={`Despachar la orden ${o.numero || o.id}`}><Send size={18} aria-hidden="true" /></button>
                       )}
                       {o.estado !== 'despachada' && o.estado !== 'cancelada' && (
-                        <button className="btn-icon" onClick={() => cancelar(o.id)} title="Cancelar"><Trash2 size={16} color="#dc2626" /></button>
+                        <button type="button" className="btn-icon peligro" onClick={() => cancelar(o.id)} title="Anular" aria-label={`Anular la orden ${o.numero || o.id}`}><CircleX size={18} aria-hidden="true" /></button>
                       )}
                     </div>
                   </td>
                 </tr>
               ))}
-              {ordenes.length === 0 && <tr><td colSpan={8} className="empty-state">Sin ordenes</td></tr>}
+              <FilaEstado
+                columnas={8}
+                cargando={cargando}
+                error={errorCarga}
+                onReintentar={load}
+                vacio={ordenes.length === 0}
+                tituloVacio="No hay órdenes de salida"
+                textoVacio="Cree una con «Nueva orden» para despachar cajas o primales desde una bodega."
+              />
             </tbody>
           </table>
         </div>
       </div>
 
       {showNew && (
-        <div className="modal-overlay" onClick={() => setShowNew(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 750 }}>
+        // Sin cierre por clic fuera: un toque accidental no debe borrar una orden a medio llenar.
+        <div className="modal-overlay">
+          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="titulo-nueva-os" style={{ maxWidth: 780 }}>
             <div className="modal-header">
-              <h3>Nueva Orden de Salida</h3>
-              <button className="btn-icon" onClick={() => setShowNew(false)}>&times;</button>
+              <h3 id="titulo-nueva-os">Nueva orden de salida</h3>
+              <button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowNew(false)}>&times;</button>
             </div>
             <form onSubmit={save}>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Fecha *</label>
-                  <input type="date" required value={form.fecha || ''} onChange={e => setForm({ ...form, fecha: e.target.value })} />
+                  <label htmlFor="os-fecha">Fecha *</label>
+                  <input id="os-fecha" type="date" required value={form.fecha || ''} onChange={e => setForm({ ...form, fecha: e.target.value })} />
                 </div>
                 <div className="form-group">
-                  <label>Solicitante</label>
-                  <input value={form.solicitante || ''} onChange={e => setForm({ ...form, solicitante: e.target.value })} />
+                  <label htmlFor="os-solicitante">Solicitante</label>
+                  <input id="os-solicitante" value={form.solicitante || ''} onChange={e => setForm({ ...form, solicitante: e.target.value })} />
                 </div>
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Destino</label>
-                  <input value={form.destino || ''} onChange={e => setForm({ ...form, destino: e.target.value })} />
+                  <label htmlFor="os-destino">Destino</label>
+                  <input id="os-destino" value={form.destino || ''} onChange={e => setForm({ ...form, destino: e.target.value })} />
                 </div>
                 <div className="form-group">
-                  <label>Bodega Origen</label>
-                  <select value={form.bodega_origen_id || ''} onChange={e => setForm({ ...form, bodega_origen_id: e.target.value })}>
-                    <option value="">Seleccionar...</option>
+                  <label htmlFor="os-bodega">Bodega de origen</label>
+                  <select id="os-bodega" value={form.bodega_origen_id || ''} onChange={e => setForm({ ...form, bodega_origen_id: e.target.value })}>
+                    <option value="">Seleccionar…</option>
                     {bodegas.map(b => <option key={b.id} value={b.id}>{b.codigo} - {b.nombre}</option>)}
                   </select>
                 </div>
               </div>
               <div className="form-group">
-                <label>Notas</label>
-                <textarea rows={2} value={form.notas || ''} onChange={e => setForm({ ...form, notas: e.target.value })} />
+                <label htmlFor="os-notas">Notas</label>
+                <textarea id="os-notas" rows={2} value={form.notas || ''} onChange={e => setForm({ ...form, notas: e.target.value })} />
               </div>
 
+              <Escaner
+                etiqueta="Escanear para agregar ítems"
+                onLeer={leerItem}
+                autoFocus={false}
+                mantenerFoco={false}
+                textoEspera="Escanee cajas cerradas o primales para sumarlos a la orden"
+                ayuda="Cada lectura agrega una fila con el peso registrado. También puede agregarlas a mano."
+              />
+
               <div style={{ marginTop: 12, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <strong>Items</strong>
-                <button type="button" className="btn btn-secondary" onClick={addItem}><Plus size={14} /> Agregar</button>
+                <strong>Ítems ({items.filter(it => it.ref_id).length})</strong>
+                <button type="button" className="btn btn-secondary" onClick={addItem}><Plus size={16} aria-hidden="true" /> Agregar a mano</button>
               </div>
               {items.map((it, i) => (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 80px 100px 40px', gap: 8, marginBottom: 8, alignItems: 'end' }}>
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label>Tipo</label>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <label style={{ fontSize: '0.85rem' }}><input type="radio" checked={it.tipo === 'caja'} onChange={() => updateItem(i, 'tipo', 'caja')} /> Caja</label>
-                      <label style={{ fontSize: '0.85rem' }}><input type="radio" checked={it.tipo === 'primal'} onChange={() => updateItem(i, 'tipo', 'primal')} /> Primal</label>
+                <div key={i} className="fila-item" role="group" aria-label={`Ítem ${i + 1}`}>
+                  <div className="form-group">
+                    <span className="sr-only">Tipo</span>
+                    <div className="opciones-radio">
+                      <label><input type="radio" name={`os-tipo-${i}`} checked={it.tipo === 'caja'} onChange={() => cambiarTipo(i, 'caja')} /> Caja</label>
+                      <label><input type="radio" name={`os-tipo-${i}`} checked={it.tipo === 'primal'} onChange={() => cambiarTipo(i, 'primal')} /> Primal</label>
                     </div>
                   </div>
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label>{it.tipo === 'caja' ? 'Caja' : 'Primal'}</label>
-                    <select value={it.ref_id} onChange={e => updateItem(i, 'ref_id', e.target.value)}>
-                      <option value="">Seleccionar...</option>
+                  <div className="form-group">
+                    <label htmlFor={`os-ref-${i}`}>{it.tipo === 'caja' ? 'Caja' : 'Primal'}</label>
+                    <select id={`os-ref-${i}`} value={it.ref_id} onChange={e => updateItem(i, 'ref_id', e.target.value)}>
+                      <option value="">Seleccionar…</option>
                       {(it.tipo === 'caja' ? cajas : primales).map(x => (
                         <option key={x.id} value={x.id}>{x.codigo} {x.tipo_corte || x.tipo_primal || ''}</option>
                       ))}
                     </select>
                   </div>
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label>Cant</label>
-                    <input type="number" min="1" value={it.cantidad} onChange={e => updateItem(i, 'cantidad', parseInt(e.target.value) || 1)} />
+                  <div className="form-group">
+                    <label htmlFor={`os-cant-${i}`}>Cantidad</label>
+                    <input id={`os-cant-${i}`} type="number" min="1" inputMode="numeric" value={it.cantidad} onChange={e => updateItem(i, 'cantidad', parseInt(e.target.value) || 1)} />
                   </div>
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label>Peso (kg)</label>
-                    <input type="number" step="0.01" value={it.peso_kg} onChange={e => updateItem(i, 'peso_kg', parseFloat(e.target.value) || '')} />
+                  <div className="form-group">
+                    <label htmlFor={`os-peso-${i}`}>Peso (kg)</label>
+                    <input id={`os-peso-${i}`} type="number" step="0.01" inputMode="decimal" value={it.peso_kg} onChange={e => updateItem(i, 'peso_kg', parseFloat(e.target.value) || '')} />
                   </div>
-                  <button type="button" className="btn-icon" onClick={() => removeItem(i)} style={{ marginBottom: 2 }}><Trash2 size={16} color="#dc2626" /></button>
+                  <button type="button" className="btn-icon peligro" onClick={() => removeItem(i)} aria-label={`Quitar ítem ${i + 1}`} title="Quitar ítem"><Trash2 size={18} aria-hidden="true" /></button>
                 </div>
               ))}
 
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowNew(false)}>Cancelar</button>
-                <button type="submit" className="btn btn-primary">Crear</button>
+                <button type="submit" className="btn btn-primary">Crear orden</button>
               </div>
             </form>
           </div>
@@ -192,7 +242,7 @@ export default function OrdenesSalida() {
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 700 }}>
             <div className="modal-header">
               <h3>Orden {showView.numero || `#${showView.id}`}</h3>
-              <button className="btn-icon" onClick={() => setShowView(null)}>&times;</button>
+              <button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowView(null)}>&times;</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
               <div><strong>Fecha:</strong> {formatDate(showView.fecha)}</div>

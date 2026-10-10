@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, MapPin } from 'lucide-react';
 import { api } from '../services/api';
+import { confirmar } from '../components/ui/confirmar';
+import { aviso } from '../components/ui/avisos';
 
 const estadoBadge = { activo: 'badge-green', inactivo: 'badge-gray', mantenimiento: 'badge-yellow' };
 
@@ -10,7 +12,7 @@ export default function Potreros() {
   const [editPotrero, setEditPotrero] = useState(null);
   const [form, setForm] = useState({ estado: 'activo' });
 
-  const load = () => api.getPotreros().then(setPotreros).catch(console.error);
+  const load = () => api.getPotreros().then(setPotreros).catch(aviso.errorCarga());
   useEffect(() => { load(); }, []);
 
   const openNew = () => { setEditPotrero(null); setForm({ estado: 'activo' }); setShowModal(true); };
@@ -26,11 +28,11 @@ export default function Potreros() {
       }
       setShowModal(false);
       load();
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
   const remove = async (id) => {
-    if (!confirm('Eliminar este potrero?')) return;
+    if (!(await confirmar({ titulo: '¿Eliminar este potrero?', mensaje: 'Esta acción no se puede deshacer.', textoConfirmar: 'Eliminar', peligro: true }))) return;
     await api.deletePotrero(id);
     load();
   };
@@ -87,7 +89,7 @@ export default function Potreros() {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h3>{editPotrero ? 'Editar Potrero' : 'Nuevo Potrero'}</h3><button className="btn-icon" onClick={() => setShowModal(false)}>&times;</button></div>
+            <div className="modal-header"><h3>{editPotrero ? 'Editar Potrero' : 'Nuevo Potrero'}</h3><button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowModal(false)}>&times;</button></div>
             <form onSubmit={save}>
               <div className="form-group">
                 <label>Nombre *</label>

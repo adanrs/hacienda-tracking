@@ -2,7 +2,7 @@
 export function CowIcon({ size = 32, weight, color }) {
   const fontSize = size * 0.75;
   return (
-    <span style={{ fontSize, lineHeight: 1, display: 'inline-block', width: size, height: size, textAlign: 'center' }} role="img" aria-label="vaca">
+    <span style={{ fontSize, lineHeight: 1, display: 'inline-block', width: size, height: size, textAlign: 'center' }} role="img" aria-label={color === '#ec4899' ? 'hembra' : 'macho'}>
       {color === '#ec4899' ? '\u{1F404}' : '\u{1F402}'}
     </span>
   );

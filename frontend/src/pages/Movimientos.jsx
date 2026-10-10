@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { api } from '../services/api';
+import { aviso } from '../components/ui/avisos';
 import { Link } from 'react-router-dom';
 import AnimalSearch from '../components/AnimalSearch';
 import { formatDate } from '../components/DateFormat';
@@ -11,21 +12,21 @@ export default function Movimientos() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({});
 
-  const load = () => api.getMovimientos().then(setMovimientos).catch(console.error);
+  const load = () => api.getMovimientos().then(setMovimientos).catch(aviso.errorCarga());
   useEffect(() => {
     load();
-    api.getPotreros().then(setPotreros);
+    api.getPotreros().then(setPotreros).catch(aviso.errorCarga('los potreros'));
   }, []);
 
   const save = async (e) => {
     e.preventDefault();
-    if (!form.animal_id) { alert('Selecciona un animal'); return; }
+    if (!form.animal_id) { aviso.error('Seleccione un animal'); return; }
     try {
       await api.createMovimiento(form);
       setShowModal(false);
       setForm({});
       load();
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
   return (
@@ -58,7 +59,7 @@ export default function Movimientos() {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h3>Nuevo Movimiento</h3><button className="btn-icon" onClick={() => setShowModal(false)}>&times;</button></div>
+            <div className="modal-header"><h3>Nuevo Movimiento</h3><button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowModal(false)}>&times;</button></div>
             <form onSubmit={save}>
               <div className="form-group">
                 <label>Animal *</label>

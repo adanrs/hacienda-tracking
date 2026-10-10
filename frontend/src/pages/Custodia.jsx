@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Send, Clock, Plus } from 'lucide-react';
 import { api } from '../services/api';
-import { formatDate } from '../components/DateFormat';
+import { aviso } from '../components/ui/avisos';
+import Escaner from '../components/ui/Escaner';
+import { FilaEstado } from '../components/ui/Estados';
 
 const estadoBadge = {
   en_deshuese: 'badge-gray', en_custodia: 'badge-blue', en_maduracion: 'badge-yellow',
@@ -25,16 +27,23 @@ export default function Custodia() {
   const [showRecibir, setShowRecibir] = useState(false);
   const [moverForm, setMoverForm] = useState({});
   const [recibirForm, setRecibirForm] = useState({});
+  const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState(null);
 
   const load = () => {
     const params = filterBodega ? { bodega_id: filterBodega } : {};
-    api.getCustodia(params).then(setPrimales).catch(console.error);
+    setCargando(true);
+    setErrorCarga(null);
+    api.getCustodia(params)
+      .then(setPrimales)
+      .catch(err => setErrorCarga(err.message))
+      .finally(() => setCargando(false));
   };
 
   useEffect(() => { load(); }, [filterBodega]);
   useEffect(() => {
-    api.getBodegas().then(setBodegas).catch(console.error);
-    api.getPrimales({ estado: 'en_deshuese' }).then(setPrimalesDisponibles).catch(console.error);
+    api.getBodegas().then(setBodegas).catch(aviso.errorCarga('las bodegas'));
+    api.getPrimales({ estado: 'en_deshuese' }).then(setPrimalesDisponibles).catch(aviso.errorCarga('los primales disponibles'));
   }, []);
 
   const bodegasCustodia = bodegas.filter(b => b.tipo === 'custodia' || b.tipo === 'maduracion');
@@ -55,45 +64,50 @@ export default function Custodia() {
       await api.moverBodega(moverForm);
       setShowMover(false);
       load();
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
-  const onScanRecibir = (codigo) => {
-    if (!codigo) return;
+  // Lectura de la pistola: busca el primal entre los disponibles y lo selecciona en el formulario.
+  const onScanRecibir = async (codigo) => {
     const match = primalesDisponibles.find(p => String(p.codigo).toLowerCase() === String(codigo).toLowerCase());
-    if (match) {
-      setRecibirForm(f => ({ ...f, primal_id: match.id, scan: '' }));
-    } else {
-      alert(`Primal con codigo "${codigo}" no encontrado o no disponible (debe estar en_deshuese)`);
-      setRecibirForm(f => ({ ...f, scan: '' }));
+    if (!match) {
+      throw new Error(`el primal ${codigo} no está disponible para recibir (debe venir de deshuese)`);
     }
+    setRecibirForm(f => ({ ...f, primal_id: match.id }));
+    return {
+      ok: true,
+      titulo: 'Primal OK',
+      detalle: `${match.codigo} · ${match.tipo_primal} · ${parseFloat(match.peso_kg || 0).toFixed(2)} kg`,
+    };
   };
 
   const submitRecibir = async (e) => {
     e.preventDefault();
     try {
-      const { scan, ...payload } = recibirForm;
-      await api.recibirCustodia(payload);
+      await api.recibirCustodia(recibirForm);
+      const recibido = primalesDisponibles.find(p => String(p.id) === String(recibirForm.primal_id));
+      aviso.ok(`Primal ${recibido?.codigo || ''} recibido en custodia`);
       setShowRecibir(false);
       setRecibirForm({});
       load();
-      api.getPrimales({ estado: 'en_deshuese' }).then(setPrimalesDisponibles);
-    } catch (err) { alert(err.message); }
+      api.getPrimales({ estado: 'en_deshuese' }).then(setPrimalesDisponibles).catch(aviso.errorCarga('los primales disponibles'));
+    } catch (err) { aviso.error(err.message); }
   };
 
   const iniciar = async (id) => {
-    try { await api.iniciarMaduracion(id); load(); } catch (err) { alert(err.message); }
+    try { await api.iniciarMaduracion(id); aviso.ok('Maduración iniciada'); load(); } catch (err) { aviso.error(err.message); }
   };
 
   return (
     <div>
       <div className="page-header">
         <h2>Custodia</h2>
-        <button className="btn btn-primary" onClick={() => { setRecibirForm({}); setShowRecibir(true); }}><Plus size={16} /> Recibir Primal</button>
+        <button type="button" className="btn btn-primary btn-lg" onClick={() => { setRecibirForm({}); setShowRecibir(true); }}><Plus size={20} aria-hidden="true" /> Recibir primal</button>
       </div>
 
       <div className="filter-bar">
-        <select value={filterBodega} onChange={e => setFilterBodega(e.target.value)}>
+        <label className="sr-only" htmlFor="filtro-bodega-custodia">Filtrar por bodega</label>
+        <select id="filtro-bodega-custodia" value={filterBodega} onChange={e => setFilterBodega(e.target.value)}>
           <option value="">Todas las bodegas</option>
           {bodegasCustodia.map(b => <option key={b.id} value={b.id}>{b.codigo} - {b.nombre}</option>)}
         </select>
@@ -104,7 +118,7 @@ export default function Custodia() {
           <table>
             <thead>
               <tr>
-                <th>Codigo</th>
+                <th>Código</th>
                 <th>Animal</th>
                 <th>Tipo</th>
                 <th>Peso</th>
@@ -112,12 +126,12 @@ export default function Custodia() {
                 <th>Bodega</th>
                 <th>Ubicación</th>
                 <th>Estado</th>
-                <th>Dias</th>
+                <th>Días</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {primales.map(p => {
+              {!cargando && !errorCarga && primales.map(p => {
                 const dias = diasDesde(p.fecha_ingreso_custodia);
                 return (
                   <tr key={p.id}>
@@ -132,16 +146,24 @@ export default function Custodia() {
                     <td>{dias !== null ? `${dias}d` : '-'}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 4 }}>
-                        <button className="btn-icon" onClick={() => openMover(p)} title="Mover"><Send size={16} /></button>
+                        <button type="button" className="btn-icon" onClick={() => openMover(p)} title="Mover a otra bodega" aria-label={`Mover ${p.codigo} a otra bodega`}><Send size={18} aria-hidden="true" /></button>
                         {p.estado === 'en_custodia' && (
-                          <button className="btn-icon" onClick={() => iniciar(p.id)} title="Iniciar maduracion"><Clock size={16} color="#eab308" /></button>
+                          <button type="button" className="btn-icon" onClick={() => iniciar(p.id)} title="Iniciar maduración" aria-label={`Iniciar maduración de ${p.codigo}`}><Clock size={18} aria-hidden="true" /></button>
                         )}
                       </div>
                     </td>
                   </tr>
                 );
               })}
-              {primales.length === 0 && <tr><td colSpan={10} className="empty-state">No hay primales en custodia</td></tr>}
+              <FilaEstado
+                columnas={10}
+                cargando={cargando}
+                error={errorCarga}
+                onReintentar={load}
+                vacio={primales.length === 0}
+                tituloVacio="No hay primales en custodia"
+                textoVacio="Use «Recibir primal» y escanee el código del primal que llega de deshuese."
+              />
             </tbody>
           </table>
         </div>
@@ -152,7 +174,7 @@ export default function Custodia() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Mover Primal</h3>
-              <button className="btn-icon" onClick={() => setShowMover(false)}>&times;</button>
+              <button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowMover(false)}>&times;</button>
             </div>
             <form onSubmit={submitMover}>
               <div className="form-group">
@@ -198,25 +220,20 @@ export default function Custodia() {
 
       {showRecibir && (
         <div className="modal-overlay" onClick={() => setShowRecibir(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="titulo-recibir" onClick={e => e.stopPropagation()} style={{ maxWidth: 680 }}>
             <div className="modal-header">
-              <h3>Recibir Primal</h3>
-              <button className="btn-icon" onClick={() => setShowRecibir(false)}>&times;</button>
+              <h3 id="titulo-recibir">Recibir primal</h3>
+              <button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowRecibir(false)}>&times;</button>
             </div>
             <form onSubmit={submitRecibir}>
+              <Escaner
+                etiqueta="Código del primal"
+                onLeer={onScanRecibir}
+                ayuda="Dispare la pistola sobre la etiqueta del primal; se selecciona solo en la lista de abajo."
+              />
               <div className="form-group">
-                <label>Escanear codigo de primal</label>
-                <input
-                  autoFocus
-                  placeholder="Pistola scanner: enfoca y dispara"
-                  value={recibirForm.scan || ''}
-                  onChange={e => setRecibirForm({ ...recibirForm, scan: e.target.value })}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); onScanRecibir((recibirForm.scan || '').trim()); } }}
-                />
-              </div>
-              <div className="form-group">
-                <label>Primal *</label>
-                <select required value={recibirForm.primal_id || ''} onChange={e => setRecibirForm({ ...recibirForm, primal_id: e.target.value })}>
+                <label htmlFor="recibir-primal">Primal *</label>
+                <select id="recibir-primal" required value={recibirForm.primal_id || ''} onChange={e => setRecibirForm({ ...recibirForm, primal_id: e.target.value })}>
                   <option value="">Seleccionar...</option>
                   {primalesDisponibles.map(p => (
                     <option key={p.id} value={p.id}>{p.codigo} - {p.tipo_primal} ({parseFloat(p.peso_kg || 0).toFixed(2)} kg)</option>

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Trash2 } from 'lucide-react';
 import { api } from '../services/api';
+import { confirmar } from '../components/ui/confirmar';
+import { aviso } from '../components/ui/avisos';
 import { formatDate } from '../components/DateFormat';
 import AnimalSearch from '../components/AnimalSearch';
 
@@ -17,11 +19,11 @@ export default function Cortes() {
   const load = () => {
     const params = {};
     Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v; });
-    api.getCortes(params).then(setCortes).catch(console.error);
+    api.getCortes(params).then(setCortes).catch(aviso.errorCarga());
   };
 
   useEffect(() => { load(); }, [filters]);
-  useEffect(() => { api.getSacrificios().then(setSacrificios).catch(console.error); }, []);
+  useEffect(() => { api.getSacrificios().then(setSacrificios).catch(aviso.errorCarga()); }, []);
 
   const openNew = () => {
     setForm({ calidad: 'estandar', tipo_corte: 'Lomo' });
@@ -35,12 +37,12 @@ export default function Cortes() {
       setShowModal(false);
       load();
     } catch (err) {
-      alert(err.message);
+      aviso.error(err.message);
     }
   };
 
   const remove = async (id) => {
-    if (!confirm('Eliminar este corte?')) return;
+    if (!(await confirmar({ titulo: '¿Eliminar este corte?', mensaje: 'Esta acción no se puede deshacer.', textoConfirmar: 'Eliminar', peligro: true }))) return;
     await api.deleteCorte(id);
     load();
   };
@@ -109,7 +111,7 @@ export default function Cortes() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Nuevo Corte</h3>
-              <button className="btn-icon" onClick={() => setShowModal(false)}>&times;</button>
+              <button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowModal(false)}>&times;</button>
             </div>
             <form onSubmit={save}>
               <div className="form-group">

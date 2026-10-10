@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Shield, ShieldCheck, Eye } from 'lucide-react';
 import { api } from '../services/api';
+import { confirmar } from '../components/ui/confirmar';
+import { aviso } from '../components/ui/avisos';
 import { useAuth } from '../components/AuthContext';
 import { formatDate } from '../components/DateFormat';
 
@@ -14,7 +16,7 @@ export default function Usuarios() {
   const [editUser, setEditUser] = useState(null);
   const [form, setForm] = useState({ rol: 'operador' });
 
-  const load = () => api.getUsuarios().then(setUsuarios).catch(console.error);
+  const load = () => api.getUsuarios().then(setUsuarios).catch(aviso.errorCarga());
   useEffect(() => { load(); }, []);
 
   if (!isAdmin) return <div className="empty-state">Solo administradores pueden acceder a esta seccion</div>;
@@ -32,15 +34,15 @@ export default function Usuarios() {
       }
       setShowModal(false);
       load();
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
   const remove = async (id) => {
-    if (!confirm('Eliminar este usuario?')) return;
+    if (!(await confirmar({ titulo: '¿Eliminar este usuario?', mensaje: 'La persona ya no podrá ingresar. Esta acción no se puede deshacer.', textoConfirmar: 'Eliminar', peligro: true }))) return;
     try {
       await api.deleteUsuario(id);
       load();
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
   return (
@@ -81,7 +83,7 @@ export default function Usuarios() {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h3>{editUser ? 'Editar Usuario' : 'Nuevo Usuario'}</h3><button className="btn-icon" onClick={() => setShowModal(false)}>&times;</button></div>
+            <div className="modal-header"><h3>{editUser ? 'Editar Usuario' : 'Nuevo Usuario'}</h3><button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowModal(false)}>&times;</button></div>
             <form onSubmit={save}>
               {!editUser && (
                 <div className="form-row">

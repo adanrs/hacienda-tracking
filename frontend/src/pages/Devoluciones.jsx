@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, RotateCcw, Check } from 'lucide-react';
 import { api } from '../services/api';
+import { aviso } from '../components/ui/avisos';
 import { formatDate } from '../components/DateFormat';
 
 const motivoBadge = {
@@ -16,12 +17,12 @@ export default function Devoluciones() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ target: 'caja', motivo: 'producto_danado' });
 
-  const load = () => api.getDevoluciones().then(setItems).catch(console.error);
+  const load = () => api.getDevoluciones().then(setItems).catch(aviso.errorCarga());
   useEffect(() => {
     load();
-    api.getCajas().then(setCajas).catch(console.error);
-    api.getStickers().then(setStickers).catch(console.error);
-    api.getPrimales().then(setPrimales).catch(console.error);
+    api.getCajas().then(setCajas).catch(aviso.errorCarga());
+    api.getStickers().then(setStickers).catch(aviso.errorCarga());
+    api.getPrimales().then(setPrimales).catch(aviso.errorCarga());
   }, []);
 
   const openNew = () => {
@@ -45,11 +46,11 @@ export default function Devoluciones() {
       await api.createDevolucion(payload);
       setShowModal(false);
       load();
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
   const marcar = async (id) => {
-    try { await api.marcarReprocesada(id); load(); } catch (err) { alert(err.message); }
+    try { await api.marcarReprocesada(id); load(); } catch (err) { aviso.error(err.message); }
   };
 
   const refOptions = form.target === 'caja' ? cajas : form.target === 'sticker' ? stickers : primales;
@@ -106,7 +107,7 @@ export default function Devoluciones() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3><RotateCcw size={18} style={{ verticalAlign: 'middle' }} /> Nueva Devolucion</h3>
-              <button className="btn-icon" onClick={() => setShowModal(false)}>&times;</button>
+              <button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowModal(false)}>&times;</button>
             </div>
             <form onSubmit={save}>
               <div className="form-group">
