@@ -66,6 +66,7 @@ app.use('/api/devoluciones', authMiddleware, require('./routes/devoluciones'));
 app.use('/api/paqueteria', authMiddleware, require('./routes/paqueteria'));
 app.use('/api/alertas-bms', authMiddleware, require('./routes/alertas-bms'));
 app.use('/api/temperaturas-bodega', authMiddleware, require('./routes/temperaturas-bodega'));
+app.use('/api/etiquetas', authMiddleware, require('./routes/etiquetas'));
 
 // Start with DB init
 async function start() {
