@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Edit, Trash2, Upload, FileText } from 'lucide-react';
 import { api } from '../services/api';
+import { confirmar } from '../components/ui/confirmar';
+import { aviso } from '../components/ui/avisos';
 import { formatDate } from '../components/DateFormat';
 
 const estadoBadge = { abierto: 'badge-yellow', cerrado: 'badge-green', reabierto: 'badge-blue' };
@@ -23,12 +25,12 @@ export default function Deshuese() {
   const [parsingPdf, setParsingPdf] = useState(false);
   const newPdfRef = useRef();
 
-  const load = () => api.getDeshuese().then(setItems).catch(console.error);
+  const load = () => api.getDeshuese().then(setItems).catch(aviso.errorCarga());
 
   useEffect(() => {
     load();
-    api.getSacrificios().then(setSacrificios).catch(console.error);
-    api.getBodegas().then(setBodegas).catch(console.error);
+    api.getSacrificios().then(setSacrificios).catch(aviso.errorCarga());
+    api.getBodegas().then(setBodegas).catch(aviso.errorCarga());
   }, []);
 
   const bodegasDeshuese = bodegas.filter(b => b.tipo === 'deshuese');
@@ -52,11 +54,11 @@ export default function Deshuese() {
       const r = await api.parseDeshuesePdf(f);
       setPdfParseResult(r);
       if (r.primales_guess && r.primales_guess.length) {
-        if (confirm(`Detecte ${r.primales_guess.length} primales en el PDF. Cargarlos al formulario? (puedes editarlos despues)`)) {
+        if (await confirmar({ titulo: `Se detectaron ${r.primales_guess.length} primales en el PDF`, mensaje: '¿Cargarlos al formulario? Podrá revisarlos y editarlos antes de guardar.', textoConfirmar: 'Cargar primales' })) {
           setPrimalesList(r.primales_guess.map(p => ({ tipo_primal: p.tipo_primal, peso_kg: p.peso_kg, marmoleo: '' })));
         }
       }
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
     finally { setParsingPdf(false); }
   };
 
@@ -88,12 +90,12 @@ export default function Deshuese() {
       }
       setShowModal(false);
       load();
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
   const remove = async (id) => {
-    if (!confirm('Eliminar este deshuese?')) return;
-    try { await api.deleteDeshuese(id); load(); } catch (err) { alert(err.message); }
+    if (!(await confirmar({ titulo: '¿Eliminar este deshuese?', mensaje: 'Esta acción no se puede deshacer.', textoConfirmar: 'Eliminar', peligro: true }))) return;
+    try { await api.deleteDeshuese(id); load(); } catch (err) { aviso.error(err.message); }
   };
 
   const triggerUpload = (id) => {
@@ -108,7 +110,7 @@ export default function Deshuese() {
     try {
       await api.uploadDeshuesePdf(uploadId, file);
       load();
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
   return (
@@ -167,7 +169,7 @@ export default function Deshuese() {
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 800 }}>
             <div className="modal-header">
               <h3>{editItem ? 'Editar Deshuese' : 'Nuevo Deshuese'}</h3>
-              <button className="btn-icon" onClick={() => setShowModal(false)}>&times;</button>
+              <button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowModal(false)}>&times;</button>
             </div>
             <form onSubmit={save}>
               <div className="form-group">

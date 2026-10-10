@@ -1,23 +1,31 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Bug as Cow, MapPin, Baby, Calendar, AlertTriangle, Clock, Package, FileOutput, FileInput, RotateCcw, Utensils } from 'lucide-react';
+import { Beef as Cow, MapPin, Baby, Calendar, AlertTriangle, Clock, Package, FileOutput, FileInput, RotateCcw, Utensils } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { api } from '../services/api';
 import { formatDate } from '../components/DateFormat';
-import { CowWalking } from '../components/CowIcon';
+import { Cargando, EstadoError } from '../components/ui/Estados';
 
-const COLORS = ['#16a34a', '#2563eb', '#f59e0b', '#dc2626', '#8b5cf6', '#ec4899', '#06b6d4'];
+const COLORS = ['#1d4f91', '#c2410c', '#0f766e', '#7c3aed', '#a16207', '#be185d', '#475569'];
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    api.getDashboard().then(setData).catch(console.error).finally(() => setLoading(false));
-  }, []);
+  const cargar = () => {
+    setLoading(true);
+    setError(null);
+    api.getDashboard()
+      .then(setData)
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  };
 
-  if (loading) return <div className="empty-state"><CowWalking size={64} /><p style={{ marginTop: 12 }}>Cargando dashboard...</p></div>;
-  if (!data) return <div className="empty-state">Error al cargar datos</div>;
+  useEffect(() => { cargar(); }, []);
+
+  if (loading) return <Cargando texto="Cargando el resumen…" />;
+  if (error || !data) return <EstadoError titulo="No se pudo cargar el resumen" mensaje={error} onReintentar={cargar} />;
 
   const { resumen, porSexo, porRaza, porPotrero, pesajesRecientes, eventosProximos, gestacionesActivas, topGDP, maduracionAlertas = [] } = data;
   const olvidados = maduracionAlertas.filter(m => m.nivel === 'olvidado');
@@ -27,7 +35,7 @@ export default function Dashboard() {
   return (
     <div>
       <div className="page-header">
-        <h2>Dashboard</h2>
+        <h2>Resumen general</h2>
       </div>
 
       <div className="stats-grid">
@@ -73,14 +81,14 @@ export default function Dashboard() {
           <div className="stat-icon yellow"><Clock size={24} /></div>
           <div>
             <div className="stat-value" style={{ color: vencidos.length > 0 ? '#dc2626' : undefined }}>{resumen.maduracionAlertasCount ?? 0}</div>
-            <div className="stat-label">Alertas Maduracion</div>
+            <div className="stat-label">Alertas de maduración</div>
           </div>
         </Link>
         <Link to="/ordenes-salida" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="stat-icon green"><FileOutput size={24} /></div>
           <div>
             <div className="stat-value">{resumen.ordenesPendientes ?? 0}</div>
-            <div className="stat-label">Ordenes Pendientes</div>
+            <div className="stat-label">Órdenes de salida pendientes</div>
           </div>
         </Link>
         <Link to="/devoluciones" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
@@ -111,7 +119,7 @@ export default function Dashboard() {
           <div className="stat-icon blue"><FileInput size={24} /></div>
           <div>
             <div className="stat-value">{resumen.ordenesEntradaPendientes ?? 0}</div>
-            <div className="stat-label">Ord. Entrada Pendientes</div>
+            <div className="stat-label">Órdenes de entrada pendientes</div>
           </div>
         </Link>
       </div>
@@ -121,14 +129,14 @@ export default function Dashboard() {
           <div className="card-header">
             <h3>
               <AlertTriangle size={18} color={vencidos.length ? '#dc2626' : '#f59e0b'} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-              Alertas de Maduracion ({maduracionAlertas.length})
+              Alertas de maduración ({maduracionAlertas.length})
             </h3>
             <Link to="/maduracion" style={{ fontSize: '0.85rem' }}>Ver todos</Link>
           </div>
           <div className="table-container">
             <table>
               <thead>
-                <tr><th>Codigo</th><th>Animal</th><th>Tipo</th><th>Marmoleo</th><th>Dias</th><th>Nivel</th></tr>
+                <tr><th>Código</th><th>Animal</th><th>Tipo</th><th>Marmoleo</th><th>Días</th><th>Nivel</th></tr>
               </thead>
               <tbody>
                 {maduracionAlertas.slice(0, 10).map(m => {
@@ -159,12 +167,12 @@ export default function Dashboard() {
               <XAxis dataKey="nombre" fontSize={12} />
               <YAxis />
               <Tooltip />
-              <Bar dataKey="total" fill="#16a34a" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="total" fill="#1d4f91" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
         <div className="card">
-          <div className="card-header"><h3>Distribucion por Raza</h3></div>
+          <div className="card-header"><h3>Distribución por raza</h3></div>
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
               <Pie data={porRaza} dataKey="total" nameKey="raza" cx="50%" cy="50%" outerRadius={90} label={({ raza, total }) => `${raza} (${total})`}>
@@ -196,7 +204,7 @@ export default function Dashboard() {
         </div>
         <div className="card">
           <div className="card-header">
-            <h3>Proximos Eventos de Salud</h3>
+            <h3>Próximos eventos de salud</h3>
             <AlertTriangle size={18} color="#f59e0b" />
           </div>
           <div className="table-container">
@@ -210,7 +218,7 @@ export default function Dashboard() {
                     <td>{formatDate(e.proxima_fecha)}</td>
                   </tr>
                 ))}
-                {eventosProximos.length === 0 && <tr><td colSpan={3} style={{ textAlign: 'center', color: '#9ca3af' }}>Sin eventos proximos</td></tr>}
+                {eventosProximos.length === 0 && <tr><td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Sin eventos de salud en los próximos días</td></tr>}
               </tbody>
             </table>
           </div>
@@ -227,8 +235,8 @@ export default function Dashboard() {
                   <th>Animal</th>
                   <th>Peso Nacimiento (kg)</th>
                   <th>Peso Actual (kg)</th>
-                  <th>Dias</th>
-                  <th>GDP (kg/dia)</th>
+                  <th>Días</th>
+                  <th>GDP (kg/día)</th>
                 </tr>
               </thead>
               <tbody>

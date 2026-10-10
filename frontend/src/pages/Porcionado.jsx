@@ -2,6 +2,10 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Trash2, Scissors, Check } from 'lucide-react';
 import { api } from '../services/api';
+import { confirmar } from '../components/ui/confirmar';
+import { aviso } from '../components/ui/avisos';
+import Escaner from '../components/ui/Escaner';
+import { FilaEstado } from '../components/ui/Estados';
 import { formatDate } from '../components/DateFormat';
 
 const destinoBadge = { carne_molida: 'badge-blue', chorizo: 'badge-yellow', tortas: 'badge-green', descarte: 'badge-red', otro: 'badge-gray' };
@@ -19,16 +23,37 @@ export default function Porcionado() {
   const [stickers, setStickers] = useState([]);
   const [createdStickers, setCreatedStickers] = useState([]);
   const [fechaEmpaqueCaja, setFechaEmpaqueCaja] = useState('');
+  const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState(null);
 
-  const load = () => api.getPorcionado().then(setItems).catch(console.error);
+  const load = () => {
+    setCargando(true);
+    setErrorCarga(null);
+    return api.getPorcionado()
+      .then(setItems)
+      .catch(err => setErrorCarga(err.message))
+      .finally(() => setCargando(false));
+  };
 
   useEffect(() => {
     load();
     api.getPrimales().then(ps => {
       setPrimales(ps.filter(p => ['en_porcionado', 'en_custodia', 'en_maduracion'].includes(p.estado)));
-    }).catch(console.error);
-    api.getCatalogoCortes().then(setCatalogoCortes).catch(console.error);
+    }).catch(aviso.errorCarga('los primales'));
+    api.getCatalogoCortes().then(setCatalogoCortes).catch(aviso.errorCarga('el catálogo de cortes'));
   }, []);
+
+  // Lectura de la pistola en «Nuevo porcionado»: selecciona el primal y propone su peso como peso inicial.
+  const leerPrimal = async (codigo) => {
+    const match = primales.find(p => String(p.codigo).toLowerCase() === codigo.toLowerCase());
+    if (!match) throw new Error(`el primal ${codigo} no está disponible para porcionar`);
+    setForm(f => ({ ...f, primal_id: match.id, peso_inicial: f.peso_inicial || match.peso_kg }));
+    return {
+      ok: true,
+      titulo: 'Primal OK',
+      detalle: `${match.codigo} · ${match.tipo_primal} · ${parseFloat(match.peso_kg || 0).toFixed(2)} kg`,
+    };
+  };
 
   const openNew = () => {
     setForm({ destino_trimming: 'carne_molida' });
@@ -56,7 +81,7 @@ export default function Porcionado() {
       const res = await api.createPorcionado(payload);
       setCreatedId(res.id || res.porcionado_id);
       load();
-      if (confirm('Porcionado creado. ¿Generar stickers y caja?')) {
+      if (await confirmar({ titulo: 'Porcionado creado', mensaje: '¿Generar ahora la caja y sus etiquetas?', textoConfirmar: 'Generar caja y etiquetas', textoCancelar: 'Ahora no' })) {
         const primal = primales.find(p => String(p.id) === String(form.primal_id));
         const fechaEmp = (form.fecha || '').split('T')[0] || new Date().toISOString().split('T')[0];
         const caja = await api.createCaja({
@@ -72,11 +97,11 @@ export default function Porcionado() {
       } else {
         setShowModal(false);
       }
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
   const addSticker = () => {
-    if (stickers.length >= MAX_STICKERS_PER_CAJA) { alert(`Maximo ${MAX_STICKERS_PER_CAJA} stickers por caja`); return; }
+    if (stickers.length >= MAX_STICKERS_PER_CAJA) { aviso.error(`Máximo ${MAX_STICKERS_PER_CAJA} etiquetas por caja`); return; }
     setStickers([...stickers, { tipo_corte: '', corte_codigo: '', peso_kg: '', codigo_box: '', codigo_lot: '' }]);
   };
   const updateSticker = (i, k, v) => {
@@ -109,23 +134,24 @@ export default function Porcionado() {
       }
       setCreatedStickers(created);
       await api.cerrarCaja(cajaId);
+      aviso.ok(created.length ? `Caja cerrada con ${created.length} etiqueta(s)` : 'Caja cerrada sin etiquetas');
       load();
       if (created.length === 0) {
         setShowModal(false);
       }
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
   const remove = async (id) => {
-    if (!confirm('Eliminar este porcionado?')) return;
-    try { await api.deletePorcionado(id); load(); } catch (err) { alert(err.message); }
+    if (!(await confirmar({ titulo: '¿Eliminar este porcionado?', mensaje: 'Esta acción no se puede deshacer.', textoConfirmar: 'Eliminar', peligro: true }))) return;
+    try { await api.deletePorcionado(id); load(); } catch (err) { aviso.error(err.message); }
   };
 
   return (
     <div>
       <div className="page-header">
         <h2>Porcionado</h2>
-        <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nuevo Porcionado</button>
+        <button type="button" className="btn btn-primary btn-lg" onClick={openNew}><Plus size={20} aria-hidden="true" /> Nuevo porcionado</button>
       </div>
 
       <div className="card">
@@ -136,21 +162,21 @@ export default function Porcionado() {
                 <th>Fecha</th>
                 <th>Animal</th>
                 <th>Primal</th>
-                <th>Peso Inicial</th>
-                <th>Peso Final</th>
+                <th>Peso inicial</th>
+                <th>Peso final</th>
                 <th>Trimming</th>
                 <th>BCH</th>
-                <th>Destino Trim</th>
+                <th>Destino del trim</th>
                 <th>Responsable</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {items.map(p => (
+              {!cargando && !errorCarga && items.map(p => (
                 <tr key={p.id}>
                   <td>{formatDate(p.fecha)}</td>
                   <td>{p.animal_id ? <Link to={`/animales/${p.animal_id}`}>{p.numero_trazabilidad || 'Ver'}</Link> : '-'}</td>
-                  <td>{p.primal_codigo || '-'} {p.tipo_primal && <span style={{ color: '#6b7280' }}>({p.tipo_primal})</span>}</td>
+                  <td>{p.primal_codigo || '-'} {p.tipo_primal && <span style={{ color: 'var(--text-secondary)' }}>({p.tipo_primal})</span>}</td>
                   <td>{p.peso_inicial ? `${parseFloat(p.peso_inicial).toFixed(2)} kg` : '-'}</td>
                   <td>{p.peso_final ? `${parseFloat(p.peso_final).toFixed(2)} kg` : '-'}</td>
                   <td>{p.trimming_kg ? `${parseFloat(p.trimming_kg).toFixed(2)} kg` : '-'}</td>
@@ -158,11 +184,19 @@ export default function Porcionado() {
                   <td>{p.destino_trimming ? <span className={`badge ${destinoBadge[p.destino_trimming] || 'badge-gray'}`}>{p.destino_trimming}</span> : '-'}</td>
                   <td>{p.responsable || '-'}</td>
                   <td>
-                    <button className="btn-icon" onClick={() => remove(p.id)}><Trash2 size={16} color="#dc2626" /></button>
+                    <button type="button" className="btn-icon peligro" onClick={() => remove(p.id)} title="Eliminar" aria-label={`Eliminar porcionado del ${formatDate(p.fecha)}`}><Trash2 size={18} aria-hidden="true" /></button>
                   </td>
                 </tr>
               ))}
-              {items.length === 0 && <tr><td colSpan={10} className="empty-state">Sin porcionados</td></tr>}
+              <FilaEstado
+                columnas={10}
+                cargando={cargando}
+                error={errorCarga}
+                onReintentar={load}
+                vacio={items.length === 0}
+                tituloVacio="Todavía no hay porcionados"
+                textoVacio="Use «Nuevo porcionado» y escanee el primal para empezar."
+              />
             </tbody>
           </table>
         </div>
@@ -172,38 +206,20 @@ export default function Porcionado() {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 700 }}>
             <div className="modal-header">
-              <h3><Scissors size={18} style={{ verticalAlign: 'middle' }} /> {showStickersFlow ? 'Generar Stickers' : 'Nuevo Porcionado'}</h3>
-              <button className="btn-icon" onClick={() => setShowModal(false)}>&times;</button>
+              <h3><Scissors size={20} aria-hidden="true" /> {showStickersFlow ? 'Generar etiquetas' : 'Nuevo porcionado'}</h3>
+              <button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowModal(false)}>&times;</button>
             </div>
 
             {!showStickersFlow && (
               <form onSubmit={save}>
+                <Escaner
+                  etiqueta="Código del primal"
+                  onLeer={leerPrimal}
+                  ayuda="Dispare la pistola sobre el primal; se selecciona solo y se propone su peso como peso inicial."
+                />
                 <div className="form-group">
-                  <label>Escanear codigo de primal</label>
-                  <input
-                    autoFocus
-                    placeholder="Pistola scanner: enfoca y dispara"
-                    value={form.scan || ''}
-                    onChange={e => setForm({ ...form, scan: e.target.value })}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const codigo = (form.scan || '').trim();
-                        if (!codigo) return;
-                        const match = primales.find(p => String(p.codigo).toLowerCase() === codigo.toLowerCase());
-                        if (match) {
-                          setForm({ ...form, primal_id: match.id, scan: '', peso_inicial: form.peso_inicial || match.peso_kg });
-                        } else {
-                          alert(`Primal con codigo "${codigo}" no encontrado o no disponible`);
-                          setForm({ ...form, scan: '' });
-                        }
-                      }
-                    }}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Primal *</label>
-                  <select required value={form.primal_id || ''} onChange={e => setForm({ ...form, primal_id: e.target.value })}>
+                  <label htmlFor="porcionado-primal">Primal *</label>
+                  <select id="porcionado-primal" required value={form.primal_id || ''} onChange={e => setForm({ ...form, primal_id: e.target.value })}>
                     <option value="">Seleccionar...</option>
                     {primales.map(p => (
                       <option key={p.id} value={p.id}>{p.codigo} - {p.tipo_primal} ({parseFloat(p.peso_kg || 0).toFixed(2)} kg, {p.estado})</option>
@@ -261,8 +277,8 @@ export default function Porcionado() {
 
             {showStickersFlow && (
               <div>
-                <div style={{ padding: 10, background: '#eff6ff', borderRadius: 6, marginBottom: 12, fontSize: '0.85rem' }}>
-                  Caja creada. Agrega hasta {MAX_STICKERS_PER_CAJA} stickers.
+                <div className="banner info">
+                  Caja creada. Puede agregar hasta {MAX_STICKERS_PER_CAJA} etiquetas; las que no tengan peso no se guardan.
                 </div>
                 {stickers.map((s, i) => (
                   <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: 6, padding: 10, marginBottom: 10 }}>

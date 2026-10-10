@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Edit, Truck } from 'lucide-react';
 import { api } from '../services/api';
+import { aviso } from '../components/ui/avisos';
 import { formatDate } from '../components/DateFormat';
 import AnimalSearch from '../components/AnimalSearch';
 
@@ -14,7 +15,7 @@ export default function Transporte() {
   const [form, setForm] = useState({});
 
   const load = () => {
-    api.getTransportes().then(setTransportes).catch(console.error);
+    api.getTransportes().then(setTransportes).catch(aviso.errorCarga());
   };
 
   useEffect(() => { load(); }, []);
@@ -42,7 +43,7 @@ export default function Transporte() {
       setShowModal(false);
       load();
     } catch (err) {
-      alert(err.message);
+      aviso.error(err.message);
     }
   };
 
@@ -100,7 +101,7 @@ export default function Transporte() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{editItem ? 'Editar Transporte' : 'Nuevo Transporte'}</h3>
-              <button className="btn-icon" onClick={() => setShowModal(false)}>&times;</button>
+              <button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowModal(false)}>&times;</button>
             </div>
             <form onSubmit={save}>
               <div className="form-group">

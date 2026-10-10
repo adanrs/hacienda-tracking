@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Weight, Heart, ArrowRightLeft, Baby, Clock } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { api } from '../services/api';
+import { Cargando, EstadoError } from '../components/ui/Estados';
 import { formatDate } from '../components/DateFormat';
 import { CowWeightIndicator } from '../components/CowIcon';
 
@@ -16,13 +17,25 @@ export default function AnimalDetalle() {
   const [animal, setAnimal] = useState(null);
   const [tab, setTab] = useState('pesajes');
   const [timeline, setTimeline] = useState([]);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    api.getAnimal(id).then(setAnimal).catch(console.error);
+  const cargar = () => {
+    setError(null);
+    setAnimal(null);
+    api.getAnimal(id).then(setAnimal).catch(err => setError(err.message));
     api.getTimeline(id).then(setTimeline).catch(() => setTimeline([]));
-  }, [id]);
+  };
 
-  if (!animal) return <div className="empty-state">Cargando...</div>;
+  useEffect(() => { cargar(); }, [id]);
+
+  // Antes, si la carga fallaba, la pantalla quedaba en «Cargando...» para siempre.
+  if (error) return (
+    <div>
+      <Link to="/animales" className="btn btn-secondary"><ArrowLeft size={16} aria-hidden="true" /> Volver a Animales</Link>
+      <EstadoError titulo="No se pudo cargar la ficha del animal" mensaje={error} onReintentar={cargar} />
+    </div>
+  );
+  if (!animal) return <Cargando texto="Cargando la ficha del animal…" />;
 
   const pesajesChart = [...(animal.pesajes || [])].reverse().map(p => ({ fecha: formatDate(p.fecha), peso: p.peso_kg }));
 
@@ -30,7 +43,7 @@ export default function AnimalDetalle() {
     <div>
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link to="/animales" className="btn-icon"><ArrowLeft size={20} /></Link>
+          <Link to="/animales" className="btn-icon" aria-label="Volver a Animales" title="Volver a Animales"><ArrowLeft size={20} aria-hidden="true" /></Link>
           <div>
             <h2>{animal.numero_trazabilidad} {animal.nombre && `- ${animal.nombre}`}</h2>
             <span className={`badge ${estadoBadge[animal.estado]}`}>{animal.estado}</span>
@@ -86,12 +99,12 @@ export default function AnimalDetalle() {
         </div>
       )}
 
-      <div className="tabs">
-        <div className={`tab ${tab === 'pesajes' ? 'active' : ''}`} onClick={() => setTab('pesajes')}><Weight size={14} style={{ marginRight: 4 }} />Pesajes ({animal.pesajes?.length || 0})</div>
-        <div className={`tab ${tab === 'salud' ? 'active' : ''}`} onClick={() => setTab('salud')}><Heart size={14} style={{ marginRight: 4 }} />Salud ({animal.salud?.length || 0})</div>
-        <div className={`tab ${tab === 'movimientos' ? 'active' : ''}`} onClick={() => setTab('movimientos')}><ArrowRightLeft size={14} style={{ marginRight: 4 }} />Movimientos ({animal.movimientos?.length || 0})</div>
-        <div className={`tab ${tab === 'crias' ? 'active' : ''}`} onClick={() => setTab('crias')}><Baby size={14} style={{ marginRight: 4 }} />Crias ({animal.crias?.length || 0})</div>
-        <div className={`tab ${tab === 'timeline' ? 'active' : ''}`} onClick={() => setTab('timeline')}><Clock size={14} style={{ marginRight: 4 }} />Timeline ({timeline.length})</div>
+      <div className="tabs" role="tablist" aria-label="Historial del animal">
+        <button type="button" role="tab" aria-selected={tab === 'pesajes'} className={`tab ${tab === 'pesajes' ? 'active' : ''}`} onClick={() => setTab('pesajes')}><Weight size={14} style={{ marginRight: 4 }} />Pesajes ({animal.pesajes?.length || 0})</button>
+        <button type="button" role="tab" aria-selected={tab === 'salud'} className={`tab ${tab === 'salud' ? 'active' : ''}`} onClick={() => setTab('salud')}><Heart size={14} style={{ marginRight: 4 }} />Salud ({animal.salud?.length || 0})</button>
+        <button type="button" role="tab" aria-selected={tab === 'movimientos'} className={`tab ${tab === 'movimientos' ? 'active' : ''}`} onClick={() => setTab('movimientos')}><ArrowRightLeft size={14} style={{ marginRight: 4 }} />Movimientos ({animal.movimientos?.length || 0})</button>
+        <button type="button" role="tab" aria-selected={tab === 'crias'} className={`tab ${tab === 'crias' ? 'active' : ''}`} onClick={() => setTab('crias')}><Baby size={14} style={{ marginRight: 4 }} />Crías ({animal.crias?.length || 0})</button>
+        <button type="button" role="tab" aria-selected={tab === 'timeline'} className={`tab ${tab === 'timeline' ? 'active' : ''}`} onClick={() => setTab('timeline')}><Clock size={14} style={{ marginRight: 4 }} />Línea de tiempo ({timeline.length})</button>
       </div>
 
       <div className="card">

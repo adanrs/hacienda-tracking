@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Scissors } from 'lucide-react';
 import { api } from '../services/api';
+import { confirmar } from '../components/ui/confirmar';
+import { aviso } from '../components/ui/avisos';
 
 const tipoBadge = {
   primal: 'badge-blue',
@@ -19,7 +21,7 @@ export default function CatalogoCortes() {
   const [editItem, setEditItem] = useState(null);
   const [form, setForm] = useState({});
 
-  const load = () => api.getCatalogoCortes().then(setCortes).catch(console.error);
+  const load = () => api.getCatalogoCortes().then(setCortes).catch(aviso.errorCarga());
   useEffect(() => { load(); }, []);
 
   const openNew = () => {
@@ -36,12 +38,12 @@ export default function CatalogoCortes() {
       else await api.createCatalogoCorte(form);
       setShowModal(false);
       load();
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
   const remove = async (id) => {
-    if (!confirm('Desactivar este corte del catalogo?')) return;
-    try { await api.deleteCatalogoCorte(id); load(); } catch (err) { alert(err.message); }
+    if (!(await confirmar({ titulo: '¿Desactivar este corte del catálogo?', mensaje: 'Dejará de aparecer al generar etiquetas nuevas. Las etiquetas ya impresas no cambian.', textoConfirmar: 'Desactivar', peligro: true }))) return;
+    try { await api.deleteCatalogoCorte(id); load(); } catch (err) { aviso.error(err.message); }
   };
 
   return (
@@ -95,7 +97,7 @@ export default function CatalogoCortes() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{editItem ? 'Editar Corte' : 'Nuevo Corte'}</h3>
-              <button className="btn-icon" onClick={() => setShowModal(false)}>&times;</button>
+              <button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowModal(false)}>&times;</button>
             </div>
             <form onSubmit={save}>
               <div className="form-row">

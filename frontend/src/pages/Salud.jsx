@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { api } from '../services/api';
+import { confirmar } from '../components/ui/confirmar';
+import { aviso } from '../components/ui/avisos';
 import { Link } from 'react-router-dom';
 import AnimalSearch from '../components/AnimalSearch';
 import { formatDate } from '../components/DateFormat';
@@ -15,25 +17,25 @@ export default function Salud() {
   const [tab, setTab] = useState('todos');
 
   const load = () => {
-    api.getEventosSalud().then(setEventos).catch(console.error);
-    api.getAlertasSalud(60).then(setAlertas).catch(console.error);
+    api.getEventosSalud().then(setEventos).catch(aviso.errorCarga());
+    api.getAlertasSalud(60).then(setAlertas).catch(aviso.errorCarga());
   };
 
   useEffect(() => { load(); }, []);
 
   const save = async (e) => {
     e.preventDefault();
-    if (!form.animal_id) { alert('Selecciona un animal'); return; }
+    if (!form.animal_id) { aviso.error('Seleccione un animal'); return; }
     try {
       await api.createEventoSalud(form);
       setShowModal(false);
       setForm({ tipo: 'vacunacion' });
       load();
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
   const remove = async (id) => {
-    if (!confirm('Eliminar este evento?')) return;
+    if (!(await confirmar({ titulo: '¿Eliminar este evento de salud?', mensaje: 'Esta acción no se puede deshacer.', textoConfirmar: 'Eliminar', peligro: true }))) return;
     await api.deleteEventoSalud(id);
     load();
   };
@@ -78,7 +80,7 @@ export default function Salud() {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h3>Nuevo Evento de Salud</h3><button className="btn-icon" onClick={() => setShowModal(false)}>&times;</button></div>
+            <div className="modal-header"><h3>Nuevo Evento de Salud</h3><button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowModal(false)}>&times;</button></div>
             <form onSubmit={save}>
               <div className="form-row">
                 <div className="form-group">

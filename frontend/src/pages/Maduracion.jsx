@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Clock, Send, Plus, Trash2, Thermometer } from 'lucide-react';
 import { api } from '../services/api';
+import { confirmar } from '../components/ui/confirmar';
+import { aviso } from '../components/ui/avisos';
 import { formatDate } from '../components/DateFormat';
 
 const nivelBadge = { proximo: 'badge-green', urgente: 'badge-yellow', vencido: 'badge-red', olvidado: 'badge-red' };
@@ -87,7 +89,7 @@ export default function Maduracion() {
     callGetAlertasProximidad()
       .then(d => setAlertas(Array.isArray(d) ? d : []))
       .catch(err => { console.error(err); setAlertas([]); });
-    api.getMaduracion().then(setPrimales).catch(console.error);
+    api.getMaduracion().then(setPrimales).catch(aviso.errorCarga());
   };
 
   const loadTemperaturas = () => {
@@ -106,7 +108,7 @@ export default function Maduracion() {
 
   useEffect(() => {
     load();
-    api.getBodegas().then(setBodegas).catch(console.error);
+    api.getBodegas().then(setBodegas).catch(aviso.errorCarga());
   }, []);
 
   useEffect(() => { loadTemperaturas(); }, [tempBodegaFilter]);
@@ -121,13 +123,13 @@ export default function Maduracion() {
   const bodegasPorcionado = bodegas.filter(b => b.tipo === 'porcionado');
 
   const enviarPorcionado = async (primal) => {
-    if (bodegasPorcionado.length === 0) { alert('No hay bodegas de porcionado configuradas'); return; }
+    if (bodegasPorcionado.length === 0) { aviso.error('No hay bodegas de porcionado configuradas. Un administrador debe crearlas en Bodegas.'); return; }
     const destino = bodegasPorcionado[0];
-    if (!confirm(`Enviar ${primal.codigo} a ${destino.codigo}?`)) return;
+    if (!(await confirmar({ titulo: `¿Enviar ${primal.codigo} a porcionado?`, mensaje: `El primal pasará a la bodega ${destino.codigo}.`, textoConfirmar: 'Enviar' }))) return;
     try {
       await api.moverBodega({ primal_id: primal.id, bodega_destino_id: destino.id, tipo: 'salida_porcionado' });
       load();
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
   const bodegasMaduracion = bodegas.filter(b => b.tipo === 'maduracion');
@@ -159,15 +161,15 @@ export default function Maduracion() {
       setShowTempModal(false);
       setTempForm({});
       loadTemperaturas();
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
   const deleteTemp = async (id) => {
-    if (!confirm('Borrar este registro de temperatura?')) return;
+    if (!(await confirmar({ titulo: '¿Eliminar este registro de temperatura?', mensaje: 'Esta acción no se puede deshacer.', textoConfirmar: 'Eliminar', peligro: true }))) return;
     try {
       await callDeleteTemperatura(id);
       loadTemperaturas();
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
   const fmtNum = (v, dec = 1) => {
@@ -401,7 +403,7 @@ export default function Maduracion() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Nuevo registro de temperatura</h3>
-              <button className="btn-icon" onClick={() => setShowTempModal(false)}>&times;</button>
+              <button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowTempModal(false)}>&times;</button>
             </div>
             <form onSubmit={submitTemp}>
               <div className="form-group">

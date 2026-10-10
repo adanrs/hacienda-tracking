@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, CheckSquare, FileSpreadsheet, ScanLine, AlertTriangle } from 'lucide-react';
 import { api } from '../services/api';
+import { aviso } from '../components/ui/avisos';
 import { formatDate } from '../components/DateFormat';
 
 const estadoBadge = { en_proceso: 'badge-yellow', terminado: 'badge-green', despachado: 'badge-blue' };
@@ -60,11 +61,11 @@ export default function Paqueteria() {
   const [pendingScan, setPendingScan] = useState(null); // {codigo_lot, temporalidad, msg} para confirmar bypass
   const scanInputRef = useRef(null);
 
-  const load = () => api.getPaqueteria().then(setProductos).catch(console.error);
+  const load = () => api.getPaqueteria().then(setProductos).catch(aviso.errorCarga());
   useEffect(() => {
     load();
-    api.getAnimales().then(setAnimales).catch(console.error);
-    api.getPorcionado().then(setPorcionados).catch(console.error);
+    api.getAnimales().then(setAnimales).catch(aviso.errorCarga());
+    api.getPorcionado().then(setPorcionados).catch(aviso.errorCarga());
   }, []);
 
   useEffect(() => {
@@ -189,7 +190,7 @@ export default function Paqueteria() {
   const save = async (e) => {
     e.preventDefault();
     const totalFuentes = fuentes.reduce((s, f) => s + parseFloat(f.peso_kg || 0), 0);
-    if (totalFuentes <= 0) return alert('Debe ingresar al menos una fuente con peso');
+    if (totalFuentes <= 0) return aviso.error('Agregue al menos una fuente con peso para crear el lote.');
     if (!form.peso_entrada_kg) form.peso_entrada_kg = totalFuentes;
     try {
       const fuentesPayload = fuentes
@@ -207,23 +208,23 @@ export default function Paqueteria() {
       await api.createPaqueteria({ ...form, fuentes: fuentesPayload });
       setShowNew(false);
       load();
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
   const ver = async (id) => {
-    try { const r = await api.getPaqueteriaOne(id); setShowView(r); } catch (err) { alert(err.message); }
+    try { const r = await api.getPaqueteriaOne(id); setShowView(r); } catch (err) { aviso.error(err.message); }
   };
 
   const openTerminar = (p) => { setTerminarModal(p); setPesoFinal(''); };
 
   const confirmarTerminar = async (e) => {
     e.preventDefault();
-    if (!pesoFinal || parseFloat(pesoFinal) <= 0) return alert('Peso final requerido');
+    if (!pesoFinal || parseFloat(pesoFinal) <= 0) return aviso.error('Indique el peso final en kg (mayor que cero).');
     try {
       await api.terminarPaqueteria(terminarModal.id, parseFloat(pesoFinal));
       setTerminarModal(null);
       load();
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
   const totalEntrada = fuentes.reduce((s, f) => s + parseFloat(f.peso_kg || 0), 0);
@@ -283,7 +284,7 @@ export default function Paqueteria() {
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 950 }}>
             <div className="modal-header">
               <h3>Nuevo Lote de Paquetería</h3>
-              <button className="btn-icon" onClick={() => setShowNew(false)}>&times;</button>
+              <button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowNew(false)}>&times;</button>
             </div>
             <form onSubmit={save}>
               <div className="form-row-3">
@@ -477,7 +478,7 @@ export default function Paqueteria() {
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
             <div className="modal-header">
               <h3>Terminar lote {terminarModal.numero_lote}</h3>
-              <button className="btn-icon" onClick={() => setTerminarModal(null)}>&times;</button>
+              <button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setTerminarModal(null)}>&times;</button>
             </div>
             <form onSubmit={confirmarTerminar}>
               <div className="form-group">
@@ -499,7 +500,7 @@ export default function Paqueteria() {
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 900 }}>
             <div className="modal-header">
               <h3>Lote {showView.numero_lote}</h3>
-              <button className="btn-icon" onClick={() => setShowView(null)}>&times;</button>
+              <button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowView(null)}>&times;</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
               <div><strong>Tipo:</strong> {tipoLabel[showView.tipo_producto] || showView.tipo_producto}</div>

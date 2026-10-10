@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Snowflake } from 'lucide-react';
 import { api } from '../services/api';
+import { confirmar } from '../components/ui/confirmar';
+import { aviso } from '../components/ui/avisos';
 
 const tipoBadge = { custodia: 'badge-blue', maduracion: 'badge-yellow', deshuese: 'badge-gray', porcionado: 'badge-green', almacen: 'badge-gray' };
 const tipos = ['custodia', 'maduracion', 'deshuese', 'porcionado', 'almacen'];
@@ -11,7 +13,7 @@ export default function Bodegas() {
   const [editItem, setEditItem] = useState(null);
   const [form, setForm] = useState({});
 
-  const load = () => api.getBodegas().then(setBodegas).catch(console.error);
+  const load = () => api.getBodegas().then(setBodegas).catch(aviso.errorCarga());
   useEffect(() => { load(); }, []);
 
   const openNew = () => { setEditItem(null); setForm({ tipo: 'custodia', activa: 1 }); setShowModal(true); };
@@ -24,12 +26,12 @@ export default function Bodegas() {
       else await api.createBodega(form);
       setShowModal(false);
       load();
-    } catch (err) { alert(err.message); }
+    } catch (err) { aviso.error(err.message); }
   };
 
   const remove = async (id) => {
-    if (!confirm('Eliminar esta bodega?')) return;
-    try { await api.deleteBodega(id); load(); } catch (err) { alert(err.message); }
+    if (!(await confirmar({ titulo: '¿Eliminar esta bodega?', mensaje: 'Esta acción no se puede deshacer.', textoConfirmar: 'Eliminar', peligro: true }))) return;
+    try { await api.deleteBodega(id); load(); } catch (err) { aviso.error(err.message); }
   };
 
   return (
@@ -77,7 +79,7 @@ export default function Bodegas() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{editItem ? 'Editar Bodega' : 'Nueva Bodega'}</h3>
-              <button className="btn-icon" onClick={() => setShowModal(false)}>&times;</button>
+              <button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowModal(false)}>&times;</button>
             </div>
             <form onSubmit={save}>
               <div className="form-row">

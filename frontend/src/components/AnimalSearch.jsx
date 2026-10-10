@@ -10,7 +10,7 @@ export default function AnimalSearch({ value, onChange, filter }) {
   const ref = useRef();
 
   useEffect(() => {
-    api.getAnimales({ estado: 'activo' }).then(setAnimales);
+    api.getAnimales({ estado: 'activo' }).then(setAnimales).catch(err => console.error('No se pudieron cargar los animales', err));
   }, []);
 
   useEffect(() => {
