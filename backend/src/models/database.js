@@ -561,6 +561,18 @@ async function initDB() {
       )
     `);
 
+    // Catálogo real CIISA v10 (anexos C1–C4). MySQL 8.0 no soporta ADD COLUMN IF NOT EXISTS:
+    // se usa el mismo patrón idempotente del resto del archivo (try/catch ignora "Duplicate column").
+    try { await conn.query(`ALTER TABLE catalogo_cortes ADD COLUMN serie ENUM('F1','FB','PVA','ARREO') NULL AFTER tipo`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE catalogo_cortes ADD COLUMN genetica ENUM('F1','FB') NULL AFTER serie`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE catalogo_cortes ADD COLUMN codigo_equivalente VARCHAR(20) NULL AFTER genetica`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE catalogo_cortes ADD COLUMN unidad ENUM('kg','caja','unidad') DEFAULT 'kg' AFTER codigo_equivalente`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE catalogo_cortes ADD COLUMN nombre_en VARCHAR(200) NULL AFTER nombre`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE catalogo_cortes ADD COLUMN ventana_min_dias INT NULL AFTER vida_congelado_dias`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE catalogo_cortes ADD COLUMN ventana_max_dias INT NULL AFTER ventana_min_dias`); } catch (e) {}
+    try { await conn.query(`ALTER TABLE catalogo_cortes ADD COLUMN nota_enlace VARCHAR(200) NULL AFTER ventana_max_dias`); } catch (e) {}
+    try { await conn.query(`CREATE INDEX idx_catalogo_serie ON catalogo_cortes (serie)`); } catch (e) {}
+
     await conn.query(`
       CREATE TABLE IF NOT EXISTS config_planta (
         id INT AUTO_INCREMENT PRIMARY KEY,
