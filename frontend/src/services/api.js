@@ -9,18 +9,27 @@ async function request(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...options.headers };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  } catch {
+    // fetch solo falla así cuando no hay red o el servidor no responde.
+    throw new Error('No hay conexión con el servidor. Revise la red e intente de nuevo.');
+  }
 
-  if (res.status === 401) {
+  // En /auth/login y /auth/password un 401 significa «credenciales incorrectas», no sesión vencida:
+  // hay que mostrar el error en el formulario en vez de recargar la página.
+  const esCredencial = path === '/auth/login' || path === '/auth/password';
+  if (res.status === 401 && !esCredencial) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     window.location.href = '/login';
-    throw new Error('Sesion expirada');
+    throw new Error('La sesión venció. Ingrese de nuevo.');
   }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || 'Error en la solicitud');
+    throw new Error(err.error || `Error del servidor (${res.status})`);
   }
   return res.json();
 }

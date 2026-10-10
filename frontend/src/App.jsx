@@ -1,7 +1,11 @@
-import { Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Bug as Cow, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Scissors, Package, Snowflake, Clock, Boxes, FileOutput, FileInput, RotateCcw, Barcode, Utensils, BookOpen } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Routes, Route, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { LayoutDashboard, Beef, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Scissors, Slice, Package, Snowflake, Clock, Boxes, FileOutput, FileInput, RotateCcw, Barcode, Utensils, BookOpen, Menu, X } from 'lucide-react';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { CowWalking } from './components/CowIcon';
+import { Avisos } from './components/ui/avisos';
+import { DialogoConfirmacion } from './components/ui/confirmar';
+import useEtiquetasTablas from './components/ui/useEtiquetasTablas';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Animales from './pages/Animales';
@@ -27,36 +31,73 @@ import Devoluciones from './pages/Devoluciones';
 import Paqueteria from './pages/Paqueteria';
 import CatalogoCortes from './pages/CatalogoCortes';
 
-const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/animales', icon: Cow, label: 'Animales' },
-  { to: '/pesajes', icon: Weight, label: 'Pesajes' },
-  { to: '/salud', icon: Heart, label: 'Salud' },
-  { to: '/movimientos', icon: ArrowRightLeft, label: 'Movimientos' },
-  { to: '/reproduccion', icon: Baby, label: 'Reproduccion' },
-  { to: '/potreros', icon: MapPin, label: 'Potreros' },
-  { to: '/transporte', icon: Truck, label: 'Transporte' },
-  { to: '/sacrificio', icon: Warehouse, label: 'Sacrificio' },
-  { to: '/deshuese', icon: Scissors, label: 'Deshuese' },
-  { to: '/custodia', icon: Package, label: 'Custodia' },
-  { to: '/maduracion', icon: Clock, label: 'Maduracion' },
-  { to: '/porcionado', icon: Boxes, label: 'Porcionado' },
-  { to: '/paqueteria', icon: Utensils, label: 'Paqueteria' },
-  { to: '/cortes', icon: Scissors, label: 'Cortes' },
-  { to: '/cajas', icon: Barcode, label: 'Cajas' },
-  { to: '/ordenes-entrada', icon: FileInput, label: 'Ord. Entrada' },
-  { to: '/ordenes-salida', icon: FileOutput, label: 'Ord. Salida' },
-  { to: '/devoluciones', icon: RotateCcw, label: 'Devoluciones' },
-  { to: '/bodegas', icon: Snowflake, label: 'Bodegas' },
-  { to: '/catalogo-cortes', icon: BookOpen, label: 'Catalogo Cortes' },
+// Menú ordenado según el recorrido del producto: Finca → Planta → Bodega y despacho.
+const grupos = [
+  {
+    titulo: 'Inicio',
+    items: [{ to: '/', icon: LayoutDashboard, label: 'Resumen general' }],
+  },
+  {
+    titulo: 'Finca',
+    items: [
+      { to: '/animales', icon: Beef, label: 'Animales' },
+      { to: '/pesajes', icon: Weight, label: 'Pesajes' },
+      { to: '/salud', icon: Heart, label: 'Salud' },
+      { to: '/movimientos', icon: ArrowRightLeft, label: 'Movimientos' },
+      { to: '/reproduccion', icon: Baby, label: 'Reproducción' },
+      { to: '/potreros', icon: MapPin, label: 'Potreros' },
+    ],
+  },
+  {
+    titulo: 'Planta',
+    items: [
+      { to: '/transporte', icon: Truck, label: 'Transporte' },
+      { to: '/sacrificio', icon: Warehouse, label: 'Sacrificio' },
+      { to: '/deshuese', icon: Scissors, label: 'Deshuese' },
+      { to: '/cortes', icon: Slice, label: 'Cortes por animal' },
+      { to: '/custodia', icon: Package, label: 'Custodia' },
+      { to: '/maduracion', icon: Clock, label: 'Maduración' },
+      { to: '/porcionado', icon: Boxes, label: 'Porcionado' },
+      { to: '/paqueteria', icon: Utensils, label: 'Paquetería' },
+      { to: '/cajas', icon: Barcode, label: 'Cajas y etiquetas' },
+    ],
+  },
+  {
+    titulo: 'Bodega y despacho',
+    items: [
+      { to: '/bodegas', icon: Snowflake, label: 'Bodegas' },
+      { to: '/ordenes-entrada', icon: FileInput, label: 'Órdenes de entrada' },
+      { to: '/ordenes-salida', icon: FileOutput, label: 'Órdenes de salida' },
+      { to: '/devoluciones', icon: RotateCcw, label: 'Devoluciones' },
+    ],
+  },
+  {
+    titulo: 'Configuración',
+    items: [
+      { to: '/catalogo-cortes', icon: BookOpen, label: 'Catálogo de cortes' },
+      { to: '/usuarios', icon: Users, label: 'Usuarios', soloAdmin: true },
+    ],
+  },
 ];
+
+const rolLegible = { admin: 'Administrador', operador: 'Operador', viewer: 'Solo lectura' };
+
+function ubicacionActual(pathname) {
+  for (const g of grupos) {
+    for (const it of g.items) {
+      const coincide = it.to === '/' ? pathname === '/' : pathname === it.to || pathname.startsWith(`${it.to}/`);
+      if (coincide) return { etapa: g.titulo, pagina: it.label };
+    }
+  }
+  return { etapa: '', pagina: '' };
+}
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', flexDirection: 'column', gap: 16 }}>
+    <div className="estado" role="status" style={{ minHeight: '100vh', justifyContent: 'center' }}>
       <CowWalking size={64} />
-      <p style={{ color: '#6b7280' }}>Cargando...</p>
+      <p>Cargando…</p>
     </div>
   );
   if (!user) return <Navigate to="/login" />;
@@ -66,6 +107,31 @@ function ProtectedRoute({ children }) {
 function AppLayout() {
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [navAbierta, setNavAbierta] = useState(false);
+  const refMain = useRef(null);
+  const refNav = useRef(null);
+  const refBotonMenu = useRef(null);
+  useEtiquetasTablas(refMain);
+
+  const { etapa, pagina } = ubicacionActual(location.pathname);
+
+  // Al cambiar de pantalla: cerrar el menú y actualizar el título de la pestaña.
+  useEffect(() => {
+    setNavAbierta(false);
+    document.title = pagina ? `${pagina} · Trazabilidad` : 'Trazabilidad · Hacienda Tempisque';
+  }, [location.pathname, pagina]);
+
+  // Menú abierto en tablet/celular: foco al primer enlace y Escape para cerrar.
+  useEffect(() => {
+    if (!navAbierta) return undefined;
+    refNav.current?.querySelector('a')?.focus();
+    const onKey = (e) => {
+      if (e.key === 'Escape') { setNavAbierta(false); refBotonMenu.current?.focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [navAbierta]);
 
   const handleLogout = () => {
     logout();
@@ -73,50 +139,76 @@ function AppLayout() {
   };
 
   return (
-    <div className="layout">
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <div style={{ fontSize: 32 }}>&#x1F404;</div>
-          <h1>Hacienda Tempisque</h1>
-          <p>Sistema de Trazabilidad</p>
+    <div className={`layout ${navAbierta ? 'nav-abierta' : ''}`}>
+      <a href="#contenido" className="salto-contenido">Saltar al contenido</a>
+
+      <header className="topbar">
+        <button
+          ref={refBotonMenu}
+          type="button"
+          className="btn-menu"
+          aria-expanded={navAbierta}
+          aria-controls="menu-principal"
+          onClick={() => setNavAbierta(v => !v)}
+        >
+          {navAbierta ? <X size={20} aria-hidden="true" /> : <Menu size={20} aria-hidden="true" />}
+          <span>Menú</span>
+        </button>
+        <div className="topbar-ubicacion">
+          {etapa && <div className="topbar-etapa">{etapa}</div>}
+          <div className="topbar-pagina">{pagina || 'Trazabilidad'}</div>
         </div>
-        <nav>
-          {navItems.map(({ to, icon: Icon, label }) => (
-            <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => isActive ? 'active' : ''}>
-              <Icon size={20} />
-              <span>{label}</span>
-            </NavLink>
-          ))}
-          {isAdmin && (
-            <NavLink to="/usuarios" className={({ isActive }) => isActive ? 'active' : ''}>
-              <Users size={20} />
-              <span>Usuarios</span>
-            </NavLink>
-          )}
+      </header>
+
+      <div className="nav-fondo" onClick={() => setNavAbierta(false)} aria-hidden="true" />
+
+      <aside className="sidebar" id="menu-principal">
+        <div className="sidebar-header">
+          <Beef size={28} className="marca-icono" aria-hidden="true" />
+          <div>
+            <h1>Hacienda Tempisque</h1>
+            <p>Trazabilidad de ganado</p>
+          </div>
+        </div>
+        <nav aria-label="Menú principal" ref={refNav}>
+          {grupos.map(g => {
+            const visibles = g.items.filter(it => !it.soloAdmin || isAdmin);
+            if (!visibles.length) return null;
+            const contieneActivo = g.titulo === etapa;
+            const idTitulo = `grupo-${g.titulo.replace(/\s+/g, '-').toLowerCase()}`;
+            return (
+              <div key={g.titulo} className={`nav-grupo ${contieneActivo ? 'contiene-activo' : ''}`} role="group" aria-labelledby={idTitulo}>
+                <div className="nav-grupo-titulo" id={idTitulo}>{g.titulo}</div>
+                <ul>
+                  {visibles.map(({ to, icon: Icon, label }) => (
+                    <li key={to}>
+                      <NavLink to={to} end={to === '/'} className={({ isActive }) => isActive ? 'active' : ''}>
+                        <Icon size={20} aria-hidden="true" />
+                        <span>{label}</span>
+                      </NavLink>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
         </nav>
-        <div className="sidebar-footer" style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <User size={16} color="#fff" />
-            </div>
+        <div className="sidebar-footer">
+          <div className="usuario-actual">
+            <div className="usuario-avatar"><User size={16} color="#fff" aria-hidden="true" /></div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '0.82rem', color: '#fff', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.nombre}</div>
-              <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>{user?.rol}</div>
+              <div className="usuario-nombre">{user?.nombre}</div>
+              <div className="usuario-rol">{rolLegible[user?.rol] || user?.rol}</div>
             </div>
           </div>
-          <button onClick={handleLogout} style={{
-            width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
-            background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 6, color: 'rgba(255,255,255,0.7)',
-            cursor: 'pointer', fontSize: '0.82rem', transition: 'all 0.2s'
-          }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(220,38,38,0.3)'; e.currentTarget.style.color = '#fff'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
-          >
-            <LogOut size={16} /> Cerrar Sesion
+          <button type="button" className="btn-salir" onClick={handleLogout}>
+            <LogOut size={16} aria-hidden="true" /> Cerrar sesión
           </button>
         </div>
       </aside>
-      <main className="main-content">
+
+      <main className="main-content" id="contenido" tabIndex={-1} ref={refMain}>
+        {etapa && etapa !== 'Inicio' && <p className="migas">{etapa} › {pagina}</p>}
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/animales" element={<Animales />} />
@@ -154,6 +246,8 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/*" element={<ProtectedRoute><AppLayout /></ProtectedRoute>} />
       </Routes>
+      <Avisos />
+      <DialogoConfirmacion />
     </AuthProvider>
   );
 }
