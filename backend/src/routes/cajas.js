@@ -1,4 +1,9 @@
 const router = require('express').Router();
+const { idsNumericos } = require('../lib/params');
+
+// Todo :id de este router debe ser numérico (ver lib/params.js).
+idsNumericos(router);
+
 const { pool } = require('../models/database');
 const { construirUpdate, ErrorCampos } = require('../lib/sqlUpdate');
 
@@ -63,7 +68,11 @@ router.post('/', async (req, res) => {
 // Lista blanca de cajas. num_stickers y peso_total_kg NO van: se recalculan abajo desde
 // los stickers; codigo tampoco (es la identidad impresa en la etiqueta).
 const CAJA_EDITABLES = ['porcionado_id', 'tipo_corte', 'estado', 'bodega_actual_id', 'fecha_empaque', 'notas'];
-const CAJA_ENUMS = { estado: ['abierta', 'completa', 'despachada', 'devuelta'] };
+// Por PUT solo abierta/completa: 'despachada' la pone POST /ordenes-salida/:id/despachar y
+// 'devuelta' la pone POST /devoluciones; marcarlas a mano dejaría orden/devolución sin registro.
+const CAJA_ENUMS = { estado: ['abierta', 'completa'] };
+// Una caja que ya salió por su flujo (despachada/devuelta) no cambia de estado por PUT.
+const CAJA_ESTADOS_FINALES = ['despachada', 'devuelta'];
 
 router.put('/:id', async (req, res) => {
   try {
@@ -72,6 +81,13 @@ router.put('/:id', async (req, res) => {
       tabla: 'cajas', id: req.params.id, body: req.body,
       permitidas: CAJA_EDITABLES, enums: CAJA_ENUMS, permitirVacio: true,
     });
+    if (update.columnas.includes('estado')) {
+      const [actual] = await pool.query('SELECT estado FROM cajas WHERE id = ?', [req.params.id]);
+      if (!actual.length) return res.status(404).json({ error: 'Caja no encontrada' });
+      if (CAJA_ESTADOS_FINALES.includes(actual[0].estado)) {
+        return res.status(409).json({ error: `La caja está ${actual[0].estado}: su estado no se cambia por edición` });
+      }
+    }
     if (update.sql) await pool.query(update.sql, update.params);
     const [agg] = await pool.query(`
       SELECT COUNT(*) as c, COALESCE(SUM(peso_kg),0) as t FROM stickers WHERE caja_id = ?

@@ -1,4 +1,9 @@
 const router = require('express').Router();
+const { idsNumericos } = require('../lib/params');
+
+// Todo :id de este router debe ser numérico (ver lib/params.js).
+idsNumericos(router);
+
 const { pool } = require('../models/database');
 const { construirUpdate, ErrorCampos } = require('../lib/sqlUpdate');
 
@@ -50,6 +55,12 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'codigo, deshuese_id, animal_id, tipo_primal y peso_kg son requeridos' });
   }
   try {
+    // Agregar un primal a un deshuese cerrado cambia sus pesos y rendimiento: solo admin.
+    const [deshuese] = await pool.query('SELECT estado FROM deshuese WHERE id = ?', [deshuese_id]);
+    if (!deshuese.length) return res.status(400).json({ error: 'El deshuese indicado no existe' });
+    if (deshuese[0].estado === 'cerrado' && !esAdmin(req)) {
+      return res.status(403).json({ error: 'Deshuese cerrado: solo admin puede agregarle primales' });
+    }
     const [result] = await pool.query(`
       INSERT INTO primales (codigo, deshuese_id, animal_id, tipo_primal, peso_kg, peso_prorrateado, marmoleo, bodega_actual_id, estado, fecha_ingreso_custodia, fecha_maduracion_inicio, notas, ubicacion_bodega, dias_maduracion_target, nota_supervisor, congelado, fecha_congelado)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -76,6 +87,8 @@ const PRIMAL_ENUMS = {
 // PUT /deshuese/:id/primales; si no, este endpoint saltaba ese candado.
 const PRIMAL_CAMPOS_DEL_DESHUESE = ['tipo_primal', 'peso_kg', 'peso_prorrateado', 'marmoleo'];
 
+const esAdmin = (req) => !!(req.user && req.user.rol === 'admin');
+
 router.put('/:id', async (req, res) => {
   try {
     const update = construirUpdate({
@@ -87,9 +100,8 @@ router.put('/:id', async (req, res) => {
       [req.params.id]
     );
     if (!actual.length) return res.status(404).json({ error: 'Primal no encontrado' });
-    const isAdmin = req.user && req.user.rol === 'admin';
     const tocaDeshuese = update.columnas.some(c => PRIMAL_CAMPOS_DEL_DESHUESE.includes(c));
-    if (actual[0].deshuese_estado === 'cerrado' && !isAdmin && tocaDeshuese) {
+    if (actual[0].deshuese_estado === 'cerrado' && !esAdmin(req) && tocaDeshuese) {
       return res.status(403).json({ error: 'Deshuese cerrado: solo admin puede cambiar peso, tipo o marmoleo del primal' });
     }
     await pool.query(update.sql, update.params);
@@ -103,12 +115,24 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
+    // Quitar un primal de un deshuese cerrado también altera lo ya cerrado: solo admin.
+    const [actual] = await pool.query(
+      'SELECT d.estado AS deshuese_estado FROM primales p LEFT JOIN deshuese d ON d.id = p.deshuese_id WHERE p.id = ?',
+      [req.params.id]
+    );
+    if (!actual.length) return res.status(404).json({ error: 'Primal no encontrado' });
+    if (actual[0].deshuese_estado === 'cerrado' && !esAdmin(req)) {
+      return res.status(403).json({ error: 'Deshuese cerrado: solo admin puede eliminar sus primales' });
+    }
     const [result] = await pool.query('DELETE FROM primales WHERE id = ?', [req.params.id]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Primal no encontrado' });
     res.json({ message: 'Primal eliminado' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Sin candado de deshuese cerrado, a propósito: congelar es parte del flujo posterior al
+// deshuese (custodia/maduración) y solo toca congelado/fecha_congelado/estado, que en el PUT
+// tampoco están bloqueados. El candado cubre lo que fija el deshuese: pesos, tipo, marmoleo.
 router.post('/:id/congelar', async (req, res) => {
   try {
     const [existing] = await pool.query('SELECT id FROM primales WHERE id = ?', [req.params.id]);

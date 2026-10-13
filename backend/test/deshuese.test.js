@@ -127,3 +127,34 @@ test('deshuese inexistente: 404', async () => {
   deshueseActual = null;
   assert.equal((await pedir('PUT', '/1', 'admin', { notas: 'x' })).status, 404);
 });
+
+// ── Path traversal en la subida de PDF ─────────────────────────────────────────
+const fs = require('node:fs');
+const dirUploads = path.resolve(__dirname, '../uploads/deshuese');
+
+test('id con %2F (path traversal): 400 en PDF, PUT y DELETE, sin SQL', async () => {
+  const fd = new FormData();
+  fd.append('pdf', new Blob(['%PDF-1.4'], { type: 'application/pdf' }), 'x.pdf');
+  const res = await fetch(`${base}/5%2F..%2F..%2Fx/pdf`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token('admin')}` }, body: fd,
+  });
+  assert.equal(res.status, 400);
+  assert.equal((await pedir('PUT', '/5%2F..%2Fx', 'admin', { notas: 'x' })).status, 400);
+  assert.equal((await pedir('DELETE', '/1%20OR%201=1', 'admin')).status, 400);
+  assert.equal(llamadas.length, 0);
+});
+
+test('el nombre del PDF lo genera el servidor (ignora el nombre original)', async () => {
+  const fd = new FormData();
+  fd.append('pdf', new Blob(['%PDF-1.4'], { type: 'application/pdf' }), '../../evil.pdf');
+  const res = await fetch(`${base}/1/pdf`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token('admin')}` }, body: fd,
+  });
+  assert.equal(res.status, 200);
+  const u = llamadas.find(l => /^UPDATE deshuese SET pdf_url/.test(l.sql));
+  assert.match(u.params[0], /^\/uploads\/deshuese\/1-\d+\.pdf$/);
+  const archivo = path.join(dirUploads, path.basename(u.params[0]));
+  assert.ok(fs.existsSync(archivo));
+  fs.unlinkSync(archivo);
+  assert.ok(!fs.existsSync(path.resolve(dirUploads, '../../evil.pdf')));
+});

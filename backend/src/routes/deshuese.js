@@ -1,4 +1,9 @@
 const router = require('express').Router();
+const { idsNumericos } = require('../lib/params');
+
+// Todo :id de este router debe ser numérico (ver lib/params.js).
+idsNumericos(router);
+
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
@@ -8,9 +13,20 @@ const { construirUpdate, ErrorCampos, normalizarFechaIso } = require('../lib/sql
 const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'deshuese');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
+// "<id>-<timestamp>.pdf". Se rechaza cualquier id no numérico como segunda barrera por si
+// alguien monta este storage en una ruta sin la validación de lib/params.js.
+function nombreArchivoPdf(id) {
+  if (!/^\d+$/.test(String(id))) throw new Error('id de deshuese inválido para el archivo');
+  return `${id}-${Date.now()}.pdf`;
+}
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadsDir),
-  filename: (req, file, cb) => cb(null, `${req.params.id}-${file.originalname}`)
+  // El nombre lo genera el servidor: el nombre original del archivo lo controla el cliente y
+  // podía traer separadores de ruta. req.params.id ya viene validado como solo dígitos.
+  filename: (req, file, cb) => {
+    try { cb(null, nombreArchivoPdf(req.params.id)); } catch (e) { cb(e); }
+  }
 });
 const upload = multer({
   storage,
