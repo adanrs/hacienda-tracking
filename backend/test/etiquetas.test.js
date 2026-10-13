@@ -31,6 +31,9 @@ test('paquete real sin espacios', () => {
   assert.equal(r.campos.genetica, 'F1');
   assert.equal(r.campos.marmoleo, 1);
   assert.equal(r.crudo, PAQUETE);
+  // «0103-M» es el formato canónico con guion: su 0 no es relleno.
+  assert.equal(r.campos.areteSinRelleno, '0103-M');
+  assert.ok(!r.advertencias.some((a) => a.codigo === 'arete_con_relleno'));
 });
 
 test('paquete real con espacios y saltos de línea', () => {
@@ -172,6 +175,103 @@ test('primal con fecha no ambigua (día > 12)', () => {
   assert.equal(r.tipo, 'primal');
   assert.equal(r.campos.fechaEmpaque, '2026-03-25');
   assert.equal(r.campos.fechaAmbigua, false);
+});
+
+// ── Etiquetas reales fotografiadas el 12-oct-2026 ───────────────────────────
+// Valores esperados leídos del texto impreso de cada foto (no del propio código de barras),
+// para que el test compare el decodificador contra lo que la etiqueta dice en claro.
+// Detalle y fotos: docs/etiquetas-ciisa/etiquetas-reales-2026-10-12.md
+
+test('real · primal ZAMU «BCH CARNES ROJAS» (foto 3B054C58…)', () => {
+  // Impreso: Code 22229 · Box 11132 · Lot 12072324 · Empaque DEC-07-2023 · 27.22 KGS / 60.00 LBS
+  const r = decodificar('2222911132027221207232410');
+  assert.equal(r.tipo, 'primal');
+  assert.deepEqual(r.errores, []);
+  assert.equal(r.campos.codigoProducto, '22229');
+  assert.equal(r.campos.serie, 'ARREO');
+  assert.equal(r.campos.producto, 'BCH carnes rojas (CH-Chuck)');
+  assert.equal(r.campos.box, '11132');
+  assert.equal(r.campos.pesoKg, 27.22);
+  assert.equal(r.campos.fechaEmpaque, '2023-12-07'); // MMDDAA: DEC-07-2023
+  assert.equal(r.campos.fechaDeshuese, '2023-12-07');
+  assert.equal(r.campos.loteDeshuese, 24);
+  assert.equal(r.campos.loteLegible, '12072324'); // «Lot 12072324»
+  assert.equal(r.campos.sufijo, '10');
+  // Día 07 ≤ 12: el decodificador avisa; el texto legible «DEC-07» confirma la lectura MMDDAA.
+  assert.equal(r.campos.fechaAmbigua, true);
+  assert.deepEqual(r.advertencias.map((a) => a.codigo), ['fecha_ambigua']);
+});
+
+test('real · caja master «SERV. MAN. RIBEYE STEAK» (foto 3B0B1A24…)', () => {
+  // Impreso: 26613 · Lote 2312250031 · 5.99 kgs · Fecha de producción 23/12/2025
+  const r = decodificar('2661300599XXX231225003111');
+  assert.equal(r.tipo, 'caja');
+  assert.deepEqual(r.errores, []);
+  assert.deepEqual(r.advertencias, []);
+  assert.equal(r.campos.codigoProducto, '26613');
+  assert.equal(r.campos.serie, 'F1');
+  assert.equal(r.campos.producto, 'Ribeye Steak');
+  assert.equal(r.campos.pesoKg, 5.99);
+  assert.equal(r.campos.campoXXX, 'XXX');
+  assert.equal(r.campos.fecha, '2025-12-23');
+  assert.equal(r.campos.fechaDeshuese, '2025-12-23');
+  assert.equal(r.campos.loteDeshuese, 31); // 23/12/25 + 00 + deshuese 31
+  assert.equal(r.campos.loteTexto, '0031');
+  assert.equal(r.campos.loteLegible, '2312250031');
+  assert.equal(r.campos.sufijo, '11');
+});
+
+test('real · caja master «Torta de Hamburguesa Gourmet» (foto 3BA301BC…)', () => {
+  // Impreso: 26649 · 13.21 kg · Lote 2901250039 · Consumir antes de 29/01/2026
+  const r = decodificar('2664901321XXX290125003911');
+  assert.equal(r.tipo, 'caja');
+  assert.deepEqual(r.errores, []);
+  assert.equal(r.campos.codigoProducto, '26649');
+  assert.equal(r.campos.serie, 'PVA');
+  assert.equal(r.campos.producto, 'Tortas gourmet');
+  assert.equal(r.campos.pesoKg, 13.21);
+  assert.equal(r.campos.fecha, '2025-01-29'); // vence 29/01/2026 = fecha + 12 meses (congelado)
+  assert.equal(r.campos.loteDeshuese, 39);
+  assert.equal(r.campos.loteLegible, '2901250039');
+  assert.equal(r.campos.sufijo, '11');
+});
+
+test('real · paquete «FB NEW YORK STEAK» (foto 3BB734AB…)', () => {
+  // Impreso: Código 26338 · Peso 2.026 Kg · Lote: PG087 22112407 · Consumir antes de 23/11/25
+  const r = decodificar('0PG087263382311240702026F111');
+  assert.equal(r.tipo, 'paquete');
+  assert.equal(r.normalizado.length, 28);
+  assert.equal(r.campos.arete, '0PG087');
+  assert.equal(r.campos.areteSinRelleno, 'PG087'); // el lote legible dice «PG087»
+  assert.equal(r.campos.codigoProducto, '26338');
+  assert.equal(r.campos.serie, 'FB');
+  assert.equal(r.campos.producto, 'New York Steak');
+  // Código: 23/11/24 (producción; vence 23/11/25). Lote legible: 22/11/24 (deshuese). No coinciden.
+  assert.equal(r.campos.fechaProduccion, '2024-11-23');
+  assert.equal(r.campos.fechaDeshuese, null);
+  assert.equal(r.campos.loteDeshuese, 7);
+  assert.equal(r.campos.loteTexto, '07');
+  assert.equal(r.campos.pesoGramos, 2026);
+  assert.equal(r.campos.pesoKg, 2.026);
+  assert.equal(r.campos.genetica, 'F1');
+  assert.equal(r.campos.marmoleo, 11);
+  // Hallazgo real: el título y el código 26338 son FB, pero el campo racial del código dice F1.
+  // Es justo el cruce que la validación de §11.3 debe atajar.
+  assert.deepEqual(codigos(r), ['genetica_cruzada']);
+  assert.ok(r.advertencias.some((a) => a.codigo === 'arete_con_relleno'));
+});
+
+test('arete sin relleno: no se ofrece alternativa si no empieza en 0', () => {
+  const r = decodificar('34GKAE266322309243300416F101');
+  assert.equal(r.campos.areteSinRelleno, '34GKAE');
+  assert.ok(!r.advertencias.some((a) => a.codigo === 'arete_con_relleno'));
+});
+
+test('arete sin relleno: se quita un solo cero («00G087» → «0G087», no «G087»)', () => {
+  const r = decodificar('00G087263382311240702026F111');
+  assert.equal(r.campos.arete, '00G087');
+  assert.equal(r.campos.areteSinRelleno, '0G087');
+  assert.ok(r.advertencias.some((a) => a.codigo === 'arete_con_relleno'));
 });
 
 // ── Largo y entradas raras ──────────────────────────────────────────────────

@@ -6,7 +6,7 @@
  * y devuelve los campos interpretados. Tres estructuras conocidas:
  *
  *  A · Paquete (28 caracteres, alfanumérico)
- *      1–6   arete (6 caracteres, puede traer guion: «0103-M», «34GKAE»)
+ *      1–6   arete (6 caracteres, puede traer guion: «0103-M», «34GKAE»; relleno con 0: «0PG087»)
  *      7–11  código de producto (5 dígitos)
  *      12–17 fecha de producción DDMMAA (porcionado o reempaque)
  *      18–19 lote de deshuese (2 dígitos)
@@ -42,6 +42,22 @@
  *     - el código de producto (pos. 1–5) es de una serie de producto terminado
  *       (F1 / FB / PVA), que no corresponde a un primal (los primales usan código Arreo), o
  *     - la lectura como primal tiene errores y la lectura como caja no.
+ *
+ * Validado con 4 etiquetas reales fotografiadas el 12-oct-2026 (detalle en
+ * docs/etiquetas-ciisa/etiquetas-reales-2026-10-12.md) y con las reglas que dio el cliente ese día:
+ *   - El lote de 2 dígitos (4 en la caja, con «00» delante) es el n.º de deshuese = la POSICIÓN
+ *     del animal en el deshuese de ese día. El arete se resuelve con la tabla posición → arete
+ *     del Reporte Diario de Producción; el mismo número en dos etiquetas no implica el mismo animal
+ *     si la fecha de deshuese es otra.
+ *   - Caja y primal llevan la FECHA DEL DESHUESE en el lote (caja DDMMAA, primal MMDDAA), por eso
+ *     exponen `fechaDeshuese`. El paquete NO: su fecha es la de producción/empaque (el «Consumir
+ *     antes» es esa fecha + 1 año) y la del deshuese solo viene en el texto legible del lote
+ *     («Lote: PG087 22112407» = arete + 22/11/24 + deshuese 07, un día antes que el código de barras).
+ *     Por eso el paquete devuelve `fechaDeshuese: null` en vez de reutilizar su fecha.
+ *   - El arete de 5 caracteres (p. ej. «PG087», «72ELF») se rellena con «0» a la izquierda para
+ *     ocupar las 6 posiciones del paquete («0PG087»). Se devuelve `areteSinRelleno` como lectura
+ *     alternativa (se quita un solo 0), con advertencia; no se corrige porque un arete real también
+ *     puede empezar en 0. El formato con guion (NNNN-L, «0103-M») no se considera relleno.
  */
 
 const { CATALOGO_POR_CODIGO } = require('../data/catalogo-ciisa');
@@ -231,13 +247,30 @@ function leerPaquete(s) {
       'Día ≤ 12: la fecha podría leerse como DDMMAA o MMDDAA; validar contra la fecha registrada del lote'));
   }
 
+  // Etiqueta real «0PG087…» con lote legible «PG087»: el campo de 6 posiciones rellena con ceros
+  // a la izquierda los aretes más cortos. Si el registro no tiene el arete tal cual, hay que buscar
+  // la lectura sin relleno (mismo criterio que el arete invertido: se avisa, no se corrige).
+  // Se quita UN solo cero: los aretes conocidos tienen 5 o 6 caracteres, así que el relleno es de
+  // una posición; quitar más («00G087» → «G087») inventaría un arete de 4. El formato con guion
+  // (NNNN-L, p. ej. «0103-M») ya ocupa las 6 posiciones con su 0 propio: no es relleno y no se avisa.
+  const conGuion = areteTxt.includes('-');
+  const areteSinRelleno = !areteValido ? null
+    : (conGuion ? areteTxt : areteTxt.replace(/^0/, ''));
+  if (areteSinRelleno && areteSinRelleno !== areteTxt) {
+    advertencias.push(error('arete_con_relleno', 'arete',
+      `Si «${areteTxt}» no existe en el registro, verificar «${areteSinRelleno}» (el código rellena con 0 los aretes de menos de 6 caracteres)`));
+  }
+
   return {
     tipo: 'paquete',
     campos: {
       arete: areteTxt,
+      areteSinRelleno,
       ...producto,
       fechaProduccion: f.fecha,
       fecha: f.fecha,
+      // La fecha del deshuese no está en el código de barras del paquete (ver cabecera).
+      fechaDeshuese: null,
       fechaAmbigua: f.fechaAmbigua,
       loteDeshuese: lote.loteDeshuese,
       loteTexto: lote.loteTexto,
@@ -280,6 +313,8 @@ function leerCaja(s) {
       pesoKg: peso.pesoKg,
       campoXXX: pos(s, 11, 13), // significado por confirmar con CIISA: no se valida
       fecha: f.fecha,
+      // Regla del cliente (12-oct): el lote de la caja master es fecha del deshuese + 00 + n.º de deshuese.
+      fechaDeshuese: f.fecha,
       fechaAmbigua: f.fechaAmbigua,
       loteDeshuese: lote.loteDeshuese,
       loteTexto: lote.loteTexto,
@@ -328,6 +363,8 @@ function leerPrimal(s) {
       pesoKg: peso.pesoKg,
       fechaEmpaque: f.fecha,
       fecha: f.fecha,
+      // La caja de deshuese se empaca el mismo día del deshuese (real: «Lot 12072324» = DEC-07-2023).
+      fechaDeshuese: f.fecha,
       fechaAmbigua: f.fechaAmbigua,
       loteDeshuese: lote.loteDeshuese,
       loteTexto: lote.loteTexto,
