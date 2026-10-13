@@ -253,9 +253,9 @@ Los productos de paquetería que mezclan aretes (carne molida, chorizo) se regis
 
 | # | Pregunta | Para quién | Impacto |
 |---|---|---|---|
-| A1 | **Campo «XXX» de la etiqueta de caja**: ¿qué significa (planta, turno, operario, consecutivo)? | CIISA | Puede ser parte de la unicidad de la caja. |
-| A2 | **Sufijos** de caja y primal: ¿qué codifican? ¿Cuál es el ancho exacto de peso, box y sufijo en las etiquetas de 25 caracteres? | CIISA | Hoy los regex de caja y primal son provisionales. |
-| A3 | **Lote de 4 dígitos en caja vs. 2 en paquete/primal**: ¿es el mismo lote CC con relleno, o codifica otra cosa (p. ej. año + lote)? | CIISA | Es lo que resuelve el arete de la caja. |
+| A1 | **Campo «XXX» de la etiqueta de caja**: ¿qué significa (planta, turno, operario, consecutivo)? 12-oct: literal `XXX` en las 2 cajas reales. | CIISA | Puede ser parte de la unicidad de la caja. |
+| A2 | **Sufijos** de caja y primal: ¿qué codifican? 12-oct: anchos confirmados con etiquetas reales; sufijo `11` en todas las cajas y `10` en todos los primales conocidos. | CIISA | Hoy los regex de caja y primal son provisionales. |
+| A3 | ~~**Lote de 4 dígitos en caja vs. 2 en paquete/primal**~~ **Respondida (cliente, 12-oct)**: es el mismo n.º de deshuese (posición) con `00` delante; la fecha del lote de la caja es la del deshuese. | CIISA | Es lo que resuelve el arete de la caja. |
 | A4 | **¿Quién imprime la etiqueta de paquete** (28 caracteres, con arete y marmoleo)? ¿CIISA en paquetería o WC al reempacar? ¿Qué formato lleva el reempaque? | WC + CIISA | Define si el reempaque genera una etiqueta CIISA o una propia de WC, y su formato. |
 | A5 | **Simbología** de cada etiqueta (Code 128, GS1-128, Code 39 en primal): ¿hay caracteres de control o prefijos AI que el escáner entregue? | CIISA | Afecta la normalización de `codigo_crudo`. |
 | A6 | **Formato real de `importar_documentos` de Enlace**: columnas, tipos de documento, código de bodega, manejo de lote = arete y redondeo de «Unid». | WC (contabilidad EQTBL) | Sin esto no se implementa la exportación. |
@@ -267,3 +267,5 @@ Los productos de paquetería que mezclan aretes (carne molida, chorizo) se regis
 | A12 | N.º de canal: ¿viene en algún reporte CIISA que se pueda cargar, o se digita? | CIISA | Backfill de `canales`. |
 | A13 | Productos de paquetería multiarete (molida, chorizo): ¿llevan etiqueta CIISA propia y van a WC-01 como inventario? | WC | Hoy quedan fuera del balance por arete. |
 | A14 | Número de intentos fallidos y duración del bloqueo de PIN. | WC | Política de seguridad. |
+| A15 | **Fecha del paquete ≠ fecha del deshuese** (etiqueta real 12-oct: código 23/11/24, lote legible 22/11/24). La caja lleva la fecha del deshuese y el paquete la de producción. ¿Cómo se valida «paquete corresponde a la caja» (invariante 3)? | CIISA | Comparar fecha literal puede rechazar paquetes buenos; ver `docs/etiquetas-ciisa/etiquetas-reales-2026-10-12.md` §2.2. |
+| A16 | **Paquete FB con contenido racial F1** (26338 «FB NEW YORK STEAK», código `…F111`): ¿error de impresión de CIISA o el campo no es el cruce del animal? | CIISA | Decide si `genetica_cruzada` bloquea o solo alerta. |
