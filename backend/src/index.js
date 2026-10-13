@@ -68,6 +68,7 @@ app.use('/api/devoluciones', protegida, require('./routes/devoluciones'));
 app.use('/api/paqueteria', protegida, require('./routes/paqueteria'));
 app.use('/api/alertas-bms', protegida, require('./routes/alertas-bms'));
 app.use('/api/temperaturas-bodega', protegida, require('./routes/temperaturas-bodega'));
+app.use('/api/reporte-produccion', protegida, require('./routes/reporte-produccion'));
 // Etiquetas solo expone POST /decodificar, que es cálculo puro (no escribe en la base):
 // el viewer lo puede usar para consultar una etiqueta escaneada.
 app.use('/api/etiquetas', authMiddleware, require('./routes/etiquetas'));

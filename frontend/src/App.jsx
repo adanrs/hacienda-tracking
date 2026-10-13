@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Routes, Route, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Beef, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Scissors, Slice, Package, Snowflake, Clock, Boxes, FileOutput, FileInput, RotateCcw, Barcode, Utensils, BookOpen, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Beef, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Scissors, Slice, Package, Snowflake, Clock, Boxes, FileOutput, FileInput, RotateCcw, Barcode, Utensils, BookOpen, Menu, X, FileSpreadsheet } from 'lucide-react';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { CowWalking } from './components/CowIcon';
 import { Avisos } from './components/ui/avisos';
@@ -30,6 +30,7 @@ import OrdenesEntrada from './pages/OrdenesEntrada';
 import Devoluciones from './pages/Devoluciones';
 import Paqueteria from './pages/Paqueteria';
 import CatalogoCortes from './pages/CatalogoCortes';
+import ReporteProduccion from './pages/ReporteProduccion';
 
 // Menú ordenado según el recorrido del producto: Finca → Planta → Bodega y despacho.
 const grupos = [
@@ -54,6 +55,7 @@ const grupos = [
       { to: '/transporte', icon: Truck, label: 'Transporte' },
       { to: '/sacrificio', icon: Warehouse, label: 'Sacrificio' },
       { to: '/deshuese', icon: Scissors, label: 'Deshuese' },
+      { to: '/reporte-produccion', icon: FileSpreadsheet, label: 'Reporte de producción' },
       { to: '/cortes', icon: Slice, label: 'Cortes por animal' },
       { to: '/custodia', icon: Package, label: 'Custodia' },
       { to: '/maduracion', icon: Clock, label: 'Maduración' },
@@ -221,6 +223,7 @@ function AppLayout() {
           <Route path="/transporte" element={<Transporte />} />
           <Route path="/sacrificio" element={<Sacrificio />} />
           <Route path="/deshuese" element={<Deshuese />} />
+          <Route path="/reporte-produccion" element={<ReporteProduccion />} />
           <Route path="/custodia" element={<Custodia />} />
           <Route path="/maduracion" element={<Maduracion />} />
           <Route path="/porcionado" element={<Porcionado />} />
