@@ -51,6 +51,14 @@ function filasDeHoja(hoja) {
   return filas;
 }
 
+// Topes del importador. Un reporte diario son decenas de filas; un Excel con miles es un error
+// (o un archivo armado para gastar memoria). Se revisan antes de recorrer las celdas.
+const MAX_HOJAS = 10;
+const MAX_FILAS_HOJA = 5000;
+const MAX_COLUMNAS_HOJA = 60;
+
+class ErrorLibro extends Error {}
+
 /**
  * Lee un .xlsx: hoja de reporte (la primera que tenga columnas Artículo y Peso) y hoja
  * «Aretes» si existe. Devuelve filas crudas; la interpretación es de reporteProduccion.js.
@@ -58,6 +66,18 @@ function filasDeHoja(hoja) {
 async function leerLibro(buffer) {
   const libro = new ExcelJS.Workbook();
   await libro.xlsx.load(buffer);
+  if (libro.worksheets.length > MAX_HOJAS) {
+    throw new ErrorLibro(`El Excel tiene ${libro.worksheets.length} hojas; el máximo es ${MAX_HOJAS}. Use la plantilla.`);
+  }
+  for (const h of libro.worksheets) {
+    // rowCount/columnCount = última fila/columna usada (incluye filas con solo formato).
+    if (h.rowCount > MAX_FILAS_HOJA) {
+      throw new ErrorLibro(`La hoja «${h.name}» tiene ${h.rowCount} filas; el máximo es ${MAX_FILAS_HOJA}. Borre las filas sobrantes o use la plantilla.`);
+    }
+    if (h.columnCount > MAX_COLUMNAS_HOJA) {
+      throw new ErrorLibro(`La hoja «${h.name}» tiene ${h.columnCount} columnas; el máximo es ${MAX_COLUMNAS_HOJA}.`);
+    }
+  }
   const hojas = libro.worksheets.map(h => ({ nombre: h.name, filas: filasDeHoja(h) }));
   const esAretes = (h) => /arete/i.test(h.nombre);
   return {
@@ -219,4 +239,7 @@ function construirLibroReporte(reporte) {
   return libro;
 }
 
-module.exports = { construirPlantilla, construirLibroReporte, leerLibro, filasDeHoja, valorCelda, fechaCorta };
+module.exports = {
+  construirPlantilla, construirLibroReporte, leerLibro, filasDeHoja, valorCelda, fechaCorta,
+  ErrorLibro, MAX_FILAS_HOJA, MAX_COLUMNAS_HOJA, MAX_HOJAS,
+};

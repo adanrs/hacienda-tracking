@@ -13,7 +13,7 @@
 
 const router = require('express').Router();
 const multer = require('multer');
-const { idsNumericos } = require('../lib/params');
+const { idsNumericos, SOLO_DIGITOS } = require('../lib/params');
 const { pool } = require('../models/database');
 const rp = require('../lib/reporteProduccion');
 const excel = require('../lib/reporteProduccionExcel');
@@ -64,6 +64,18 @@ function loteOpcional(valor) {
   const n = rp.parsearLoteCC(valor);
   if (!n) throw new ErrorHttp(400, 'Parámetro lote_cc inválido: número de 1 a 4 dígitos');
   return n;
+}
+
+// Hora de Costa Rica (UTC−6 todo el año, sin horario de verano) a partir de UNIX_TIMESTAMP().
+// Por qué no DATE_FORMAT(created_at): el contenedor y MySQL corren en UTC, así que la hora salía
+// 6 horas adelantada. UNIX_TIMESTAMP interpreta el DATETIME con la misma zona de la sesión que
+// usó CURRENT_TIMESTAMP al guardarlo, así que el instante es correcto sea cual sea esa zona.
+const OFFSET_CR_S = -6 * 3600;
+function horaCR(ts, formato = 'iso') {
+  if (ts === null || ts === undefined || Number.isNaN(Number(ts))) return null;
+  const iso = new Date((Number(ts) + OFFSET_CR_S) * 1000).toISOString(); // ya desplazada: se leen los campos UTC
+  if (formato === 'corta') return `${iso.slice(8, 10)}/${iso.slice(5, 7)} ${iso.slice(11, 16)}`;
+  return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
 }
 
 const usuarioId = (req) => (req.user && Number.isInteger(req.user.id) ? req.user.id : null);
@@ -139,7 +151,7 @@ async function cargarReporte(fecha, loteCC) {
 
   const [encabezados] = await pool.query(
     `SELECT r.id, r.lote_cc, r.num_lote, r.tipo_produccion, r.origen, r.archivo_nombre,
-            DATE_FORMAT(r.updated_at, '%Y-%m-%d %H:%i') AS actualizado, u.nombre AS cargado_por
+            UNIX_TIMESTAMP(r.updated_at) AS actualizado_ts, u.nombre AS cargado_por
      FROM reporte_produccion r
      LEFT JOIN usuarios u ON u.id = r.cargado_por
      WHERE r.fecha_produccion = ?${filtroR}`,
@@ -187,7 +199,7 @@ async function cargarReporte(fecha, loteCC) {
       animal_id: arete ? arete.animal_id : null,
       encabezado: enc ? {
         id: enc.id, num_lote: enc.num_lote, tipo_produccion: enc.tipo_produccion, origen: enc.origen,
-        archivo_nombre: enc.archivo_nombre, actualizado: enc.actualizado, cargado_por: enc.cargado_por,
+        archivo_nombre: enc.archivo_nombre, actualizado: horaCR(enc.actualizado_ts), cargado_por: enc.cargado_por,
       } : null,
       filas,
       resumen,
@@ -277,31 +289,49 @@ router.get('/ciisa/:id', envolver(async (req, res) => {
 
 // POST /api/reporte-produccion/ciisa  — guarda un reporte de CIISA.
 // Cuerpo con la forma de docs/reporte-produccion-diaria/ejemplo-2026-09-21.json
-// ({ encabezado, lineas, pie?, aretesPorPosicion? }) más { origen?, archivo_nombre?, reemplazar? }.
-// Si ya hay un reporte para esa fecha y lote CC responde 409, salvo `reemplazar: true`.
+// ({ encabezado, lineas, pie?, aretesPorPosicion? }) más { id?, origen?, archivo_nombre?, reemplazar? }.
+//   - Sin `id` (alta): si ya hay un reporte para esa fecha y lote CC responde 409, salvo `reemplazar: true`.
+//   - Con `id` (corrección de un reporte cargado): se actualiza ESE reporte aunque cambien la fecha
+//     o el lote CC. Antes se insertaba otro y el original quedaba duplicado con la llave vieja.
+//     Si la llave nueva ya la tiene OTRO reporte: 409, o con `reemplazar` ese otro se borra.
 router.post('/ciisa', envolver(async (req, res) => {
   const v = rp.validarReporte(req.body);
   const origen = req.body.origen === undefined ? 'manual' : req.body.origen;
   if (!ORIGENES.includes(origen)) throw new ErrorHttp(400, `Origen inválido: debe ser uno de ${ORIGENES.join(', ')}`);
   const archivo = typeof req.body.archivo_nombre === 'string' ? req.body.archivo_nombre.replace(/[\u0000-\u001f]/g, '').slice(0, 255) || null : null;
   const reemplazar = req.body.reemplazar === true;
+  let idEdicion = null;
+  if (req.body.id !== undefined && req.body.id !== null) {
+    if (!SOLO_DIGITOS.test(String(req.body.id))) throw new ErrorHttp(400, 'id de reporte inválido');
+    idEdicion = Number(req.body.id);
+  }
   const usuario = usuarioId(req);
+  const llave = `${v.fecha} lote CC ${rp.loteTexto(v.lote_cc)}`;
 
   try {
     const resultado = await enTransaccion(async (conn) => {
+      if (idEdicion) {
+        const [orig] = await conn.query('SELECT id FROM reporte_produccion WHERE id = ? FOR UPDATE', [idEdicion]);
+        if (!orig.length) throw new ErrorHttp(404, 'El reporte que intenta corregir ya no existe. Recargue la pantalla.');
+      }
       const [existe] = await conn.query(
         'SELECT id FROM reporte_produccion WHERE fecha_produccion = ? AND lote_cc = ? FOR UPDATE',
         [v.fecha, v.lote_cc],
       );
-      let id;
-      if (existe.length) {
-        if (!reemplazar) {
-          throw new ErrorHttp(409, `Ya hay un reporte de CIISA cargado para el ${v.fecha} lote CC ${rp.loteTexto(v.lote_cc)}. ¿Desea reemplazarlo?`, { existe: true, id: existe[0].id });
-        }
-        id = existe[0].id;
+      const otro = existe.length && existe[0].id !== idEdicion ? existe[0].id : null;
+      if (otro && !reemplazar) {
+        throw new ErrorHttp(409, `Ya hay un reporte de CIISA cargado para el ${llave}. ¿Desea reemplazarlo?`, { existe: true, id: otro });
+      }
+      // El reporte que ocupaba la llave se borra (sus filas caen en cascada) antes de reutilizarla.
+      if (otro) await conn.query('DELETE FROM reporte_produccion WHERE id = ?', [otro]);
+
+      let id = idEdicion;
+      if (!id && existe.length) id = existe[0].id; // alta con reemplazar sobre la misma llave: se reutiliza la fila
+      if (id) {
         await conn.query(
-          'UPDATE reporte_produccion SET num_lote = ?, tipo_produccion = ?, origen = ?, archivo_nombre = ?, cargado_por = ? WHERE id = ?',
-          [v.num_lote, v.tipo_produccion, origen, archivo, usuario, id],
+          `UPDATE reporte_produccion SET fecha_produccion = ?, lote_cc = ?, num_lote = ?, tipo_produccion = ?,
+             origen = ?, archivo_nombre = ?, cargado_por = ? WHERE id = ?`,
+          [v.fecha, v.lote_cc, v.num_lote, v.tipo_produccion, origen, archivo, usuario, id],
         );
         await conn.query('DELETE FROM reporte_produccion_lineas WHERE reporte_id = ?', [id]);
       } else {
@@ -317,11 +347,12 @@ router.post('/ciisa', envolver(async (req, res) => {
         [v.lineas.map(l => [id, l.linea, l.articulo_codigo, l.descripcion, l.peso_kg, l.unidad, l.cajas])],
       );
       const aretes = await guardarAretes(conn, v.fecha, v.aretes, usuario);
-      return { id, reemplazado: existe.length > 0, aretes };
+      return { id, reemplazado: Boolean(idEdicion || existe.length), reemplazo_otro: otro, aretes };
     });
     res.status(resultado.reemplazado ? 200 : 201).json({
       id: resultado.id,
       reemplazado: resultado.reemplazado,
+      reemplazo_otro: resultado.reemplazo_otro,
       fecha: v.fecha,
       lote_cc: v.lote_cc,
       totales: v.totales,
@@ -331,8 +362,12 @@ router.post('/ciisa', envolver(async (req, res) => {
       advertencias: v.advertencias,
     });
   } catch (e) {
-    // Dos cargas simultáneas del mismo lote: la segunda choca con la llave única.
-    if (e && e.code === 'ER_DUP_ENTRY') throw new ErrorHttp(409, 'Otro usuario acaba de cargar ese mismo reporte. Recargue y revise.');
+    // Dos cargas simultáneas del mismo lote nuevo: el SELECT … FOR UPDATE sobre una llave que
+    // no existe toma un candado de rango en ambas transacciones y MySQL aborta una con deadlock
+    // (o la segunda choca con la llave única). Para el usuario es el mismo caso: 409, no 500.
+    if (e && ['ER_DUP_ENTRY', 'ER_LOCK_DEADLOCK', 'ER_LOCK_WAIT_TIMEOUT'].includes(e.code)) {
+      throw new ErrorHttp(409, `Otro usuario está guardando el reporte del ${llave} en este momento. Recargue y revise antes de volver a guardar.`);
+    }
     throw e;
   }
 }));
@@ -364,7 +399,9 @@ router.post('/ciisa/importar', (req, res, next) => {
     // Un .xlsx es un zip: si no empieza con «PK» no es Excel aunque diga .xlsx.
     if (buf[0] !== 0x50 || buf[1] !== 0x4b) throw new ErrorHttp(400, 'El archivo no es un Excel .xlsx válido');
     let libro;
-    try { libro = await excel.leerLibro(buf); } catch (_) {
+    try { libro = await excel.leerLibro(buf); } catch (err) {
+      // Un libro desmedido (miles de filas o columnas) trae su propio mensaje; lo demás es un archivo dañado.
+      if (err instanceof excel.ErrorLibro) throw new ErrorHttp(400, err.message);
       throw new ErrorHttp(400, 'No se pudo leer el Excel. Ábralo y guárdelo de nuevo como .xlsx');
     }
     for (const filas of libro.reporte) {
@@ -428,7 +465,7 @@ router.get('/escaneos', envolver(async (req, res) => {
   const [filas] = await pool.query(
     `SELECT e.id, e.codigo_crudo, e.copia, e.tipo, e.articulo_codigo, c.nombre AS descripcion, e.peso_kg,
             ${fmtFecha('e.fecha_deshuese')} AS fecha_deshuese, e.lote_cc, e.box_codigo, e.fecha_ambigua,
-            DATE_FORMAT(e.created_at, '%Y-%m-%d %H:%i') AS escaneado, u.nombre AS escaneado_por
+            UNIX_TIMESTAMP(e.created_at) AS escaneado_ts, u.nombre AS escaneado_por
      FROM reporte_produccion_escaneos e
      LEFT JOIN catalogo_cortes c ON c.codigo = e.articulo_codigo
      LEFT JOIN usuarios u ON u.id = e.escaneado_por
@@ -437,7 +474,7 @@ router.get('/escaneos', envolver(async (req, res) => {
      LIMIT 2000`,
     lote ? [fecha, lote] : [fecha],
   );
-  res.json(filas.map(f => ({ ...f, peso_kg: Number(f.peso_kg), lote_cc: Number(f.lote_cc) })));
+  res.json(filas.map(({ escaneado_ts: ts, ...f }) => ({ ...f, escaneado: horaCR(ts), peso_kg: Number(f.peso_kg), lote_cc: Number(f.lote_cc) })));
 }));
 
 // POST /api/reporte-produccion/escaneos
@@ -481,12 +518,13 @@ router.post('/escaneos', envolver(async (req, res) => {
   } catch (err) {
     if (err && err.code === 'ER_DUP_ENTRY') {
       const [prev] = await pool.query(
-        `SELECT DATE_FORMAT(e.created_at, '%d/%m %H:%i') AS cuando, u.nombre AS quien
+        `SELECT UNIX_TIMESTAMP(e.created_at) AS cuando_ts, u.nombre AS quien
          FROM reporte_produccion_escaneos e LEFT JOIN usuarios u ON u.id = e.escaneado_por
          WHERE e.codigo_crudo = ? ORDER BY e.copia LIMIT 1`,
         [e.codigo_crudo],
       );
       const p = prev[0] || {};
+      p.cuando = horaCR(p.cuando_ts, 'corta');
       throw new ErrorHttp(409, `Esta etiqueta ya se escaneó${p.cuando ? ` el ${p.cuando}` : ''}${p.quien ? ` (${p.quien})` : ''}.`, {
         motivo: 'duplicada',
         // Solo una caja master puede repetir etiqueta (mismo artículo, peso, fecha y lote): lo confirma el operador.
@@ -511,6 +549,7 @@ router.post('/escaneos', envolver(async (req, res) => {
     fecha_deshuese: e.fecha_deshuese,
     lote_cc: e.lote_cc,
     fecha_ambigua: e.fecha_ambigua,
+    escaneado: horaCR(Math.floor(Date.now() / 1000)),
     arete: aretes.length ? aretes[0].arete : null,
     lote: { cajas: Number(resumen.cajas), kg: Number(resumen.kg) },
   });

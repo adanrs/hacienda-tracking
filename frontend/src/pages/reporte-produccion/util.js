@@ -1,5 +1,6 @@
 // Utilidades compartidas por las pantallas del Reporte Diario de Producción.
 import { CircleCheck, CircleAlert, ScanLine, FileQuestion } from 'lucide-react';
+import { numeroDe } from './numeros';
 
 /** Fecha local de hoy en AAAA-MM-DD (toISOString daría el día UTC, que en CR cambia a las 6 p. m.). */
 export function hoyIso() {
@@ -33,16 +34,8 @@ export const ESTADO_FILA = {
   solo_escaneo: { texto: 'No está en CIISA', badge: 'badge-purple', Icono: FileQuestion },
 };
 
-/** Número desde lo que se digita o pega: «97.40», «97,40». */
-export function numeroDe(texto) {
-  if (typeof texto === 'number') return texto;
-  let s = String(texto ?? '').trim().replace(/\s/g, '');
-  if (!s) return NaN;
-  if (s.includes(',') && s.includes('.')) s = s.lastIndexOf(',') > s.lastIndexOf('.') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
-  else if (/^\d+,\d{1,2}$/.test(s)) s = s.replace(',', '.');
-  else s = s.replace(/,/g, '');
-  return /^-?\d+(\.\d+)?$/.test(s) ? Number(s) : NaN;
-}
+// numeroDe vive en numeros.js (sin dependencias) para poder probarlo contra la regla del backend.
+export { numeroDe };
 
 /**
  * Filas pegadas desde el reporte de CIISA (Excel, PDF o correo):

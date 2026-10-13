@@ -20,7 +20,7 @@ export default function EscaneoDeshuese({ fecha, setFecha, canEdit }) {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
   const [soloFecha, setSoloFecha] = useState(true);
-  const [pendiente, setPendiente] = useState(null); // { codigo, motivo: 'ambigua'|'duplicada', mensaje }
+  const [pendiente, setPendiente] = useState(null); // { codigo, tipo?, motivo: 'ambigua'|'duplicada', mensaje }
 
   const cargar = useCallback(() => {
     setCargando(true);
@@ -43,28 +43,43 @@ export default function EscaneoDeshuese({ fecha, setFecha, canEdit }) {
     };
   };
 
+  // Un 409/422 que el operador puede resolver deja la lectura «pendiente» con todo lo que ya
+  // se decidió (p. ej. el tipo elegido para una ambigua), para que el reenvío lo conserve.
+  const pendienteDe = (e, codigo, tipo) => {
+    const motivo = e.datos?.motivo;
+    if (motivo === 'ambigua' || (motivo === 'duplicada' && e.datos?.puede_confirmar)) {
+      return { codigo, tipo, motivo, mensaje: e.message };
+    }
+    return null;
+  };
+
   const leer = async (codigo) => {
     setPendiente(null);
     try {
       return await enviar({ codigo });
     } catch (e) {
-      const motivo = e.datos?.motivo;
-      if (motivo === 'ambigua' || (motivo === 'duplicada' && e.datos?.puede_confirmar)) {
-        setPendiente({ codigo, motivo, mensaje: e.message });
-        return { ok: false, titulo: motivo === 'ambigua' ? '¿Es caja o primal?' : 'Etiqueta repetida', detalle: 'Elija abajo qué hacer con esta lectura.' };
+      const p = pendienteDe(e, codigo);
+      if (p) {
+        setPendiente(p);
+        return { ok: false, titulo: p.motivo === 'ambigua' ? '¿Es caja o primal?' : 'Etiqueta repetida', detalle: 'Elija abajo qué hacer con esta lectura.' };
       }
       throw e;
     }
   };
 
+  // extra: { tipo } para una ambigua, { otra_caja: true } para una caja repetida.
   const resolver = async (extra) => {
     const p = pendiente;
     setPendiente(null);
+    const tipo = extra.tipo || p.tipo;
     try {
-      const r = await enviar({ codigo: p.codigo, ...extra });
+      const r = await enviar({ codigo: p.codigo, ...(tipo ? { tipo } : {}), ...extra });
       aviso.ok(r.detalle, { titulo: r.titulo });
     } catch (e) {
-      aviso.error(e.message, { titulo: 'No se registró' });
+      // Ambigua elegida como caja que resulta repetida: se ofrece «Sí, es otra caja» sin perder el tipo.
+      const siguiente = extra.otra_caja ? null : pendienteDe(e, p.codigo, tipo);
+      if (siguiente) setPendiente(siguiente);
+      else aviso.error(e.message, { titulo: 'No se registró' });
     }
   };
 

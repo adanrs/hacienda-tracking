@@ -235,3 +235,35 @@ test('plantilla: se puede descargar y volver a importar', async () => {
   assert.equal(r.reportes[0].lineas.length, 2);
   assert.equal(rp.aretesDesdeFilas(leido.aretes).aretes.length, 2);
 });
+
+test('la pantalla lee los números igual que el backend (numeros.js vs parsearNumero)', async () => {
+  const { pathToFileURL } = require('node:url');
+  const { numeroDe } = await import(pathToFileURL(path.resolve(__dirname, '../../frontend/src/pages/reporte-produccion/numeros.js')).href);
+  const casos = ['97.40', '97,40', '0,500', '12,345', '1,250', '1,234.56', '1.234,56', '1,234,567', '-2,5', '12kg', '', ' 3 ', 7, '0.72', '1.5.3'];
+  for (const c of casos) {
+    const a = numeroDe(c);
+    const b = rp.parsearNumero(c);
+    assert.ok(Object.is(a, b) || (Number.isNaN(a) && Number.isNaN(b)), `«${c}»: pantalla ${a} vs backend ${b}`);
+  }
+  assert.equal(numeroDe('0,500'), 0.5);
+  assert.equal(numeroDe('12,345'), 12345);
+});
+
+test('leerLibro: rechaza libros con demasiadas filas, columnas u hojas', async () => {
+  const conFilas = new ExcelJS.Workbook();
+  conFilas.addWorksheet('Reporte').getCell('A5001').value = 1;
+  await assert.rejects(excel.leerLibro(Buffer.from(await conFilas.xlsx.writeBuffer())), (e) => e instanceof excel.ErrorLibro && /5001 filas/.test(e.message));
+
+  const conColumnas = new ExcelJS.Workbook();
+  conColumnas.addWorksheet('Reporte').getRow(1).getCell(61).value = 1;
+  await assert.rejects(excel.leerLibro(Buffer.from(await conColumnas.xlsx.writeBuffer())), /61 columnas/);
+
+  const conHojas = new ExcelJS.Workbook();
+  for (let i = 0; i < 11; i++) conHojas.addWorksheet(`H${i}`);
+  await assert.rejects(excel.leerLibro(Buffer.from(await conHojas.xlsx.writeBuffer())), /11 hojas/);
+
+  // Justo en el tope sí entra.
+  const enTope = new ExcelJS.Workbook();
+  enTope.addWorksheet('Reporte').getCell('A5000').value = 1;
+  await excel.leerLibro(Buffer.from(await enTope.xlsx.writeBuffer()));
+});

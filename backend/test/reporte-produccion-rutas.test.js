@@ -11,12 +11,19 @@ const ejemplo = require(path.resolve(__dirname, '../../docs/reporte-produccion-d
 const { COLUMNAS_PLANTILLA } = require('../src/lib/reporteProduccion');
 
 const llamadas = [];
-const estado = { reporteExiste: false, escaneoDuplicado: false };
+const estado = { reporteExiste: false, llaveDe: 5, origExiste: true, deadlock: false, escaneoDuplicado: false };
 const dup = () => Object.assign(new Error('Duplicate entry'), { code: 'ER_DUP_ENTRY' });
 
 async function responder(sql, params) {
   llamadas.push({ sql, params });
-  if (/^SELECT id FROM reporte_produccion WHERE fecha_produccion/.test(sql)) return [estado.reporteExiste ? [{ id: 5 }] : []];
+  if (/^SELECT id FROM reporte_produccion WHERE id = \? FOR UPDATE/.test(sql)) return [estado.origExiste ? [{ id: Number(params[0]) }] : []];
+  if (/^SELECT id FROM reporte_produccion WHERE fecha_produccion/.test(sql)) {
+    if (estado.deadlock) throw Object.assign(new Error('Deadlock found'), { code: 'ER_LOCK_DEADLOCK' });
+    return [estado.reporteExiste ? [{ id: estado.llaveDe }] : []];
+  }
+  if (/UNIX_TIMESTAMP\(e\.created_at\) AS escaneado_ts/.test(sql)) {
+    return [[{ id: 1, codigo_crudo: 'X', copia: 1, tipo: 'primal', articulo_codigo: '21231', peso_kg: '10.960', lote_cc: 6, escaneado_ts: 1790000000 }]];
+  }
   if (/^INSERT INTO reporte_produccion_escaneos/.test(sql.trim())) {
     if (estado.escaneoDuplicado) throw dup();
     return [{ insertId: 77, affectedRows: 1 }];
@@ -64,7 +71,10 @@ test.before(async () => {
   base = `http://127.0.0.1:${server.address().port}/api/reporte-produccion`;
 });
 test.after(() => new Promise((ok) => server.close(ok)));
-test.beforeEach(() => { llamadas.length = 0; estado.reporteExiste = false; estado.escaneoDuplicado = false; });
+test.beforeEach(() => {
+  llamadas.length = 0;
+  Object.assign(estado, { reporteExiste: false, llaveDe: 5, origExiste: true, deadlock: false, escaneoDuplicado: false });
+});
 
 const token = (rol) => jwt.sign({ id: 1, rol }, JWT_SECRET, { expiresIn: '5m' });
 async function pedir(metodo, ruta, rol, body) {
@@ -221,4 +231,77 @@ test('POST /ciisa/importar: vista previa desde .xlsx sin guardar', async () => {
   fd3.append('archivo', new Blob([Buffer.from('x')]), 'virus.exe');
   const r3 = await fetch(`${base}/ciisa/importar`, { method: 'POST', headers: { Authorization: `Bearer ${token('operador')}` }, body: fd3 });
   assert.equal(r3.status, 400);
+});
+
+test('POST /ciisa con id: corregir fecha/lote actualiza el mismo reporte, no crea otro', async () => {
+  const cambiado = { ...ejemplo, id: 5, encabezado: { ...ejemplo.encabezado, loteCC: '07' } };
+  const r = await pedir('POST', '/ciisa', 'operador', cambiado);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.id, 5);
+  assert.equal(r.body.reemplazado, true);
+  assert.ok(!llamadas.some(l => /^INSERT INTO reporte_produccion \(/.test(l.sql.trim())), 'no inserta un encabezado nuevo');
+  const upd = llamadas.find(l => /^UPDATE reporte_produccion SET fecha_produccion = \?, lote_cc = \?/.test(l.sql));
+  assert.deepEqual([upd.params[0], upd.params[1], upd.params.at(-1)], ['2026-09-21', 7, 5]);
+
+  // Corregir sin cambiar la llave: la llave la tiene el propio reporte, no pide «reemplazar».
+  llamadas.length = 0;
+  estado.reporteExiste = true;
+  estado.llaveDe = 5;
+  assert.equal((await pedir('POST', '/ciisa', 'operador', { ...ejemplo, id: 5 })).status, 200);
+});
+
+test('POST /ciisa con id: si la llave nueva es de OTRO reporte, 409; con reemplazar se borra el otro', async () => {
+  estado.reporteExiste = true;
+  estado.llaveDe = 8;
+  const r = await pedir('POST', '/ciisa', 'admin', { ...ejemplo, id: 5 });
+  assert.equal(r.status, 409);
+  assert.equal(r.body.id, 8);
+  assert.equal(escrituras().length, 0);
+
+  llamadas.length = 0;
+  const r2 = await pedir('POST', '/ciisa', 'admin', { ...ejemplo, id: 5, reemplazar: true });
+  assert.equal(r2.status, 200);
+  assert.equal(r2.body.reemplazo_otro, 8);
+  const del = llamadas.find(l => /^DELETE FROM reporte_produccion WHERE id = \?/.test(l.sql));
+  assert.deepEqual(del.params, [8]);
+  const upd = llamadas.find(l => /^UPDATE reporte_produccion SET/.test(l.sql));
+  assert.equal(upd.params.at(-1), 5);
+  assert.ok(llamadas.indexOf(del) < llamadas.indexOf(upd), 'libera la llave antes de reutilizarla');
+});
+
+test('POST /ciisa con id: 404 si ya no existe; id no numérico 400', async () => {
+  estado.origExiste = false;
+  assert.equal((await pedir('POST', '/ciisa', 'operador', { ...ejemplo, id: 99 })).status, 404);
+  assert.equal((await pedir('POST', '/ciisa', 'operador', { ...ejemplo, id: '5 OR 1=1' })).status, 400);
+  assert.equal(escrituras().length, 0);
+});
+
+test('POST /ciisa concurrente: deadlock de MySQL se responde 409, no 500', async () => {
+  estado.deadlock = true;
+  const r = await pedir('POST', '/ciisa', 'operador', ejemplo);
+  assert.equal(r.status, 409);
+  assert.match(r.body.error, /Otro usuario está guardando/);
+  assert.ok(llamadas.some(l => l.sql === 'ROLLBACK'));
+});
+
+test('GET /escaneos: la hora se muestra en hora de Costa Rica (UTC−6)', async () => {
+  const r = await pedir('GET', '/escaneos?fecha=2026-09-21', 'viewer');
+  assert.equal(r.status, 200);
+  // 1790000000 = 2026-09-21 14:13:20 UTC → 08:13 en Costa Rica.
+  assert.equal(new Date(1790000000 * 1000).toISOString(), '2026-09-21T14:13:20.000Z');
+  assert.equal(r.body[0].escaneado, '2026-09-21 08:13');
+  assert.equal(r.body[0].escaneado_ts, undefined);
+});
+
+test('POST /ciisa/importar: Excel desmedido → 400 con mensaje claro', async () => {
+  const libro = new ExcelJS.Workbook();
+  const hoja = libro.addWorksheet('Reporte');
+  hoja.addRow(COLUMNAS_PLANTILLA);
+  hoja.getCell('A6000').value = 'x';
+  const fd = new FormData();
+  fd.append('archivo', new Blob([Buffer.from(await libro.xlsx.writeBuffer())]), 'grande.xlsx');
+  const res = await fetch(`${base}/ciisa/importar`, { method: 'POST', headers: { Authorization: `Bearer ${token('operador')}` }, body: fd });
+  const body = await res.json();
+  assert.equal(res.status, 400);
+  assert.match(body.error, /6000 filas; el máximo es 5000/);
 });

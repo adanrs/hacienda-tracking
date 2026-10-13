@@ -16,7 +16,7 @@ const LIBRAS_POR_KG = 2.20462;
   de guardarlo. La validación definitiva la hace el backend (misma regla para todas las vías).
     inicial: { encabezado: { fechaProduccion, numLote, tipoProduccion, loteCC }, lineas: [...], aretesPorPosicion? }
 */
-export default function EditorReporteCiisa({ inicial, origenInicial = 'manual', archivoNombre = null, onGuardado, onCancelar }) {
+export default function EditorReporteCiisa({ inicial, idReporte = null, origenInicial = 'manual', archivoNombre = null, onGuardado, onCancelar }) {
   const enc0 = inicial?.encabezado || {};
   const [enc, setEnc] = useState({
     fechaProduccion: enc0.fechaProduccion || '',
@@ -79,6 +79,7 @@ export default function EditorReporteCiisa({ inicial, origenInicial = 'manual', 
       archivo_nombre: archivoNombre,
       reemplazar,
     };
+    if (idReporte) body.id = idReporte;
     if (pieKilos !== '' || pieCajas !== '') body.pie = { kilos: pieKilos === '' ? null : pieKilos, cajas: pieCajas === '' ? null : numeroDe(pieCajas) };
     if (inicial?.aretesPorPosicion?.length) body.aretesPorPosicion = inicial.aretesPorPosicion;
 
@@ -90,7 +91,7 @@ export default function EditorReporteCiisa({ inicial, origenInicial = 'manual', 
       onGuardado?.(r);
     } catch (e) {
       if (e.status === 409 && e.datos?.existe && !reemplazar) {
-        const ok = await confirmar({ titulo: 'Ya hay un reporte para ese lote', mensaje: `${e.message} Las filas actuales se sustituyen por las de esta captura.`, textoConfirmar: 'Reemplazar' });
+        const ok = await confirmar({ titulo: 'Ya hay un reporte para ese lote', mensaje: `${e.message} ${idReporte ? 'El otro reporte se borra y este queda con esa fecha y lote.' : 'Las filas actuales se sustituyen por las de esta captura.'}`, textoConfirmar: 'Reemplazar', peligro: Boolean(idReporte) });
         if (ok) { setGuardando(false); await guardar(true); return; }
       } else {
         setErrores(e.datos?.detalles?.length ? e.datos.detalles : [e.message]);
@@ -103,7 +104,7 @@ export default function EditorReporteCiisa({ inicial, origenInicial = 'manual', 
   return (
     <div className="card">
       <div className="card-header">
-        <h3>{inicial?.lineas?.length ? 'Revisar reporte de CIISA' : 'Captura manual del reporte de CIISA'}</h3>
+        <h3>{idReporte ? 'Corregir reporte de CIISA' : inicial?.lineas?.length ? 'Revisar reporte de CIISA' : 'Captura manual del reporte de CIISA'}</h3>
         {onCancelar && <button type="button" className="btn-icon" aria-label="Cerrar captura" onClick={onCancelar}><X size={18} aria-hidden="true" /></button>}
       </div>
       {archivoNombre && <p className="rp-tenue rp-nota">Datos leídos de «{archivoNombre}». Revíselos antes de guardar.</p>}

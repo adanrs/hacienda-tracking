@@ -46,7 +46,8 @@ export default function ReporteProduccion() {
   const corregir = async (id) => {
     try {
       const r = await api.getReporteCiisa(id);
-      setEdicion({ clave: Date.now(), datos: { encabezado: r.encabezado, lineas: r.lineas }, origen: r.origen, archivo_nombre: r.archivo_nombre });
+      // Con el id, guardar ACTUALIZA ese reporte aunque se corrija la fecha o el lote CC (no crea otro).
+      setEdicion({ clave: Date.now(), id: r.id, datos: { encabezado: r.encabezado, lineas: r.lineas }, origen: r.origen, archivo_nombre: r.archivo_nombre });
       setTab('cargar');
     } catch (e) { aviso.error(e.message); }
   };

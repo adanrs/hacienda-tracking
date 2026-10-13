@@ -74,6 +74,7 @@ export default function CargaCiisa({ fecha, edicion, setEdicion, onGuardado }) {
       <EditorReporteCiisa
         key={edicion.clave}
         inicial={edicion.datos}
+        idReporte={edicion.id || null}
         origenInicial={edicion.origen}
         archivoNombre={edicion.archivo_nombre}
         onCancelar={() => setEdicion(null)}
