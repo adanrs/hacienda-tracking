@@ -1,0 +1,55 @@
+{
+  "_fuente": "Transcripción del Reporte Diario de Producción de CIISA (foto formato-ciisa-2026-09-21.jpg, correo «Deshuese 21/09/2026»). Verificado: Σ peso = 319.82 kg, Σ cajas = 34, 319.82 kg × 2.20462 = 705.08 lb, igual que el pie del reporte.",
+  "encabezado": {
+    "fechaProduccion": "2026-09-21",
+    "numLote": "3",
+    "tipoProduccion": "TEMPISQUE",
+    "loteCC": "06"
+  },
+  "lineas": [
+    { "articulo": "11163", "descripcion": "BEEF TRIMMINGS", "peso": 97.40, "unidad": "KGS", "cajas": 4 },
+    { "articulo": "21114", "descripcion": "FALDILLA FLS", "peso": 1.86, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "21115", "descripcion": "POSTA PUNTA SOLOMO DE RES CP", "peso": 4.58, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "21123", "descripcion": "POSTA PALETA DE RES CP", "peso": 3.08, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "21136", "descripcion": "ARRACHERA", "peso": 2.14, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "21213", "descripcion": "POSTA CACHO DE VUELTA", "peso": 2.98, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "21231", "descripcion": "DELMONICO", "peso": 21.92, "unidad": "KGS", "cajas": 2 },
+    { "articulo": "21327", "descripcion": "CARNE ROJA B95", "peso": 0.72, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "22101", "descripcion": "LOMITOS DE RES CG", "peso": 2.06, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "22104", "descripcion": "LON DE RES CHURRASCO CP", "peso": 12.68, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "22105", "descripcion": "LOMO AGUJA DE RES CP", "peso": 5.64, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "22106", "descripcion": "POSTA BOLITA DE RES CG", "peso": 10.38, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "22107", "descripcion": "POSTA MANO PIEDRA DE RES CG", "peso": 5.46, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "22108", "descripcion": "POSTA DE CUARTO DE RES CG", "peso": 19.94, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "22116", "descripcion": "POSTA VUELTA LOMO DE RES CG", "peso": 8.82, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "22117", "descripcion": "POSTA SOLOMO DE RES CG", "peso": 12.18, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "22125", "descripcion": "POSTA DE ENTRANA CP", "peso": 0.50, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "22133", "descripcion": "POSTA DE PALETA PARA PAQUETERIA", "peso": 7.78, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "22136", "descripcion": "CARNE DE RES QUITITEÑA LIMPIA", "peso": 0.58, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "22140", "descripcion": "CESINA DE RES LIMPIA CP", "peso": 2.94, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "22219", "descripcion": "CACHO DE PALETA SCT DE RES CP", "peso": 3.12, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "22224", "descripcion": "CARNE DE RES QUITITENA CG", "peso": 4.20, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "22228", "descripcion": "POSTA DE PECHO  BRS.", "peso": 15.08, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "22229", "descripcion": "CH-CHUCK RES", "peso": 54.44, "unidad": "KGS", "cajas": 2 },
+    { "articulo": "22424", "descripcion": "OSOBUCO ENTERO", "peso": 7.74, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "22431", "descripcion": "COSTILLA DE RES PICADA", "peso": 7.98, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "30124", "descripcion": "BEEF OXTAIL/RABO RES", "peso": 1.68, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "40114", "descripcion": "TUETANO CORTADO", "peso": 1.36, "unidad": "KGS", "cajas": 1 },
+    { "articulo": "40141", "descripcion": "SERV.MAN DIAFRAGMA (OUTSIDE SKIRT)", "peso": 0.58, "unidad": "KGS", "cajas": 1 }
+  ],
+  "pie": {
+    "totalCajasPorElLote": "3",
+    "libras": 705.08,
+    "kilos": 319.82,
+    "cajas": 34
+  },
+  "aretesPorPosicion": [
+    { "posicion": "06", "arete": "72ELF" },
+    { "posicion": "07", "arete": "26FLB" },
+    { "posicion": "08", "arete": "49NKB" },
+    { "posicion": "09", "arete": "347FLH" },
+    { "posicion": "10", "arete": "238FL2" },
+    { "posicion": "11", "arete": "238FL1" },
+    { "posicion": "12", "arete": "32ELV" }
+  ]
+}
