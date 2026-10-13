@@ -4,8 +4,16 @@ import { api } from '../services/api';
 import { confirmar } from '../components/ui/confirmar';
 import { aviso } from '../components/ui/avisos';
 
-const tipoBadge = { custodia: 'badge-blue', maduracion: 'badge-yellow', deshuese: 'badge-gray', porcionado: 'badge-green', almacen: 'badge-gray' };
-const tipos = ['custodia', 'maduracion', 'deshuese', 'porcionado', 'almacen'];
+const tipoBadge = { custodia: 'badge-blue', maduracion: 'badge-yellow', deshuese: 'badge-gray', porcionado: 'badge-green', despacho: 'badge-gray' };
+// Mismos valores que el ENUM bodegas.tipo (backend/src/models/database.js); el backend
+// rechaza cualquier otro con 400.
+const tipos = [
+  { valor: 'deshuese', etiqueta: 'Deshuese' },
+  { valor: 'custodia', etiqueta: 'Custodia' },
+  { valor: 'maduracion', etiqueta: 'Maduración' },
+  { valor: 'porcionado', etiqueta: 'Porcionado' },
+  { valor: 'despacho', etiqueta: 'Despacho' },
+];
 
 export default function Bodegas() {
   const [bodegas, setBodegas] = useState([]);
@@ -96,7 +104,7 @@ export default function Bodegas() {
                 <div className="form-group">
                   <label>Tipo *</label>
                   <select value={form.tipo || 'custodia'} onChange={e => setForm({ ...form, tipo: e.target.value })}>
-                    {tipos.map(t => <option key={t} value={t}>{t}</option>)}
+                    {tipos.map(t => <option key={t.valor} value={t.valor}>{t.etiqueta}</option>)}
                   </select>
                 </div>
                 <div className="form-group">

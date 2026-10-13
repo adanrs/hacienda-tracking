@@ -1,5 +1,7 @@
 const router = require('express').Router();
 const { pool } = require('../models/database');
+const { requireRole } = require('../middleware/auth');
+const { filtrarCampos, construirUpdate, construirInsert, ErrorCampos } = require('../lib/sqlUpdate');
 
 router.get('/', async (req, res) => {
   try {
@@ -9,32 +11,34 @@ router.get('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.put('/', async (req, res) => {
-  const fields = req.body;
-  const allowed = ['nombre', 'marca_comercial', 'direccion_linea1', 'direccion_linea2', 'pais', 'numero_mag', 'consecutivo_mag', 'activa'];
-  const keys = Object.keys(fields).filter(k => allowed.includes(k));
+const PLANTA_EDITABLES = ['nombre', 'marca_comercial', 'direccion_linea1', 'direccion_linea2', 'pais', 'numero_mag', 'consecutivo_mag', 'activa'];
+
+// Solo admin: define el número MAG y el consecutivo oficial de las etiquetas, y ninguna
+// pantalla del frontend lo edita (operadores solo usan POST /next-mag).
+router.put('/', requireRole('admin'), async (req, res) => {
   try {
+    // Valida el body antes de cualquier consulta: una clave maliciosa no llega a la base.
+    const { columnas, valores } = filtrarCampos(req.body, { permitidas: PLANTA_EDITABLES });
     const [existing] = await pool.query('SELECT * FROM config_planta WHERE activa = 1 LIMIT 1');
     if (existing.length) {
-      if (!keys.length) return res.status(400).json({ error: 'No hay campos para actualizar' });
-      const sets = keys.map(k => `${k} = ?`).join(', ');
-      const values = keys.map(k => fields[k] === '' ? null : fields[k]);
-      await pool.query(`UPDATE config_planta SET ${sets} WHERE id = ?`, [...values, existing[0].id]);
+      const { sql, params } = construirUpdate({
+        tabla: 'config_planta', id: existing[0].id, body: req.body, permitidas: PLANTA_EDITABLES,
+      });
+      await pool.query(sql, params);
       const [rows] = await pool.query('SELECT * FROM config_planta WHERE id = ?', [existing[0].id]);
       return res.json(rows[0]);
     }
-    // create new active row
-    const cols = keys.length ? keys : ['activa'];
-    const vals = keys.length ? keys.map(k => fields[k] === '' ? null : fields[k]) : [1];
-    if (!keys.includes('activa')) { cols.push('activa'); vals.push(1); }
-    const placeholders = cols.map(() => '?').join(', ');
-    const [result] = await pool.query(
-      `INSERT INTO config_planta (${cols.join(', ')}) VALUES (${placeholders})`,
-      vals
-    );
+    // No hay fila activa: se crea una nueva con lo recibido (siempre activa = 1).
+    const i = columnas.indexOf('activa');
+    if (i >= 0) { valores[i] = 1; } else { columnas.push('activa'); valores.push(1); }
+    const { sql, params } = construirInsert('config_planta', columnas, valores);
+    const [result] = await pool.query(sql, params);
     const [rows] = await pool.query('SELECT * FROM config_planta WHERE id = ?', [result.insertId]);
     res.status(201).json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    if (err instanceof ErrorCampos) return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/next-mag', async (req, res) => {

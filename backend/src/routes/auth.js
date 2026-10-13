@@ -1,4 +1,9 @@
 const router = require('express').Router();
+const { idsNumericos } = require('../lib/params');
+
+// Todo :id de este router debe ser numérico (ver lib/params.js).
+idsNumericos(router);
+
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../models/database');
@@ -49,9 +54,14 @@ router.get('/usuarios', authMiddleware, requireRole('admin'), async (req, res) =
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Valores del ENUM usuarios.rol. Se valida aquí para devolver 400 claro en vez de un 500
+// de MySQL (o un rol vacío si el servidor no está en modo estricto).
+const ROLES = ['admin', 'operador', 'viewer'];
+
 router.post('/usuarios', authMiddleware, requireRole('admin'), async (req, res) => {
   const { username, password, nombre, email, rol } = req.body;
   if (!username || !password || !nombre) return res.status(400).json({ error: 'username, password y nombre son requeridos' });
+  if (rol !== undefined && rol !== '' && !ROLES.includes(rol)) return res.status(400).json({ error: `rol inválido: debe ser ${ROLES.join(', ')}` });
   if (password.length < 6) return res.status(400).json({ error: 'La password debe tener al menos 6 caracteres' });
   try {
     const hash = bcrypt.hashSync(password, 12);
@@ -65,7 +75,12 @@ router.post('/usuarios', authMiddleware, requireRole('admin'), async (req, res) 
 });
 
 router.put('/usuarios/:id', authMiddleware, requireRole('admin'), async (req, res) => {
+  // Columnas fijas en el código (no salen de las claves del body); password va con hash.
   const { nombre, email, rol, activo, password } = req.body;
+  if (rol !== undefined && !ROLES.includes(rol)) return res.status(400).json({ error: `rol inválido: debe ser ${ROLES.join(', ')}` });
+  if (password !== undefined && password !== '' && String(password).length < 6) {
+    return res.status(400).json({ error: 'La password debe tener al menos 6 caracteres' });
+  }
   const updates = []; const values = [];
   if (nombre !== undefined) { updates.push('nombre = ?'); values.push(nombre); }
   if (email !== undefined) { updates.push('email = ?'); values.push(email); }

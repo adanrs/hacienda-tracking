@@ -22,7 +22,7 @@ export default function Transporte() {
 
   const openNew = () => {
     setEditItem(null);
-    setForm({ tipo: 'interno', estado: 'programado' });
+    setForm({ tipo: 'finca', estado: 'programado' });
     setShowModal(true);
   };
 
@@ -111,12 +111,11 @@ export default function Transporte() {
               <div className="form-row">
                 <div className="form-group">
                   <label>Tipo *</label>
-                  <select required value={form.tipo || 'interno'} onChange={e => setForm({ ...form, tipo: e.target.value })}>
-                    <option value="interno">Interno</option>
-                    <option value="compra">Compra</option>
-                    <option value="venta">Venta</option>
+                  {/* Mismos valores que el ENUM transporte.tipo; otro valor da 400 en el backend. */}
+                  <select required value={form.tipo || 'finca'} onChange={e => setForm({ ...form, tipo: e.target.value })}>
+                    <option value="finca">Finca</option>
                     <option value="feria">Feria</option>
-                    <option value="sacrificio">Sacrificio</option>
+                    <option value="matadero">Matadero</option>
                     <option value="otro">Otro</option>
                   </select>
                 </div>

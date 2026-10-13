@@ -1,4 +1,9 @@
 const router = require('express').Router();
+const { idsNumericos } = require('../lib/params');
+
+// Todo :id de este router debe ser numérico (ver lib/params.js).
+idsNumericos(router);
+
 const { pool } = require('../models/database');
 
 function pad(n, w) { return String(n).padStart(w, '0'); }

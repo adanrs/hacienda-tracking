@@ -1,5 +1,11 @@
 const router = require('express').Router();
+const { idsNumericos } = require('../lib/params');
+
+// Todo :id de este router debe ser numérico (ver lib/params.js).
+idsNumericos(router);
+
 const { pool } = require('../models/database');
+const { construirUpdate, ErrorCampos, normalizarFechaIso } = require('../lib/sqlUpdate');
 
 router.get('/', async (req, res) => {
   try {
@@ -48,47 +54,51 @@ router.post('/', async (req, res) => {
   } finally { conn.release(); }
 });
 
-const SACRIFICIO_COLUMNS = new Set([
-  'fecha','peso_vivo','peso_canal_caliente','peso_canal_frio','rendimiento_canal',
-  'marmoleo','ojo_ribeye_cm2','fecha_marmoleo','fecha_colgado','inspector',
-  'resultado_inspeccion','lote_sacrificio','notas',
-  'numero_mag','lote_mag','tara_kg','cuenta','ruta',
-  'tipo_pasaje','musculo','denticion','encarnada','golpe','ph_24h','temp_24h'
-]);
+// rendimiento_canal no está en la lista: lo calcula el servidor (abajo) a partir de los pesos.
+const SACRIFICIO_EDITABLES = [
+  'fecha', 'peso_vivo', 'peso_canal_caliente', 'peso_canal_frio',
+  'marmoleo', 'ojo_ribeye_cm2', 'fecha_marmoleo', 'fecha_colgado', 'inspector',
+  'resultado_inspeccion', 'lote_sacrificio', 'notas',
+  'numero_mag', 'lote_mag', 'tara_kg', 'cuenta', 'ruta',
+  'tipo_pasaje', 'musculo', 'denticion', 'encarnada', 'golpe', 'ph_24h', 'temp_24h',
+];
+const SACRIFICIO_ENUMS = { resultado_inspeccion: ['aprobado', 'rechazado', 'condicionado'] };
+// Solo las columnas DATETIME pasan por la conversión ISO -> MySQL (antes se aplicaba a
+// cualquier texto, incluidas notas que empezaran con una fecha).
+const SACRIFICIO_FECHAS = new Set(['fecha', 'fecha_marmoleo', 'fecha_colgado']);
+const normalizarSacrificio = (col, v) => (SACRIFICIO_FECHAS.has(col) ? normalizarFechaIso(v) : v);
 
 router.put('/:id', async (req, res) => {
-  const fields = req.body;
-  const keys = Object.keys(fields).filter(k => SACRIFICIO_COLUMNS.has(k));
-  if (!keys.length) return res.status(400).json({ error: 'No hay campos para actualizar' });
+  try {
+    const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? { ...req.body } : req.body;
+    delete body?.rendimiento_canal;
+    let permitidas = SACRIFICIO_EDITABLES;
 
-  // Recalculate rendimiento_canal if relevant fields are being updated
-  if (fields.peso_vivo || fields.peso_canal_frio) {
-    const [existing] = await pool.query('SELECT * FROM sacrificios WHERE id = ?', [req.params.id]);
-    if (existing.length) {
-      const pv = fields.peso_vivo || existing[0].peso_vivo;
-      const pcf = fields.peso_canal_frio || existing[0].peso_canal_frio;
-      if (pv && pcf) {
-        fields.rendimiento_canal = parseFloat(((pcf / pv) * 100).toFixed(2));
-        if (!keys.includes('rendimiento_canal')) keys.push('rendimiento_canal');
+    // Recalcula rendimiento_canal si cambian los pesos que lo definen.
+    if (body && (body.peso_vivo || body.peso_canal_frio)) {
+      const [existing] = await pool.query('SELECT peso_vivo, peso_canal_frio FROM sacrificios WHERE id = ?', [req.params.id]);
+      if (existing.length) {
+        const pv = body.peso_vivo || existing[0].peso_vivo;
+        const pcf = body.peso_canal_frio || existing[0].peso_canal_frio;
+        if (pv && pcf) {
+          body.rendimiento_canal = parseFloat(((pcf / pv) * 100).toFixed(2));
+          permitidas = [...SACRIFICIO_EDITABLES, 'rendimiento_canal'];
+        }
       }
     }
-  }
 
-  const sets = keys.map(k => `${k} = ?`).join(', ');
-  const values = keys.map(k => {
-    let v = fields[k];
-    if (v === '') return null;
-    if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) {
-      v = v.replace('T', ' ').replace(/\.\d+Z$/, '').replace(/Z$/, '');
-    }
-    return v;
-  });
-  try {
-    await pool.query(`UPDATE sacrificios SET ${sets} WHERE id = ?`, [...values, req.params.id]);
+    const { sql, params } = construirUpdate({
+      tabla: 'sacrificios', id: req.params.id, body,
+      permitidas, enums: SACRIFICIO_ENUMS, normalizar: normalizarSacrificio,
+    });
+    await pool.query(sql, params);
     const [rows] = await pool.query('SELECT * FROM sacrificios WHERE id = ?', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Sacrificio no encontrado' });
     res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    if (err instanceof ErrorCampos) return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/:id/marmoleo', async (req, res) => {

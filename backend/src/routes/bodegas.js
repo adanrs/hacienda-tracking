@@ -1,5 +1,11 @@
 const router = require('express').Router();
+const { idsNumericos } = require('../lib/params');
+
+// Todo :id de este router debe ser numérico (ver lib/params.js).
+idsNumericos(router);
+
 const { pool } = require('../models/database');
+const { construirUpdate, ErrorCampos } = require('../lib/sqlUpdate');
 
 router.get('/', async (req, res) => {
   const { tipo } = req.query;
@@ -39,18 +45,22 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Lista blanca: lo que edita el formulario de Bodegas (las claves del body ya no llegan al SQL).
+const BODEGA_EDITABLES = ['codigo', 'nombre', 'tipo', 'temperatura_c', 'capacidad_kg', 'activa', 'notas'];
+const BODEGA_ENUMS = { tipo: ['deshuese', 'custodia', 'maduracion', 'porcionado', 'despacho'] };
+
 router.put('/:id', async (req, res) => {
-  const fields = req.body;
-  const keys = Object.keys(fields).filter(k => k !== 'id' && k !== 'created_at');
-  if (!keys.length) return res.status(400).json({ error: 'No hay campos para actualizar' });
-  const sets = keys.map(k => `${k} = ?`).join(', ');
-  const values = keys.map(k => fields[k] === '' ? null : fields[k]);
   try {
-    await pool.query(`UPDATE bodegas SET ${sets} WHERE id = ?`, [...values, req.params.id]);
+    const { sql, params } = construirUpdate({
+      tabla: 'bodegas', id: req.params.id, body: req.body,
+      permitidas: BODEGA_EDITABLES, enums: BODEGA_ENUMS,
+    });
+    await pool.query(sql, params);
     const [rows] = await pool.query('SELECT * FROM bodegas WHERE id = ?', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Bodega no encontrada' });
     res.json(rows[0]);
   } catch (err) {
+    if (err instanceof ErrorCampos) return res.status(400).json({ error: err.message });
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Codigo de bodega ya existe' });
     res.status(500).json({ error: err.message });
   }

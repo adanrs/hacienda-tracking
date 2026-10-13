@@ -1,5 +1,11 @@
 const router = require('express').Router();
+const { idsNumericos } = require('../lib/params');
+
+// Todo :id de este router debe ser numérico (ver lib/params.js).
+idsNumericos(router);
+
 const { pool } = require('../models/database');
+const { construirUpdate, ErrorCampos } = require('../lib/sqlUpdate');
 
 router.get('/', async (req, res) => {
   const { animal_id, estado, tipo } = req.query;
@@ -31,24 +37,30 @@ router.post('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-const TRANSPORTE_COLUMNS = new Set([
-  'tipo','destino','fecha_salida','fecha_llegada','transportista','placa_vehiculo',
-  'guia_movilizacion','estado','notas',
-  'tipo_pasaje','satisface_retiro','peso_pie_finca','condicion_corporal'
-]);
+const TRANSPORTE_EDITABLES = [
+  'tipo', 'destino', 'fecha_salida', 'fecha_llegada', 'transportista', 'placa_vehiculo',
+  'guia_movilizacion', 'estado', 'notas',
+  'tipo_pasaje', 'satisface_retiro', 'peso_pie_finca', 'condicion_corporal',
+];
+const TRANSPORTE_ENUMS = {
+  tipo: ['finca', 'feria', 'matadero', 'otro'],
+  estado: ['programado', 'en_transito', 'recibido', 'cancelado'],
+};
 
 router.put('/:id', async (req, res) => {
-  const fields = req.body;
-  const keys = Object.keys(fields).filter(k => TRANSPORTE_COLUMNS.has(k));
-  if (!keys.length) return res.status(400).json({ error: 'No hay campos para actualizar' });
-  const sets = keys.map(k => `${k} = ?`).join(', ');
-  const values = keys.map(k => fields[k] === '' ? null : fields[k]);
   try {
-    await pool.query(`UPDATE transporte SET ${sets} WHERE id = ?`, [...values, req.params.id]);
+    const { sql, params } = construirUpdate({
+      tabla: 'transporte', id: req.params.id, body: req.body,
+      permitidas: TRANSPORTE_EDITABLES, enums: TRANSPORTE_ENUMS,
+    });
+    await pool.query(sql, params);
     const [rows] = await pool.query('SELECT * FROM transporte WHERE id = ?', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Transporte no encontrado' });
     res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    if (err instanceof ErrorCampos) return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.delete('/:id', async (req, res) => {

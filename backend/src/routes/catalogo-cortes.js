@@ -1,5 +1,11 @@
 const router = require('express').Router();
+const { idsNumericos } = require('../lib/params');
+
+// Todo :id de este router debe ser numérico (ver lib/params.js).
+idsNumericos(router);
+
 const { pool } = require('../models/database');
+const { construirUpdate, ErrorCampos } = require('../lib/sqlUpdate');
 
 router.get('/', async (req, res) => {
   const { activo, tipo } = req.query;
@@ -48,18 +54,31 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Lista blanca: columnas reales del catálogo (incluidas las del catálogo CIISA v10).
+const CORTE_EDITABLES = [
+  'codigo', 'nombre', 'nombre_en', 'abreviatura', 'tipo', 'serie', 'genetica', 'codigo_equivalente',
+  'unidad', 'vida_util_dias', 'vida_congelado_dias', 'ventana_min_dias', 'ventana_max_dias',
+  'nota_enlace', 'activo', 'notas',
+];
+const CORTE_ENUMS = {
+  tipo: ['primal', 'retail', 'subproducto', 'grasa', 'trim', 'bch', 'otro'],
+  serie: ['F1', 'FB', 'PVA', 'ARREO'],
+  genetica: ['F1', 'FB'],
+  unidad: ['kg', 'caja', 'unidad'],
+};
+
 router.put('/:id', async (req, res) => {
-  const fields = req.body;
-  const keys = Object.keys(fields).filter(k => k !== 'id' && k !== 'created_at' && k !== 'updated_at');
-  if (!keys.length) return res.status(400).json({ error: 'No hay campos para actualizar' });
-  const sets = keys.map(k => `${k} = ?`).join(', ');
-  const values = keys.map(k => fields[k] === '' ? null : fields[k]);
   try {
-    await pool.query(`UPDATE catalogo_cortes SET ${sets} WHERE id = ?`, [...values, req.params.id]);
+    const { sql, params } = construirUpdate({
+      tabla: 'catalogo_cortes', id: req.params.id, body: req.body,
+      permitidas: CORTE_EDITABLES, enums: CORTE_ENUMS,
+    });
+    await pool.query(sql, params);
     const [rows] = await pool.query('SELECT * FROM catalogo_cortes WHERE id = ?', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Corte no encontrado' });
     res.json(rows[0]);
   } catch (err) {
+    if (err instanceof ErrorCampos) return res.status(400).json({ error: err.message });
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Codigo de corte ya existe' });
     res.status(500).json({ error: err.message });
   }

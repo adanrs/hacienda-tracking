@@ -6,7 +6,7 @@ import { aviso } from '../components/ui/avisos';
 import { formatDate } from '../components/DateFormat';
 import AnimalSearch from '../components/AnimalSearch';
 
-const resultadoBadge = { aprobado: 'badge-green', rechazado: 'badge-red', pendiente: 'badge-yellow', condicional: 'badge-blue' };
+const resultadoBadge = { aprobado: 'badge-green', rechazado: 'badge-red', condicionado: 'badge-blue' };
 
 const BMS_TH = { F1: 3, F2: 5, F3: 7, F4: 7, F8: 8 };
 
@@ -36,7 +36,7 @@ export default function Sacrificio() {
 
   const openNew = () => {
     setEditItem(null);
-    setForm({ resultado_inspeccion: 'pendiente' });
+    setForm({ resultado_inspeccion: 'aprobado' });
     setShowModal(true);
   };
 
@@ -263,11 +263,11 @@ export default function Sacrificio() {
                 </div>
                 <div className="form-group">
                   <label>Resultado Inspeccion</label>
-                  <select value={form.resultado_inspeccion || 'pendiente'} onChange={e => setForm({ ...form, resultado_inspeccion: e.target.value })}>
-                    <option value="pendiente">Pendiente</option>
+                  {/* Mismos valores que el ENUM sacrificios.resultado_inspeccion (no existe "pendiente"). */}
+                  <select value={form.resultado_inspeccion || 'aprobado'} onChange={e => setForm({ ...form, resultado_inspeccion: e.target.value })}>
                     <option value="aprobado">Aprobado</option>
+                    <option value="condicionado">Condicionado</option>
                     <option value="rechazado">Rechazado</option>
-                    <option value="condicional">Condicional</option>
                   </select>
                 </div>
               </div>

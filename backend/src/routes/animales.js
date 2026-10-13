@@ -1,5 +1,11 @@
 const router = require('express').Router();
+const { idsNumericos } = require('../lib/params');
+
+// Todo :id de este router debe ser numérico (ver lib/params.js).
+idsNumericos(router);
+
 const { pool } = require('../models/database');
+const { construirUpdate, ErrorCampos } = require('../lib/sqlUpdate');
 
 router.get('/', async (req, res) => {
   const { estado, tipo, sexo, potrero_id, search } = req.query;
@@ -83,19 +89,31 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
-  const validColumns = ['numero_trazabilidad', 'nombre', 'tipo', 'raza', 'sexo', 'fecha_nacimiento', 'peso_nacimiento', 'peso_actual', 'color', 'marca_hierro', 'estado', 'madre_id', 'padre_id', 'potrero_id', 'foto_url', 'notas'];
-  const fields = req.body;
-  const keys = Object.keys(fields).filter(k => validColumns.includes(k));
-  if (!keys.length) return res.status(400).json({ error: 'No hay campos para actualizar' });
+const ANIMAL_EDITABLES = [
+  'numero_trazabilidad', 'nombre', 'tipo', 'raza', 'sexo', 'fecha_nacimiento', 'peso_nacimiento',
+  'peso_actual', 'color', 'marca_hierro', 'estado', 'madre_id', 'padre_id', 'potrero_id', 'foto_url', 'notas',
+];
+const ANIMAL_ENUMS = {
+  tipo: ['bovino', 'equino', 'bufalino'],
+  sexo: ['macho', 'hembra'],
+  estado: ['activo', 'vendido', 'muerto', 'trasladado', 'sacrificado'],
+};
 
-  const sets = keys.map(k => `${k} = ?`).join(', ');
-  const values = keys.map(k => fields[k] === '' ? null : fields[k]);
+router.put('/:id', async (req, res) => {
   try {
-    await pool.query(`UPDATE animales SET ${sets} WHERE id = ?`, [...values, req.params.id]);
+    const { sql, params } = construirUpdate({
+      tabla: 'animales', id: req.params.id, body: req.body,
+      permitidas: ANIMAL_EDITABLES, enums: ANIMAL_ENUMS,
+    });
+    await pool.query(sql, params);
     const [rows] = await pool.query('SELECT * FROM animales WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Animal no encontrado' });
     res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    if (err instanceof ErrorCampos) return res.status(400).json({ error: err.message });
+    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Numero de trazabilidad ya existe' });
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.get('/:id/timeline', async (req, res) => {
