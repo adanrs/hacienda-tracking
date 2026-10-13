@@ -31,6 +31,9 @@ test('paquete real sin espacios', () => {
   assert.equal(r.campos.genetica, 'F1');
   assert.equal(r.campos.marmoleo, 1);
   assert.equal(r.crudo, PAQUETE);
+  // «0103-M» es el formato canónico con guion: su 0 no es relleno.
+  assert.equal(r.campos.areteSinRelleno, '0103-M');
+  assert.ok(!r.advertencias.some((a) => a.codigo === 'arete_con_relleno'));
 });
 
 test('paquete real con espacios y saltos de línea', () => {
@@ -262,6 +265,13 @@ test('arete sin relleno: no se ofrece alternativa si no empieza en 0', () => {
   const r = decodificar('34GKAE266322309243300416F101');
   assert.equal(r.campos.areteSinRelleno, '34GKAE');
   assert.ok(!r.advertencias.some((a) => a.codigo === 'arete_con_relleno'));
+});
+
+test('arete sin relleno: se quita un solo cero («00G087» → «0G087», no «G087»)', () => {
+  const r = decodificar('00G087263382311240702026F111');
+  assert.equal(r.campos.arete, '00G087');
+  assert.equal(r.campos.areteSinRelleno, '0G087');
+  assert.ok(r.advertencias.some((a) => a.codigo === 'arete_con_relleno'));
 });
 
 // ── Largo y entradas raras ──────────────────────────────────────────────────

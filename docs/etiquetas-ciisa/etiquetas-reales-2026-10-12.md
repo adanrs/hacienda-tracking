@@ -56,7 +56,7 @@ Los valores esperados de cada caso se tomaron del **texto impreso** de la etique
 El paquete trae `0PG087`, pero el lote legible y el arete del animal son `PG087`. El campo es fijo de 6 posiciones y los aretes más cortos se rellenan con `0` a la izquierda. Los aretes de la tabla del Reporte Diario confirman que hay aretes de 5 caracteres (`72ELF`, `26FLB`, `49NKB`, `32ELV`) y de 6 (`347FLH`, `238FL2`).
 
 - **Antes:** el decodificador devolvía solo `arete: '0PG087'`, y una búsqueda contra `animales.numero_trazabilidad` no lo encontraba.
-- **Ahora:** además devuelve `areteSinRelleno: 'PG087'` y la advertencia `arete_con_relleno`. No corrige solo, porque un arete real también puede empezar por 0 (`0103-M` del doc v10). La búsqueda en el registro decide, con el mismo criterio que ya se usa para el arete invertido.
+- **Ahora:** además devuelve `areteSinRelleno: 'PG087'` y la advertencia `arete_con_relleno`. Quita **un solo** cero, porque el relleno es de una posición: `00G087` da `0G087`, no `G087`. No avisa con el formato con guion (`NNNN-L`, como `0103-M` del doc v10), cuyo 0 es propio del arete. No corrige solo, porque un arete real también puede empezar por 0. La búsqueda en el registro decide, con el mismo criterio que ya se usa para el arete invertido.
 - `validarArete` sigue validando el **campo de 6 posiciones** del código. No sirve para validar el arete digitado del animal, que puede tener 5 caracteres.
 
 ### 2.2 La fecha del paquete no es la del deshuese (contradice la regla del cliente)

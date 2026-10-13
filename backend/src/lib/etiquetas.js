@@ -56,7 +56,8 @@
  *     Por eso el paquete devuelve `fechaDeshuese: null` en vez de reutilizar su fecha.
  *   - El arete de 5 caracteres (p. ej. «PG087», «72ELF») se rellena con «0» a la izquierda para
  *     ocupar las 6 posiciones del paquete («0PG087»). Se devuelve `areteSinRelleno` como lectura
- *     alternativa, con advertencia; no se corrige porque un arete real también puede empezar en 0.
+ *     alternativa (se quita un solo 0), con advertencia; no se corrige porque un arete real también
+ *     puede empezar en 0. El formato con guion (NNNN-L, «0103-M») no se considera relleno.
  */
 
 const { CATALOGO_POR_CODIGO } = require('../data/catalogo-ciisa');
@@ -249,7 +250,12 @@ function leerPaquete(s) {
   // Etiqueta real «0PG087…» con lote legible «PG087»: el campo de 6 posiciones rellena con ceros
   // a la izquierda los aretes más cortos. Si el registro no tiene el arete tal cual, hay que buscar
   // la lectura sin relleno (mismo criterio que el arete invertido: se avisa, no se corrige).
-  const areteSinRelleno = areteValido ? (areteTxt.replace(/^0+/, '') || areteTxt) : null;
+  // Se quita UN solo cero: los aretes conocidos tienen 5 o 6 caracteres, así que el relleno es de
+  // una posición; quitar más («00G087» → «G087») inventaría un arete de 4. El formato con guion
+  // (NNNN-L, p. ej. «0103-M») ya ocupa las 6 posiciones con su 0 propio: no es relleno y no se avisa.
+  const conGuion = areteTxt.includes('-');
+  const areteSinRelleno = !areteValido ? null
+    : (conGuion ? areteTxt : areteTxt.replace(/^0/, ''));
   if (areteSinRelleno && areteSinRelleno !== areteTxt) {
     advertencias.push(error('arete_con_relleno', 'arete',
       `Si «${areteTxt}» no existe en el registro, verificar «${areteSinRelleno}» (el código rellena con 0 los aretes de menos de 6 caracteres)`));
