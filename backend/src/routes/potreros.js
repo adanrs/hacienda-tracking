@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { pool } = require('../models/database');
+const { construirUpdate, ErrorCampos } = require('../lib/sqlUpdate');
 
 router.get('/', async (req, res) => {
   try {
@@ -34,16 +35,24 @@ router.post('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Lista blanca: lo que edita el formulario de Potreros.
+const POTRERO_EDITABLES = ['nombre', 'superficie_ha', 'capacidad_animales', 'estado', 'ubicacion_gps', 'notas'];
+const POTRERO_ENUMS = { estado: ['activo', 'inactivo', 'mantenimiento'] };
+
 router.put('/:id', async (req, res) => {
-  const fields = req.body;
-  const keys = Object.keys(fields).filter(k => k !== 'id');
-  const sets = keys.map(k => `${k} = ?`).join(', ');
-  const values = keys.map(k => fields[k] === '' ? null : fields[k]);
   try {
-    await pool.query(`UPDATE potreros SET ${sets} WHERE id = ?`, [...values, req.params.id]);
+    const { sql, params } = construirUpdate({
+      tabla: 'potreros', id: req.params.id, body: req.body,
+      permitidas: POTRERO_EDITABLES, enums: POTRERO_ENUMS,
+    });
+    await pool.query(sql, params);
     const [rows] = await pool.query('SELECT * FROM potreros WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Potrero no encontrado' });
     res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    if (err instanceof ErrorCampos) return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.delete('/:id', async (req, res) => {

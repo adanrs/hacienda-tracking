@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { pool } = require('../models/database');
+const { construirUpdate, ErrorCampos } = require('../lib/sqlUpdate');
 
 const SELECT_BASE = `
   SELECT o.*, b.codigo as bodega_codigo, b.nombre as bodega_nombre
@@ -78,22 +79,27 @@ router.post('/', async (req, res) => {
   } finally { conn.release(); }
 });
 
+// Lista blanca de la orden de salida. numero se genera al crear; items tiene su propio flujo.
+const ORDEN_SALIDA_EDITABLES = ['fecha', 'solicitante', 'destino', 'bodega_origen_id', 'estado', 'notas'];
+// 'despachada' NO se acepta por PUT: despachar mueve cajas y stickers en POST /:id/despachar;
+// marcarla a mano dejaría la orden despachada con las cajas todavía en bodega.
+const ORDEN_SALIDA_ENUMS = { estado: ['pendiente', 'en_preparacion', 'cancelada'] };
+
 router.put('/:id', async (req, res) => {
-  const fields = { ...req.body };
-  delete fields.id;
-  delete fields.numero;
-  delete fields.items;
-  const keys = Object.keys(fields);
-  if (!keys.length) return res.status(400).json({ error: 'No hay campos para actualizar' });
-  const sets = keys.map(k => `${k} = ?`).join(', ');
-  const values = keys.map(k => fields[k] === '' ? null : fields[k]);
   try {
-    const [result] = await pool.query(`UPDATE ordenes_salida SET ${sets} WHERE id = ?`, [...values, req.params.id]);
+    const { sql, params } = construirUpdate({
+      tabla: 'ordenes_salida', id: req.params.id, body: req.body,
+      permitidas: ORDEN_SALIDA_EDITABLES, enums: ORDEN_SALIDA_ENUMS,
+    });
+    const [result] = await pool.query(sql, params);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Orden no encontrada' });
     const [rows] = await pool.query(SELECT_BASE + ' WHERE o.id = ?', [req.params.id]);
     const items = await fetchItems(req.params.id);
     res.json({ ...rows[0], items });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    if (err instanceof ErrorCampos) return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/:id/despachar', async (req, res) => {

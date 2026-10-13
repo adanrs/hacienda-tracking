@@ -28,4 +28,20 @@ function requireRole(...roles) {
   };
 }
 
-module.exports = { authMiddleware, requireRole, JWT_SECRET };
+// Roles que pueden escribir. El rol `viewer` es "Solo lectura" (así lo muestra el frontend
+// en App.jsx), pero hasta ahora solo lo ocultaba la interfaz: la API le aceptaba POST/PUT/
+// DELETE. Se usa lista de roles que SÍ escriben (no de los que no) para que un rol nuevo o
+// desconocido quede en solo lectura por defecto.
+const ROLES_ESCRITURA = new Set(['admin', 'operador']);
+const METODOS_LECTURA = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+function soloLecturaViewer(req, res, next) {
+  if (METODOS_LECTURA.has(req.method)) return next();
+  if (!req.user) return res.status(401).json({ error: 'No autenticado' });
+  if (!ROLES_ESCRITURA.has(req.user.rol)) {
+    return res.status(403).json({ error: 'Tu usuario es de solo lectura' });
+  }
+  next();
+}
+
+module.exports = { authMiddleware, requireRole, soloLecturaViewer, JWT_SECRET };

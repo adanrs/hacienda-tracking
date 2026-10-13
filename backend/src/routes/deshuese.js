@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const { pool } = require('../models/database');
+const { construirUpdate, ErrorCampos, normalizarFechaIso } = require('../lib/sqlUpdate');
 
 const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'deshuese');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -117,42 +118,56 @@ router.post('/', async (req, res) => {
   } finally { conn.release(); }
 });
 
-router.put('/:id', async (req, res) => {
-  const fields = { ...req.body };
-  delete fields.id;
-  delete fields.sacrificio_id;
-  delete fields.animal_id;
-  delete fields.created_at;
-  delete fields.primales;
+// Columnas que el formulario de Deshuese edita. Fuera de la lista quedan id, numero_lote
+// (se genera al crear y va impreso en etiquetas), sacrificio_id/animal_id (definen la
+// trazabilidad), pdf_url (tiene su propio endpoint) y las columnas de auditoría.
+const DESHUESE_EDITABLES = ['fecha', 'peso_entrada', 'responsable', 'bodega_origen_id', 'notas', 'estado'];
+const DESHUESE_ENUMS = { estado: ['abierto', 'cerrado', 'reabierto'] };
 
+// El input datetime-local manda "2026-10-01T08:30" y la fila del GET trae ISO con Z;
+// MySQL no acepta la "T" ni la "Z" en modo estricto.
+const normalizarDeshuese = (col, v) => (col === 'fecha' ? normalizarFechaIso(v) : v);
+
+// Candado de deshuese cerrado: solo admin puede tocar uno cerrado (reabrirlo, editarlo,
+// borrarlo o cambiarle el PDF). Antes un operador podía reabrirlo mandando solo `estado`.
+function bloqueadoPorCierre(req, deshuese) {
+  return deshuese.estado === 'cerrado' && !(req.user && req.user.rol === 'admin');
+}
+
+router.put('/:id', async (req, res) => {
   try {
+    // Se valida el body ANTES de leer la base: una clave maliciosa no llega a ningún SQL.
+    const update = construirUpdate({
+      tabla: 'deshuese',
+      id: req.params.id,
+      body: req.body,
+      permitidas: DESHUESE_EDITABLES,
+      enums: DESHUESE_ENUMS,
+      normalizar: normalizarDeshuese,
+    });
+
     const [existing] = await pool.query('SELECT * FROM deshuese WHERE id = ?', [req.params.id]);
     if (!existing.length) return res.status(404).json({ error: 'Deshuese no encontrado' });
-    const current = existing[0];
-    const isAdmin = req.user && req.user.rol === 'admin';
-
-    if (current.estado === 'cerrado' && !isAdmin) {
-      const onlyEstado = Object.keys(fields).every(k => k === 'estado');
-      if (!onlyEstado) {
-        return res.status(403).json({ error: 'Deshuese cerrado: solo admin puede modificar' });
-      }
+    if (bloqueadoPorCierre(req, existing[0])) {
+      return res.status(403).json({ error: 'Deshuese cerrado: solo admin puede modificarlo o reabrirlo' });
     }
 
-    const keys = Object.keys(fields);
-    if (!keys.length) return res.status(400).json({ error: 'No hay campos para actualizar' });
-    const sets = keys.map(k => `${k} = ?`).join(', ');
-    const values = keys.map(k => fields[k] === '' ? null : fields[k]);
-    await pool.query(`UPDATE deshuese SET ${sets} WHERE id = ?`, [...values, req.params.id]);
+    await pool.query(update.sql, update.params);
     const [rows] = await pool.query('SELECT * FROM deshuese WHERE id = ?', [req.params.id]);
     res.json(rows[0]);
   } catch (err) {
-    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'numero_lote duplicado' });
+    if (err instanceof ErrorCampos) return res.status(400).json({ error: err.message });
     res.status(500).json({ error: err.message });
   }
 });
 
 router.delete('/:id', async (req, res) => {
   try {
+    const [existing] = await pool.query('SELECT estado FROM deshuese WHERE id = ?', [req.params.id]);
+    if (!existing.length) return res.status(404).json({ error: 'Deshuese no encontrado' });
+    if (bloqueadoPorCierre(req, existing[0])) {
+      return res.status(403).json({ error: 'Deshuese cerrado: solo admin puede eliminarlo' });
+    }
     const [result] = await pool.query('DELETE FROM deshuese WHERE id = ?', [req.params.id]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Deshuese no encontrado' });
     res.json({ message: 'Deshuese eliminado' });
@@ -199,7 +214,17 @@ router.put('/:id/primales', async (req, res) => {
   } finally { conn.release(); }
 });
 
-router.post('/:id/pdf', (req, res) => {
+router.post('/:id/pdf', async (req, res, next) => {
+  // El candado se revisa antes de aceptar el archivo, para no dejar PDFs huérfanos en disco.
+  try {
+    const [existing] = await pool.query('SELECT estado FROM deshuese WHERE id = ?', [req.params.id]);
+    if (!existing.length) return res.status(404).json({ error: 'Deshuese no encontrado' });
+    if (bloqueadoPorCierre(req, existing[0])) {
+      return res.status(403).json({ error: 'Deshuese cerrado: solo admin puede cambiar el PDF' });
+    }
+    next();
+  } catch (err) { res.status(500).json({ error: err.message }); }
+}, (req, res) => {
   upload.single('pdf')(req, res, async (err) => {
     if (err) return res.status(400).json({ error: err.message });
     if (!req.file) return res.status(400).json({ error: 'Archivo PDF requerido' });

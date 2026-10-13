@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { pool } = require('../models/database');
+const { construirUpdate, ErrorCampos } = require('../lib/sqlUpdate');
 
 router.get('/', async (req, res) => {
   const { hembra_id, resultado } = req.query;
@@ -35,16 +36,30 @@ router.post('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Lista blanca: columnas reales de reproduccion que edita el formulario.
+const REPRODUCCION_EDITABLES = [
+  'hembra_id', 'macho_id', 'tipo', 'fecha_servicio', 'fecha_parto_estimada', 'fecha_parto_real',
+  'cria_id', 'resultado', 'notas',
+];
+const REPRODUCCION_ENUMS = {
+  tipo: ['monta_natural', 'inseminacion_artificial', 'transferencia_embrion'],
+  resultado: ['gestante', 'vacia', 'aborto', 'parto_exitoso', 'parto_complicado'],
+};
+
 router.put('/:id', async (req, res) => {
-  const fields = req.body;
-  const keys = Object.keys(fields).filter(k => k !== 'id');
-  const sets = keys.map(k => `${k} = ?`).join(', ');
-  const values = keys.map(k => fields[k] === '' ? null : fields[k]);
   try {
-    await pool.query(`UPDATE reproduccion SET ${sets} WHERE id = ?`, [...values, req.params.id]);
+    const { sql, params } = construirUpdate({
+      tabla: 'reproduccion', id: req.params.id, body: req.body,
+      permitidas: REPRODUCCION_EDITABLES, enums: REPRODUCCION_ENUMS,
+    });
+    await pool.query(sql, params);
     const [rows] = await pool.query('SELECT * FROM reproduccion WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Registro no encontrado' });
     res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    if (err instanceof ErrorCampos) return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.delete('/:id', async (req, res) => {

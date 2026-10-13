@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { pool } = require('../models/database');
+const { construirUpdate, ErrorCampos } = require('../lib/sqlUpdate');
 
 const baseSelect = `
   SELECT p.*,
@@ -61,24 +62,41 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Lista blanca del primal. Fuera quedan codigo (identidad impresa en la etiqueta),
+// deshuese_id/animal_id (trazabilidad) y las columnas de auditoría.
+const PRIMAL_EDITABLES = [
+  'tipo_primal', 'peso_kg', 'peso_prorrateado', 'marmoleo', 'bodega_actual_id', 'ubicacion_bodega',
+  'estado', 'congelado', 'fecha_congelado', 'fecha_ingreso_custodia', 'fecha_maduracion_inicio',
+  'dias_maduracion', 'dias_maduracion_target', 'notas', 'nota_supervisor',
+];
+const PRIMAL_ENUMS = {
+  estado: ['en_deshuese', 'en_custodia', 'en_maduracion', 'en_porcionado', 'porcionado', 'descartado'],
+};
+// Lo que fija el deshuese. Con el deshuese cerrado solo admin lo cambia, igual que en
+// PUT /deshuese/:id/primales; si no, este endpoint saltaba ese candado.
+const PRIMAL_CAMPOS_DEL_DESHUESE = ['tipo_primal', 'peso_kg', 'peso_prorrateado', 'marmoleo'];
+
 router.put('/:id', async (req, res) => {
-  const fields = { ...req.body };
-  delete fields.id;
-  delete fields.deshuese_id;
-  delete fields.animal_id;
-  delete fields.created_at;
-  delete fields.updated_at;
-  const keys = Object.keys(fields);
-  if (!keys.length) return res.status(400).json({ error: 'No hay campos para actualizar' });
-  const sets = keys.map(k => `${k} = ?`).join(', ');
-  const values = keys.map(k => fields[k] === '' ? null : fields[k]);
   try {
-    await pool.query(`UPDATE primales SET ${sets} WHERE id = ?`, [...values, req.params.id]);
+    const update = construirUpdate({
+      tabla: 'primales', id: req.params.id, body: req.body,
+      permitidas: PRIMAL_EDITABLES, enums: PRIMAL_ENUMS,
+    });
+    const [actual] = await pool.query(
+      'SELECT d.estado AS deshuese_estado FROM primales p LEFT JOIN deshuese d ON d.id = p.deshuese_id WHERE p.id = ?',
+      [req.params.id]
+    );
+    if (!actual.length) return res.status(404).json({ error: 'Primal no encontrado' });
+    const isAdmin = req.user && req.user.rol === 'admin';
+    const tocaDeshuese = update.columnas.some(c => PRIMAL_CAMPOS_DEL_DESHUESE.includes(c));
+    if (actual[0].deshuese_estado === 'cerrado' && !isAdmin && tocaDeshuese) {
+      return res.status(403).json({ error: 'Deshuese cerrado: solo admin puede cambiar peso, tipo o marmoleo del primal' });
+    }
+    await pool.query(update.sql, update.params);
     const [rows] = await pool.query('SELECT * FROM primales WHERE id = ?', [req.params.id]);
-    if (!rows.length) return res.status(404).json({ error: 'Primal no encontrado' });
     res.json(rows[0]);
   } catch (err) {
-    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'codigo de primal duplicado' });
+    if (err instanceof ErrorCampos) return res.status(400).json({ error: err.message });
     res.status(500).json({ error: err.message });
   }
 });
