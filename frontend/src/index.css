@@ -758,3 +758,42 @@ td.celda-estado:hover { background: transparent; }
 
 /* Códigos (OE-2026-001, CJ-…) no se parten en varias líneas */
 td strong, td code { white-space: nowrap; }
+
+/* Reporte Diario de Producción (pages/ReporteProduccion.jsx) ---------------- */
+.rp-bloque { margin-bottom: var(--esp-6); }
+.rp-bloque > .banner { margin-bottom: var(--esp-4); }
+.rp-bloque td .badge { white-space: nowrap; }
+.rp-bloque td:nth-child(2) { min-width: 170px; }
+.rp-bloque-cuerpo { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: var(--esp-4); align-items: start; }
+.rp-bloque-cuerpo > * { min-width: 0; } /* sin esto la tabla ancha empuja la columna de aretes fuera de la tarjeta */
+.rp-encabezado { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--esp-2) var(--esp-4); margin: 0 0 var(--esp-4); }
+.rp-encabezado dt { font-size: var(--texto-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-secondary); }
+.rp-encabezado dd { margin: 2px 0 0; font-size: var(--texto-lg); font-weight: 600; }
+.rp-tabla-card { box-shadow: none; padding: 0; margin-bottom: var(--esp-3); }
+th.num, td.num, input.num { text-align: right; }
+tr.rp-fila-dif > td { background: var(--error-suave); }
+tr.rp-fila-falta > td { background: var(--alerta-suave); }
+.rp-pie { display: flex; flex-wrap: wrap; gap: var(--esp-2) var(--esp-6); border-top: 2px solid var(--border-fuerte); padding-top: var(--esp-3); margin-top: var(--esp-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.rp-pie + .rp-pie { border-top-style: dashed; border-top-width: 1px; }
+.rp-pie-dato span { display: block; font-size: var(--texto-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-secondary); }
+.rp-aretes { border: 1px solid var(--border); border-radius: var(--radius); }
+.rp-aretes td, .rp-aretes th { padding: 6px 10px; }
+.rp-aretes tr.rp-arete-actual td { background: var(--acento-suave); font-weight: 700; }
+.rp-acciones { display: flex; flex-wrap: wrap; gap: var(--esp-2); align-items: center; }
+.rp-tenue { color: var(--text-terciario); }
+.rp-nota { font-size: var(--texto-sm); color: var(--text-secondary); margin: var(--esp-2) 0 var(--esp-3); }
+.rp-subtitulo { display: flex; align-items: center; gap: var(--esp-2); font-size: var(--texto-lg); font-weight: 600; margin-bottom: var(--esp-2); }
+.rp-grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--esp-3); }
+.rp-tabla-edicion input, .rp-tabla-edicion select { width: 100%; min-width: 0; min-height: var(--control-alto); padding: 6px 8px; border: 1px solid var(--border-fuerte); border-radius: var(--radius); font: inherit; background: var(--bg-card); color: var(--text); }
+.rp-tabla-edicion td { padding: 4px 6px; }
+.rp-lista-errores { margin: 4px 0 0 18px; }
+.rp-check { display: inline-flex; align-items: center; gap: var(--esp-2); }
+.rp-decision { display: flex; flex-wrap: wrap; gap: var(--esp-3); align-items: center; margin-top: var(--esp-4); padding: var(--esp-4); border: 2px solid var(--alerta-borde); border-radius: var(--radius); background: var(--alerta-suave); }
+.rp-decision p { flex-basis: 100%; margin: 0; color: var(--alerta); font-weight: 600; }
+.rp-resumen-lotes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--esp-3); margin: var(--esp-4) 0; }
+.rp-mini { padding: var(--esp-3); }
+/* Con menú lateral, la tabla de 10 columnas necesita el ancho completo por debajo de 1500 px. */
+@media (max-width: 1499.98px) {
+  .rp-bloque-cuerpo { grid-template-columns: 1fr; }
+  .rp-bloque aside { max-width: 320px; }
+}

@@ -1,6 +1,6 @@
 # Reporte Diario de Producción por lote — diseño y datos que faltan
 
-> Estado: **no implementado en pantalla ni en Excel, porque la app no captura los datos que el reporte necesita** (§2).
+> Estado (13-oct-2026): **implementado** con las dos fuentes (escaneo de etiquetas de deshuese + reporte de CIISA) y su conciliación. Ver §6. Las §2–§4 quedan como el análisis que llevó a la decisión.
 > Este documento define el formato, de dónde sale cada campo y qué hay que capturar para poder construirlo sin inventar nada.
 > Formato de referencia: [foto del reporte CIISA del 21/09/26](formato-ciisa-2026-09-21.jpg) · transcripción verificada: [`ejemplo-2026-09-21.json`](ejemplo-2026-09-21.json).
 
@@ -90,3 +90,26 @@ Parámetros siempre con `?`. Libras = `ROUND(kilos * 2.20462, 2)`, que con el ej
 | R2 | ¿**Tipo Producción** es siempre TEMPISQUE (cuenta EQTB Tempisque) o cambia por cliente o finca? | WC | Columna fija o dato por lote |
 | R3 | ¿CIISA puede mandar el reporte y la tabla de aretes en Excel/CSV en vez de foto o PDF? | CIISA | Pasa la captura de manual/IA a carga directa (`excel_csv`) |
 | R4 | «Cajas» de Trimmings (4) y Chuck (2): ¿cada caja lleva su etiqueta de deshuese con el mismo artículo? | CIISA | Confirma que contar etiquetas (camino B) da el mismo número que el reporte |
+
+## 6. Implementación (13-oct-2026)
+
+Decisión de Adán: el reporte se arma con **las dos fuentes** y su valor principal es **conciliarlas**.
+
+**Modelo (atajo mínimo, aditivo, en `models/database.js`).** No se crean las tablas de v10 a medias: `lotes_deshuese` exige `canal_id NOT NULL` (y `canales` no existe), y `etiquetas`/`documentos_ciisa` traen columnas obligatorias que hoy no se capturan; un `CREATE TABLE IF NOT EXISTS` de v10 se saltaría en silencio contra una tabla parcial. Nombres propios, sin choque:
+
+| Tabla | Qué guarda | Pasa en v10 a |
+|---|---|---|
+| `reporte_produccion` | Encabezado CIISA: fecha, lote CC (UNIQUE fecha+lote), Num. Lote, Tipo producción, origen (`excel_csv`/`manual`/`pegado`/`json`) | `documentos_ciisa` tipo `DESHUESE` |
+| `reporte_produccion_lineas` | Artículo, descripción, kg, unidad, cajas (UNIQUE reporte+artículo) | `documentos_ciisa_lineas` |
+| `lotes_cc_aretes` | Posición → arete por fecha (UNIQUE fecha+lote), animal y deshuese resueltos | `lotes_deshuese` |
+| `reporte_produccion_escaneos` | Cada etiqueta de deshuese (caja/primal) escaneada: artículo, kg, fecha y lote impresos, JSON del decodificador | `etiquetas` con `origen_etapa='deshuese'` |
+
+**Captura.** Pantalla Planta → «Reporte de producción», 4 pestañas: Reporte, Escanear etiquetas, Cargar reporte CIISA (Excel/CSV con plantilla descargable, o captura manual pegando filas), Aretes por posición. El importador **no guarda**: muestra una vista previa por lote con totales y errores, y se guarda con la misma validación que la captura manual (`lib/reporteProduccion.js → validarReporte`). Si se digitan los totales del pie, se exige que cuadren con las filas.
+
+**Conciliación** (`conciliar`): por lote CC y artículo, kg y cajas de CIISA contra lo escaneado. Estados: *cuadra* (cajas iguales y |Δkg| ≤ 0.01), *diferencia*, *no escaneado*, *no está en CIISA*. Diferencias = escaneado − CIISA.
+
+**Excel** (`lib/reporteProduccionExcel.js`, exceljs): una hoja por lote CC con el formato CIISA en A–E, conciliación en G–K y la tabla Posición/ARETE en M–N.
+
+**Escaneo.** Solo cuentan caja master y primal (traen fecha de deshuese y lote CC). El paquete se rechaza. Una etiqueta ambigua (25 dígitos) pide «caja o primal». Una caja idéntica a otra ya escaneada se bloquea salvo que el operador confirme «es otra caja» (`copia` > 1); un primal repetido nunca, porque su Box es único.
+
+**Pendiente de CIISA / cliente**: R1–R4 de §5 siguen abiertas; además la tolerancia de negocio de la conciliación (hoy 0.01 kg por artículo).

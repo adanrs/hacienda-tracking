@@ -29,10 +29,57 @@ async function request(path, options = {}) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || `Error del servidor (${res.status})`);
+    // `status` y `datos` permiten a una pantalla reaccionar a un 409 (p. ej. «¿reemplazar?»)
+    // sin perder el mensaje que ya muestran las demás.
+    throw Object.assign(new Error(err.error || `Error del servidor (${res.status})`), { status: res.status, datos: err });
   }
   return res.json();
 }
+
+// Descarga un archivo (Excel) de la API con el token y lo ofrece al navegador.
+async function descargar(path, nombre) {
+  const token = getToken();
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  } catch {
+    throw new Error('No hay conexión con el servidor. Revise la red e intente de nuevo.');
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `No se pudo descargar (${res.status})`);
+  }
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombre;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Sube un archivo como multipart (sin Content-Type: lo arma el navegador con el boundary).
+async function subir(path, campo, archivo) {
+  const token = getToken();
+  const fd = new FormData();
+  fd.append(campo, archivo);
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd });
+  } catch {
+    throw new Error('No hay conexión con el servidor. Revise la red e intente de nuevo.');
+  }
+  const datos = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(datos.error || `Error del servidor (${res.status})`), { status: res.status, datos });
+  return datos;
+}
+
+const qs = (params = {}) => {
+  const limpio = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''));
+  const s = new URLSearchParams(limpio).toString();
+  return s ? `?${s}` : '';
+};
 
 export const api = {
   // Auth
@@ -233,4 +280,19 @@ export const api = {
   createTemperaturaBodega: (data) => request('/temperaturas-bodega', { method: 'POST', body: JSON.stringify(data) }),
   deleteTemperaturaBodega: (id) => request(`/temperaturas-bodega/${id}`, { method: 'DELETE' }),
   getResumenTemperaturas: (bodega_id) => request(`/temperaturas-bodega/resumen/${bodega_id}`),
+
+  // Reporte Diario de Producción (CIISA vs escaneado)
+  getReporteProduccion: (params) => request(`/reporte-produccion${qs(params)}`),
+  getReporteProduccionDias: (params) => request(`/reporte-produccion/dias${qs(params)}`),
+  descargarReporteProduccion: (params, nombre) => descargar(`/reporte-produccion/excel${qs(params)}`, nombre),
+  descargarPlantillaReporte: () => descargar('/reporte-produccion/plantilla', 'plantilla-reporte-produccion-ciisa.xlsx'),
+  importarReporteCiisa: (archivo) => subir('/reporte-produccion/ciisa/importar', 'archivo', archivo),
+  guardarReporteCiisa: (data) => request('/reporte-produccion/ciisa', { method: 'POST', body: JSON.stringify(data) }),
+  getReporteCiisa: (id) => request(`/reporte-produccion/ciisa/${id}`),
+  deleteReporteCiisa: (id) => request(`/reporte-produccion/ciisa/${id}`, { method: 'DELETE' }),
+  getAretesLote: (fecha) => request(`/reporte-produccion/aretes${qs({ fecha })}`),
+  guardarAretesLote: (fecha, aretes) => request('/reporte-produccion/aretes', { method: 'PUT', body: JSON.stringify({ fecha, aretes }) }),
+  getEscaneosProduccion: (params) => request(`/reporte-produccion/escaneos${qs(params)}`),
+  escanearProduccion: (data) => request('/reporte-produccion/escaneos', { method: 'POST', body: JSON.stringify(data) }),
+  deleteEscaneoProduccion: (id) => request(`/reporte-produccion/escaneos/${id}`, { method: 'DELETE' }),
 };

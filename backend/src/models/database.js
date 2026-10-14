@@ -662,6 +662,93 @@ async function initDB() {
       `);
     }
 
+    // ── Reporte Diario de Producción (formato CIISA) ─────────────────────────
+    // Atajo mínimo hasta el núcleo v10 (docs/nucleo-inventario-v10). Los nombres NO chocan con
+    // las tablas de v10 a propósito: `lotes_deshuese` exige `canal_id NOT NULL` (y la tabla
+    // `canales` aún no existe) y `etiquetas`/`documentos_ciisa` traen columnas obligatorias que
+    // hoy no se capturan. Crearlas a medias haría que el CREATE TABLE IF NOT EXISTS de v10 se
+    // saltara en silencio y dejara un esquema distinto al diseñado. El backfill de v10 copia:
+    //   reporte_produccion(+_lineas)  → documentos_ciisa tipo 'DESHUESE' (+ _lineas)
+    //   lotes_cc_aretes               → lotes_deshuese (fecha_deshuese, numero_lote, arete)
+    //   reporte_produccion_escaneos   → etiquetas con origen_etapa = 'deshuese'
+    // Todas son aditivas (no tocan tablas existentes) e idempotentes.
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS reporte_produccion (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        fecha_produccion DATE NOT NULL COMMENT 'Fecha de Producción del reporte CIISA (día del deshuese)',
+        lote_cc SMALLINT UNSIGNED NOT NULL COMMENT 'Lote CC = posición del animal en el deshuese del día (06)',
+        num_lote VARCHAR(20) NULL COMMENT 'Num. Lote del encabezado CIISA (significado por confirmar, R1)',
+        tipo_produccion VARCHAR(60) NULL COMMENT 'Tipo Producción (TEMPISQUE; por confirmar, R2)',
+        origen ENUM('excel_csv','manual','pegado','json') NOT NULL DEFAULT 'manual' COMMENT 'Cómo se capturó',
+        archivo_nombre VARCHAR(255) NULL COMMENT 'Archivo importado, si vino de Excel/CSV',
+        notas VARCHAR(500) NULL,
+        cargado_por INT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_rp_fecha_lote (fecha_produccion, lote_cc),
+        FOREIGN KEY (cargado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+      ) COMMENT='Encabezado del Reporte Diario de Producción que declara CIISA (un reporte = un lote CC = un animal)'
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS reporte_produccion_lineas (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        reporte_id INT NOT NULL,
+        linea SMALLINT UNSIGNED NOT NULL COMMENT 'Orden de la fila (por código, como el impreso)',
+        articulo_codigo VARCHAR(20) NOT NULL COMMENT 'Código de artículo CIISA (5 dígitos)',
+        descripcion VARCHAR(200) NULL COMMENT 'Descripción tal como la trae CIISA',
+        peso_kg DECIMAL(10,3) NOT NULL,
+        unidad VARCHAR(10) NOT NULL DEFAULT 'KGS',
+        cajas INT NOT NULL,
+        UNIQUE KEY uk_rpl_articulo (reporte_id, articulo_codigo),
+        UNIQUE KEY uk_rpl_linea (reporte_id, linea),
+        INDEX idx_rpl_articulo (articulo_codigo),
+        FOREIGN KEY (reporte_id) REFERENCES reporte_produccion(id) ON DELETE CASCADE
+      ) COMMENT='Filas artículo/peso/cajas del reporte CIISA'
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS lotes_cc_aretes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        fecha_deshuese DATE NOT NULL,
+        lote_cc SMALLINT UNSIGNED NOT NULL COMMENT 'Posición en el deshuese del día (n.º impreso en cajas y primales)',
+        arete VARCHAR(10) NOT NULL COMMENT 'Arete según la tabla del correo de CIISA',
+        animal_id INT NULL COMMENT 'Animal resuelto por numero_trazabilidad = arete (NULL si no está en el registro)',
+        deshuese_id INT NULL COMMENT 'Deshuese de la app de ese animal en esa fecha, si existe',
+        registrado_por INT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_lca_fecha_lote (fecha_deshuese, lote_cc),
+        INDEX idx_lca_arete (arete),
+        FOREIGN KEY (animal_id) REFERENCES animales(id) ON DELETE SET NULL,
+        FOREIGN KEY (deshuese_id) REFERENCES deshuese(id) ON DELETE SET NULL,
+        FOREIGN KEY (registrado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+      ) COMMENT='Tabla posición → arete por fecha de deshuese (llave para pasar de lote CC a animal)'
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS reporte_produccion_escaneos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        codigo_crudo VARCHAR(64) NOT NULL COMMENT 'Lectura normalizada del escáner',
+        copia SMALLINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '>1 solo si el operador confirmó que es OTRA caja con la misma etiqueta (misma fecha, lote, artículo y peso)',
+        tipo ENUM('caja','primal') NOT NULL,
+        articulo_codigo VARCHAR(20) NOT NULL,
+        peso_kg DECIMAL(10,3) NOT NULL,
+        fecha_deshuese DATE NOT NULL COMMENT 'Fecha del deshuese impresa en la etiqueta',
+        lote_cc SMALLINT UNSIGNED NOT NULL COMMENT 'N.º de deshuese impreso en la etiqueta',
+        box_codigo VARCHAR(10) NULL,
+        sufijo VARCHAR(10) NULL,
+        fecha_ambigua TINYINT NOT NULL DEFAULT 0 COMMENT '1 = día ≤ 12, la fecha admite otra lectura',
+        decodificado JSON NULL COMMENT 'Resultado completo del decodificador, para auditoría',
+        escaneado_por INT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_rpe_codigo (codigo_crudo, copia),
+        INDEX idx_rpe_fecha_lote (fecha_deshuese, lote_cc),
+        INDEX idx_rpe_articulo (articulo_codigo),
+        FOREIGN KEY (escaneado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+      ) COMMENT='Etiquetas de deshuese (caja/primal) escaneadas en la app: el lado «nuestro» de la conciliación'
+    `);
+
     console.log('Database tables initialized');
   } finally {
     conn.release();
