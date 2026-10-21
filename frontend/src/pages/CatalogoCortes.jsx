@@ -122,6 +122,11 @@ export default function CatalogoCortes() {
                   </select>
                 </div>
               </div>
+              <div className="form-group">
+                <label htmlFor="corte-namp">Código NAMP</label>
+                <input id="corte-namp" maxLength={20} value={form.namp || ''} onChange={e => setForm({ ...form, namp: e.target.value.trim() || null })} placeholder="ej: 112A" />
+                <div className="campo-ayuda">Informativo: se muestra en la Solicitud de deshuese.</div>
+              </div>
               <div className="form-row">
                 <div className="form-group">
                   <label>Vida util (dias)</label>

@@ -749,6 +749,80 @@ async function initDB() {
       ) COMMENT='Etiquetas de deshuese (caja/primal) escaneadas en la app: el lado «nuestro» de la conciliación'
     `);
 
+    // ── Solicitud de deshuese (lo que se pide a CIISA tras cada sacrificio) ──────
+    // Aditivo e idempotente, con el mismo patrón try/catch del resto del archivo.
+    // N.º de canal = consecutivo de sacrificio de CIISA (p. ej. 5256). Se repite entre días, así
+    // que la llave es fecha + número. `fecha` es DATETIME: la columna generada `fecha_dia` deja
+    // poner la llave única por DÍA (dos NULL no chocan, así que los sacrificios viejos sin número
+    // no estorban). Es lo que el núcleo v10 copiará a `canales` (uk_canal_dia).
+    // A diferencia de los ALTER de arriba, aquí no se traga cualquier error: solo «ya existe»
+    // (re-arranque). Si falla otra cosa (p. ej. la versión de MySQL no soporta la columna generada)
+    // queda en el log, porque sin fecha_dia la solicitud de deshuese no funciona.
+    const ignorarSiExiste = async (sql, consecuencia) => {
+      try { await conn.query(sql); } catch (e) {
+        if (['ER_DUP_FIELDNAME', 'ER_DUP_KEYNAME'].includes(e.code)) return;
+        console.error(`[initDB] ${e.code || 'ERROR'}: ${e.message}${consecuencia ? ` — ${consecuencia}` : ''}`);
+      }
+    };
+    const SIN_SOLICITUD = 'la Solicitud de deshuese NO va a funcionar hasta corregirlo';
+    await ignorarSiExiste(`ALTER TABLE sacrificios ADD COLUMN fecha_dia DATE AS (DATE(fecha)) STORED COMMENT 'Día del sacrificio (para llaves por día)' AFTER fecha`, SIN_SOLICITUD);
+    await ignorarSiExiste(`ALTER TABLE sacrificios ADD COLUMN numero_canal VARCHAR(10) NULL COMMENT 'N.º de canal CIISA (consecutivo de sacrificio del día)' AFTER lote_sacrificio`, SIN_SOLICITUD);
+    await ignorarSiExiste(`CREATE UNIQUE INDEX uk_sacrificio_canal_dia ON sacrificios (fecha_dia, numero_canal)`, 'el n.º de canal no quedará único por día');
+    await ignorarSiExiste(`ALTER TABLE catalogo_cortes ADD COLUMN namp VARCHAR(20) NULL COMMENT 'Código NAMP (informativo, para la solicitud de deshuese)' AFTER codigo_equivalente`);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS solicitudes_deshuese (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        numero INT UNSIGNED NOT NULL COMMENT 'Consecutivo de la app (no lo asigna CIISA)',
+        fecha_sacrificio DATE NOT NULL COMMENT 'Día de sacrificio cuyas canales se piden deshuesar',
+        estado ENUM('borrador','enviada','deshuesada') NOT NULL DEFAULT 'borrador',
+        observaciones VARCHAR(1000) NULL,
+        enviada_en DATETIME NULL COMMENT 'Cuándo se marcó como enviada',
+        enviada_a VARCHAR(200) NULL COMMENT 'A quién se envió (texto libre; el correo es fase 2)',
+        creado_por INT NULL,
+        actualizado_por INT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_sd_numero (numero),
+        UNIQUE KEY uk_sd_fecha (fecha_sacrificio),
+        INDEX idx_sd_estado (estado),
+        FOREIGN KEY (creado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
+        FOREIGN KEY (actualizado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+      ) COMMENT='Solicitud de deshuese que se manda a la planta: una por fecha de sacrificio'
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS solicitud_canales (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        solicitud_id INT NOT NULL,
+        sacrificio_id INT NOT NULL,
+        numero_canal VARCHAR(10) NULL COMMENT 'Copia del n.º de canal al guardar (lo enviado queda fijo)',
+        orden SMALLINT UNSIGNED NOT NULL COMMENT 'Columna de la canal en la hoja',
+        peso_deshuese_est DECIMAL(8,2) NULL COMMENT 'Peso canal × factor estimado (84 % por ahora) al guardar',
+        UNIQUE KEY uk_sc_sacrificio (sacrificio_id),
+        UNIQUE KEY uk_sc_solicitud_sacrificio (solicitud_id, sacrificio_id),
+        FOREIGN KEY (solicitud_id) REFERENCES solicitudes_deshuese(id) ON DELETE CASCADE,
+        FOREIGN KEY (sacrificio_id) REFERENCES sacrificios(id) ON DELETE CASCADE
+      ) COMMENT='Canales (sacrificios) incluidas en una solicitud de deshuese'
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS solicitud_lineas (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        solicitud_id INT NOT NULL,
+        corte_codigo VARCHAR(20) NOT NULL COMMENT 'Código CIISA del corte (catalogo_cortes.codigo)',
+        solicitud_canal_id INT NOT NULL,
+        medias TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '0, 1 o 2 medias canales',
+        observacion VARCHAR(300) NULL COMMENT 'Observación del corte (repetida en cada canal de la fila)',
+        orden SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'Fila del corte en la hoja',
+        UNIQUE KEY uk_sl_canal_corte (solicitud_canal_id, corte_codigo),
+        INDEX idx_sl_solicitud (solicitud_id),
+        CONSTRAINT chk_sl_medias CHECK (medias BETWEEN 0 AND 2),
+        FOREIGN KEY (solicitud_id) REFERENCES solicitudes_deshuese(id) ON DELETE CASCADE,
+        FOREIGN KEY (solicitud_canal_id) REFERENCES solicitud_canales(id) ON DELETE CASCADE
+      ) COMMENT='Matriz corte × canal de la solicitud de deshuese'
+    `);
+
     console.log('Database tables initialized');
   } finally {
     conn.release();

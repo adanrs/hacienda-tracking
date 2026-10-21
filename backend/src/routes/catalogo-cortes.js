@@ -37,14 +37,14 @@ router.get('/codigo/:codigo', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { codigo, nombre, abreviatura, tipo, vida_util_dias, vida_congelado_dias, activo, notas } = req.body;
+  const { codigo, nombre, abreviatura, tipo, vida_util_dias, vida_congelado_dias, activo, notas, namp } = req.body;
   if (!codigo || !nombre) {
     return res.status(400).json({ error: 'codigo y nombre son requeridos' });
   }
   try {
     const [result] = await pool.query(
-      'INSERT INTO catalogo_cortes (codigo, nombre, abreviatura, tipo, vida_util_dias, vida_congelado_dias, activo, notas) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [codigo, nombre, abreviatura || null, tipo || null, vida_util_dias || null, vida_congelado_dias || null, activo !== undefined ? activo : 1, notas || null]
+      'INSERT INTO catalogo_cortes (codigo, nombre, abreviatura, tipo, vida_util_dias, vida_congelado_dias, activo, notas, namp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [codigo, nombre, abreviatura || null, tipo || null, vida_util_dias || null, vida_congelado_dias || null, activo !== undefined ? activo : 1, notas || null, typeof namp === 'string' && namp.trim() ? namp.trim().slice(0, 20) : null]
     );
     const [rows] = await pool.query('SELECT * FROM catalogo_cortes WHERE id = ?', [result.insertId]);
     res.status(201).json(rows[0]);
@@ -56,7 +56,7 @@ router.post('/', async (req, res) => {
 
 // Lista blanca: columnas reales del catálogo (incluidas las del catálogo CIISA v10).
 const CORTE_EDITABLES = [
-  'codigo', 'nombre', 'nombre_en', 'abreviatura', 'tipo', 'serie', 'genetica', 'codigo_equivalente',
+  'codigo', 'nombre', 'nombre_en', 'abreviatura', 'tipo', 'serie', 'genetica', 'codigo_equivalente', 'namp',
   'unidad', 'vida_util_dias', 'vida_congelado_dias', 'ventana_min_dias', 'ventana_max_dias',
   'nota_enlace', 'activo', 'notas',
 ];
