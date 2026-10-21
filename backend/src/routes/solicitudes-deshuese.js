@@ -44,6 +44,7 @@ const envolver = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((err)
 });
 
 const usuarioId = (req) => (req.user && Number.isInteger(req.user.id) ? req.user.id : null);
+const fechaCR = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
 const fmtFecha = (col) => `DATE_FORMAT(${col}, '%Y-%m-%d')`; // evita el corrimiento de zona horaria de DATE → Date
 
 // Hora de Costa Rica (UTC−6, sin horario de verano) desde UNIX_TIMESTAMP(): el contenedor y MySQL
@@ -97,18 +98,23 @@ function encabezadoDe(f) {
  * Canales (sacrificios) del día con lo que va en el encabezado de la hoja. El peso en pie de
  * finca sale del último transporte del animal que lo traiga; el de planta es sacrificios.peso_vivo.
  */
-async function canalesDelDia(db, fecha) {
+async function canalesDelDia(db, fecha, solicitudId = null) {
+  // otra_*: la canal ya está en OTRA solicitud (un sacrificio solo va en una: uk_sc_sacrificio).
+  // Pasa cuando se corrige la fecha de un sacrificio que ya se había pedido en otro día.
   const [filas] = await db.query(
     `SELECT s.id AS sacrificio_id, s.animal_id, a.numero_trazabilidad AS arete, a.sexo, a.nombre AS animal_nombre,
             s.peso_vivo, s.peso_canal_caliente, s.peso_canal_frio, s.numero_canal, s.resultado_inspeccion,
             (SELECT t.peso_pie_finca FROM transporte t
               WHERE t.animal_id = s.animal_id AND t.peso_pie_finca IS NOT NULL
-              ORDER BY t.fecha_salida DESC, t.id DESC LIMIT 1) AS peso_pie_finca
+              ORDER BY t.fecha_salida DESC, t.id DESC LIMIT 1) AS peso_pie_finca,
+            o.id AS otra_id, o.numero AS otra_numero, ${fmtFecha('o.fecha_sacrificio')} AS otra_fecha, o.estado AS otra_estado
      FROM sacrificios s
      JOIN animales a ON a.id = s.animal_id
+     LEFT JOIN solicitud_canales osc ON osc.sacrificio_id = s.id AND osc.solicitud_id <> ?
+     LEFT JOIN solicitudes_deshuese o ON o.id = osc.solicitud_id
      WHERE s.fecha_dia = ?
      ORDER BY s.numero_canal IS NULL, CHAR_LENGTH(s.numero_canal), s.numero_canal, s.id`,
-    [fecha],
+    [solicitudId || 0, fecha],
   );
   return filas.map((f) => {
     const canal = sd.pesoCanal(f);
@@ -125,6 +131,7 @@ async function canalesDelDia(db, fecha) {
       numero_canal: f.numero_canal,
       resultado_inspeccion: f.resultado_inspeccion,
       peso_deshuese_est: sd.pesoDeshueseEstimado(canal.kg),
+      en_otra_solicitud: f.otra_id ? { id: f.otra_id, numero: Number(f.otra_numero), fecha_sacrificio: f.otra_fecha, estado: f.otra_estado } : null,
     };
   });
 }
@@ -151,7 +158,11 @@ async function plantaActiva(db) {
  *    se muestra tal como se mandó.
  */
 async function armarModelo(db, fecha, encabezado) {
-  const delDia = await canalesDelDia(db, fecha);
+  const todasDelDia = await canalesDelDia(db, fecha, encabezado ? encabezado.id : null);
+  // Las que ya están en otra solicitud no se proponen (guardarlas fallaría): van aparte para
+  // que la pantalla diga dónde están.
+  const enOtra = todasDelDia.filter((c) => c.en_otra_solicitud);
+  const delDia = todasDelDia.filter((c) => !c.en_otra_solicitud);
   const porSacrificio = new Map(delDia.map((c) => [c.sacrificio_id, c]));
   const editable = !encabezado || encabezado.estado === 'borrador';
   let canales;
@@ -232,6 +243,7 @@ async function armarModelo(db, fecha, encabezado) {
     pct_deshuese_est: sd.PCT_DESHUESE_EST,
     medias_defecto: sd.MEDIAS_DEFECTO,
     canales_quitadas: quitadas,
+    canales_en_otra: enOtra.map((c) => ({ sacrificio_id: c.sacrificio_id, animal_id: c.animal_id, arete: c.arete, solicitud: c.en_otra_solicitud })),
     planta: await plantaActiva(db),
     canales,
     cortes,
@@ -306,7 +318,7 @@ router.get('/:id/excel', envolver(async (req, res) => {
  * de la fecha de la solicitud, que los cortes existan en el catálogo y que el n.º de canal no lo
  * tenga otro sacrificio del mismo día. Devuelve los pesos de deshuese estimados por sacrificio.
  */
-async function verificarContraBase(conn, v) {
+async function verificarContraBase(conn, v, solicitudId = null) {
   const ids = v.canales.map((c) => c.sacrificio_id);
   const [sacr] = await conn.query(
     `SELECT s.id, ${fmtFecha('s.fecha_dia')} AS fecha, s.peso_canal_caliente, s.peso_canal_frio, a.numero_trazabilidad AS arete
@@ -336,6 +348,21 @@ async function verificarContraBase(conn, v) {
       [v.fecha, numeros.map((c) => c.numero_canal), ids],
     );
     for (const o of ocupados) errores.push(`El n.º de canal ${o.numero_canal} ya lo tiene el animal ${o.arete} ese mismo día`);
+  }
+  if (!errores.length) {
+    const [enOtra] = await conn.query(
+      `SELECT sc.sacrificio_id, a.numero_trazabilidad AS arete, o.numero, ${fmtFecha('o.fecha_sacrificio')} AS fecha, o.estado
+       FROM solicitud_canales sc
+       JOIN solicitudes_deshuese o ON o.id = sc.solicitud_id
+       JOIN sacrificios s ON s.id = sc.sacrificio_id
+       JOIN animales a ON a.id = s.animal_id
+       WHERE sc.sacrificio_id IN (?) AND sc.solicitud_id <> ?`,
+      [ids, solicitudId || 0],
+    );
+    for (const o of enOtra) {
+      errores.push(`El animal ${o.arete} ya está en la solicitud N.º ${o.numero} del ${fechaCR(o.fecha)} (${o.estado}). `
+        + 'Quítelo de allá o corrija la fecha del sacrificio.');
+    }
   }
   if (errores.length) throw new sd.ErrorValidacion(errores[0], errores);
 
@@ -376,6 +403,7 @@ function traducirDuplicado(e, fecha) {
   if (e && e.code === 'ER_DUP_ENTRY') {
     const msg = String(e.sqlMessage || e.message || '');
     if (/uk_sacrificio_canal_dia/.test(msg)) return new ErrorHttp(409, 'Ese n.º de canal ya lo tiene otro animal sacrificado el mismo día');
+    if (/uk_sc_sacrificio/.test(msg)) return new ErrorHttp(409, 'Uno de los animales ya está en otra solicitud de deshuese. Recargue la pantalla para ver en cuál.');
     if (/uk_sd_fecha/.test(msg)) return new ErrorHttp(409, `Ya hay una solicitud de deshuese para el ${fecha}`);
     return new ErrorHttp(409, 'Otro usuario guardó esta solicitud al mismo tiempo. Recargue y revise.');
   }
@@ -387,7 +415,7 @@ router.post('/', envolver(async (req, res) => {
   const v = sd.validarSolicitud(req.body);
   const usuario = usuarioId(req);
   try {
-    const id = await enTransaccion(async (conn) => {
+    const id = await conReintentoPorDeadlock(() => enTransaccion(async (conn) => {
       const [existe] = await conn.query('SELECT id FROM solicitudes_deshuese WHERE fecha_sacrificio = ? FOR UPDATE', [v.fecha]);
       if (existe.length) {
         throw new ErrorHttp(409, `Ya hay una solicitud de deshuese para el ${v.fecha}. Ábrala desde la lista.`, { id: existe[0].id });
@@ -402,11 +430,25 @@ router.post('/', envolver(async (req, res) => {
       );
       await escribirContenido(conn, ins.insertId, v, estimados);
       return ins.insertId;
-    });
+    }));
     const enc = await encabezadoPorId(pool, id);
     res.status(201).json(await armarModelo(pool, enc.fecha_sacrificio, enc));
   } catch (e) { throw traducirDuplicado(e, v.fecha); }
 }));
+
+/**
+ * Dos altas simultáneas toman candados de rango (FOR UPDATE sobre una fecha que no existe y
+ * sobre MAX(numero)) y MySQL aborta una con deadlock. Se reintenta UNA vez: en el segundo intento
+ * la otra ya hizo commit y el caso termina en un 409 claro («ya hay una solicitud…») o en el alta.
+ */
+async function conReintentoPorDeadlock(fn) {
+  try {
+    return await fn();
+  } catch (e) {
+    if (e && e.code === 'ER_LOCK_DEADLOCK') return fn();
+    throw e;
+  }
+}
 
 /** Toma la solicitud con candado y exige el estado esperado. */
 async function bloquear(conn, id, estadosPermitidos, accion) {
@@ -426,7 +468,7 @@ router.put('/:id', envolver(async (req, res) => {
     await enTransaccion(async (conn) => {
       const actual = await bloquear(conn, req.params.id, ['borrador'], 'editar');
       if (actual.fecha !== v.fecha) throw new ErrorHttp(400, 'La fecha de sacrificio de una solicitud no se cambia: cree otra para esa fecha');
-      const estimados = await verificarContraBase(conn, v);
+      const estimados = await verificarContraBase(conn, v, Number(req.params.id));
       await conn.query(
         'UPDATE solicitudes_deshuese SET observaciones = ?, actualizado_por = ? WHERE id = ?',
         [v.observaciones, usuario, req.params.id],

@@ -178,10 +178,30 @@ export default function EditorSolicitud({ fecha, setFecha, canEdit, onSucio, onC
   if (cargando) return <>{filtroFecha}<div className="card"><Cargando texto="Cargando canales del día…" /></div></>;
   if (error) return <>{filtroFecha}<div className="card"><EstadoError mensaje={error} onReintentar={cargar} /></div></>;
 
+  // Canales del día que ya se pidieron en otra solicitud (se corrigió la fecha del sacrificio):
+  // no se proponen aquí; se dice en cuál están para que la corrijan allá.
+  const enOtra = modelo.canales_en_otra || [];
+  const avisoEnOtra = enOtra.length > 0 && (
+    <div className="banner info" role="status">
+      <Info size={18} aria-hidden="true" />
+      <span>
+        {enOtra.length === 1 ? 'Un animal de este día ya está' : `${enOtra.length} animales de este día ya están`} en otra solicitud y no se incluyen aquí:{' '}
+        {enOtra.map((c, i) => (
+          <span key={c.sacrificio_id}>
+            {i > 0 && '; '}
+            {c.arete}: ya en solicitud N.º {c.solicitud.numero} del {fechaCorta(c.solicitud.fecha_sacrificio)} ({ESTADO_SOLICITUD[c.solicitud.estado]?.texto.toLowerCase() || c.solicitud.estado})
+          </span>
+        ))}
+        . Quítelos de allá o corrija la fecha del sacrificio.
+      </span>
+    </div>
+  );
+
   if (!modelo.canales.length) {
     return (
       <>
         {filtroFecha}
+        {avisoEnOtra}
         <div className="card">
           <EstadoVacio
             icono={Warehouse}
@@ -230,6 +250,7 @@ export default function EditorSolicitud({ fecha, setFecha, canEdit, onSucio, onC
             </span>
           </div>
         )}
+        {avisoEnOtra}
         {modelo.canales_quitadas > 0 && (
           <div className="banner info"><Info size={18} aria-hidden="true" /> {modelo.canales_quitadas} canal(es) ya no son de esta fecha (se corrigió el sacrificio) y se quitaron. Guarde para confirmarlo.</div>
         )}

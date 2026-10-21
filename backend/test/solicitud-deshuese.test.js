@@ -123,12 +123,21 @@ test('Excel: encabezado por canal arriba y cortes en filas con las mismas column
 // ── Rutas con pool falso ────────────────────────────────────────────────────
 
 const llamadas = [];
-const estado = { existeFecha: false, estadoSolicitud: 'borrador', sinNumero: false, ocupado: false };
+const estado = { existeFecha: false, estadoSolicitud: 'borrador', sinNumero: false, ocupado: false, enOtra: false, dupCanal: false, deadlocks: 0 };
 
 async function responder(sql, params) {
   llamadas.push({ sql, params });
   const s = sql.trim();
-  if (/^SELECT id FROM solicitudes_deshuese WHERE fecha_sacrificio = \? FOR UPDATE/.test(s)) return [estado.existeFecha ? [{ id: 3 }] : []];
+  if (/^SELECT id FROM solicitudes_deshuese WHERE fecha_sacrificio = \? FOR UPDATE/.test(s)) {
+    if (estado.deadlocks > 0) { estado.deadlocks -= 1; throw Object.assign(new Error('Deadlock found'), { code: 'ER_LOCK_DEADLOCK' }); }
+    return [estado.existeFecha ? [{ id: 3 }] : []];
+  }
+  if (/FROM solicitud_canales sc\s+JOIN solicitudes_deshuese o/.test(s)) {
+    return [estado.enOtra ? [{ sacrificio_id: 6, arete: 'A6', numero: 2, fecha: '2026-10-18', estado: 'deshuesada' }] : []];
+  }
+  if (/^INSERT INTO solicitud_canales/.test(s) && estado.dupCanal) {
+    throw Object.assign(new Error("Duplicate entry '6' for key 'solicitud_canales.uk_sc_sacrificio'"), { code: 'ER_DUP_ENTRY', sqlMessage: "Duplicate entry '6' for key 'solicitud_canales.uk_sc_sacrificio'" });
+  }
   if (/FROM solicitudes_deshuese WHERE id = \? FOR UPDATE/.test(s)) return [[{ id: Number(params[0]), estado: estado.estadoSolicitud, fecha: '2026-10-19' }]];
   if (/AS fecha, s\.peso_canal_caliente/.test(s)) {
     return [params[0].map((id) => ({ id, fecha: '2026-10-19', peso_canal_caliente: '400.00', peso_canal_frio: null, arete: `A${id}` }))];
@@ -178,7 +187,7 @@ test.before(async () => {
 test.after(() => new Promise((ok) => server.close(ok)));
 test.beforeEach(() => {
   llamadas.length = 0;
-  Object.assign(estado, { existeFecha: false, estadoSolicitud: 'borrador', sinNumero: false, ocupado: false });
+  Object.assign(estado, { existeFecha: false, estadoSolicitud: 'borrador', sinNumero: false, ocupado: false, enOtra: false, dupCanal: false, deadlocks: 0 });
 });
 
 const token = (rol) => jwt.sign({ id: 1, rol }, JWT_SECRET, { expiresIn: '5m' });
@@ -252,4 +261,32 @@ test('enviar exige n.º de canal en todas las canales', async () => {
 test('ids no numéricos y fecha inválida → 400', async () => {
   assert.equal((await pedir('GET', '/abc', 'admin')).status, 400);
   assert.equal((await pedir('GET', '/por-fecha?fecha=2026-13-01', 'admin')).status, 400);
+});
+
+test('animal que ya está en otra solicitud → 400 con número, fecha y estado de la otra', async () => {
+  estado.enOtra = true;
+  const r = await pedir('POST', '/', 'admin', cuerpoValido());
+  assert.equal(r.status, 400);
+  assert.match(r.datos.error, /A6 ya está en la solicitud N\.º 2 del 18\/10\/2026 \(deshuesada\)/);
+});
+
+test('PUT excluye la propia solicitud al buscar canales en otra', async () => {
+  const r = await pedir('PUT', '/3', 'admin', cuerpoValido());
+  assert.equal(r.status, 200);
+  const q = llamadas.find((l) => /FROM solicitud_canales sc\s+JOIN solicitudes_deshuese o/.test(l.sql));
+  assert.equal(q.params[1], 3);
+});
+
+test('choque con uk_sc_sacrificio (carrera) → 409 que explica la causa', async () => {
+  estado.dupCanal = true;
+  const r = await pedir('POST', '/', 'admin', cuerpoValido());
+  assert.equal(r.status, 409);
+  assert.match(r.datos.error, /otra solicitud de deshuese/);
+});
+
+test('POST reintenta una vez ante deadlock', async () => {
+  estado.deadlocks = 1;
+  assert.equal((await pedir('POST', '/', 'admin', cuerpoValido())).status, 201);
+  estado.deadlocks = 2;
+  assert.equal((await pedir('POST', '/', 'admin', cuerpoValido())).status, 409);
 });

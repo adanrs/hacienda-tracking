@@ -755,10 +755,20 @@ async function initDB() {
     // que la llave es fecha + número. `fecha` es DATETIME: la columna generada `fecha_dia` deja
     // poner la llave única por DÍA (dos NULL no chocan, así que los sacrificios viejos sin número
     // no estorban). Es lo que el núcleo v10 copiará a `canales` (uk_canal_dia).
-    try { await conn.query(`ALTER TABLE sacrificios ADD COLUMN fecha_dia DATE AS (DATE(fecha)) STORED COMMENT 'Día del sacrificio (para llaves por día)' AFTER fecha`); } catch (e) {}
-    try { await conn.query(`ALTER TABLE sacrificios ADD COLUMN numero_canal VARCHAR(10) NULL COMMENT 'N.º de canal CIISA (consecutivo de sacrificio del día)' AFTER lote_sacrificio`); } catch (e) {}
-    try { await conn.query(`CREATE UNIQUE INDEX uk_sacrificio_canal_dia ON sacrificios (fecha_dia, numero_canal)`); } catch (e) {}
-    try { await conn.query(`ALTER TABLE catalogo_cortes ADD COLUMN namp VARCHAR(20) NULL COMMENT 'Código NAMP (informativo, para la solicitud de deshuese)' AFTER codigo_equivalente`); } catch (e) {}
+    // A diferencia de los ALTER de arriba, aquí no se traga cualquier error: solo «ya existe»
+    // (re-arranque). Si falla otra cosa (p. ej. la versión de MySQL no soporta la columna generada)
+    // queda en el log, porque sin fecha_dia la solicitud de deshuese no funciona.
+    const ignorarSiExiste = async (sql, consecuencia) => {
+      try { await conn.query(sql); } catch (e) {
+        if (['ER_DUP_FIELDNAME', 'ER_DUP_KEYNAME'].includes(e.code)) return;
+        console.error(`[initDB] ${e.code || 'ERROR'}: ${e.message}${consecuencia ? ` — ${consecuencia}` : ''}`);
+      }
+    };
+    const SIN_SOLICITUD = 'la Solicitud de deshuese NO va a funcionar hasta corregirlo';
+    await ignorarSiExiste(`ALTER TABLE sacrificios ADD COLUMN fecha_dia DATE AS (DATE(fecha)) STORED COMMENT 'Día del sacrificio (para llaves por día)' AFTER fecha`, SIN_SOLICITUD);
+    await ignorarSiExiste(`ALTER TABLE sacrificios ADD COLUMN numero_canal VARCHAR(10) NULL COMMENT 'N.º de canal CIISA (consecutivo de sacrificio del día)' AFTER lote_sacrificio`, SIN_SOLICITUD);
+    await ignorarSiExiste(`CREATE UNIQUE INDEX uk_sacrificio_canal_dia ON sacrificios (fecha_dia, numero_canal)`, 'el n.º de canal no quedará único por día');
+    await ignorarSiExiste(`ALTER TABLE catalogo_cortes ADD COLUMN namp VARCHAR(20) NULL COMMENT 'Código NAMP (informativo, para la solicitud de deshuese)' AFTER codigo_equivalente`);
 
     await conn.query(`
       CREATE TABLE IF NOT EXISTS solicitudes_deshuese (
