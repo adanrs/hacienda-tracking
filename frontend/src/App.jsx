@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Routes, Route, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Beef, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Scissors, Slice, Package, Snowflake, Clock, Boxes, FileOutput, FileInput, RotateCcw, Barcode, Utensils, BookOpen, Menu, X, FileSpreadsheet } from 'lucide-react';
+import { LayoutDashboard, Beef, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Scissors, Slice, Package, Snowflake, Clock, Boxes, FileOutput, FileInput, RotateCcw, Barcode, Utensils, BookOpen, Menu, X, FileSpreadsheet, ClipboardList } from 'lucide-react';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { CowWalking } from './components/CowIcon';
 import { Avisos } from './components/ui/avisos';
@@ -31,6 +31,7 @@ import Devoluciones from './pages/Devoluciones';
 import Paqueteria from './pages/Paqueteria';
 import CatalogoCortes from './pages/CatalogoCortes';
 import ReporteProduccion from './pages/ReporteProduccion';
+import SolicitudDeshuese from './pages/SolicitudDeshuese';
 
 // Menú ordenado según el recorrido del producto: Finca → Planta → Bodega y despacho.
 const grupos = [
@@ -54,6 +55,7 @@ const grupos = [
     items: [
       { to: '/transporte', icon: Truck, label: 'Transporte' },
       { to: '/sacrificio', icon: Warehouse, label: 'Sacrificio' },
+      { to: '/solicitud-deshuese', icon: ClipboardList, label: 'Solicitud de deshuese' },
       { to: '/deshuese', icon: Scissors, label: 'Deshuese' },
       { to: '/reporte-produccion', icon: FileSpreadsheet, label: 'Reporte de producción' },
       { to: '/cortes', icon: Slice, label: 'Cortes por animal' },
@@ -222,6 +224,7 @@ function AppLayout() {
           <Route path="/potreros" element={<Potreros />} />
           <Route path="/transporte" element={<Transporte />} />
           <Route path="/sacrificio" element={<Sacrificio />} />
+          <Route path="/solicitud-deshuese" element={<SolicitudDeshuese />} />
           <Route path="/deshuese" element={<Deshuese />} />
           <Route path="/reporte-produccion" element={<ReporteProduccion />} />
           <Route path="/custodia" element={<Custodia />} />

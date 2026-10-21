@@ -61,12 +61,25 @@ const SACRIFICIO_EDITABLES = [
   'resultado_inspeccion', 'lote_sacrificio', 'notas',
   'numero_mag', 'lote_mag', 'tara_kg', 'cuenta', 'ruta',
   'tipo_pasaje', 'musculo', 'denticion', 'encarnada', 'golpe', 'ph_24h', 'temp_24h',
+  'numero_canal',
 ];
 const SACRIFICIO_ENUMS = { resultado_inspeccion: ['aprobado', 'rechazado', 'condicionado'] };
 // Solo las columnas DATETIME pasan por la conversión ISO -> MySQL (antes se aplicaba a
 // cualquier texto, incluidas notas que empezaran con una fecha).
 const SACRIFICIO_FECHAS = new Set(['fecha', 'fecha_marmoleo', 'fecha_colgado']);
-const normalizarSacrificio = (col, v) => (SACRIFICIO_FECHAS.has(col) ? normalizarFechaIso(v) : v);
+// N.º de canal CIISA: '' → NULL (la llave única fecha + número admite varios NULL pero no varios
+// ''; el formulario reenvía la fila completa) y en mayúsculas, como lo guarda la solicitud de deshuese.
+const normalizarNumeroCanal = (v) => {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim().toUpperCase();
+  if (s && !/^[0-9A-Z-]{1,10}$/.test(s)) throw new ErrorCampos('N.º de canal inválido: solo dígitos, letras y guion, hasta 10');
+  return s || null;
+};
+const normalizarSacrificio = (col, v) => {
+  if (SACRIFICIO_FECHAS.has(col)) return normalizarFechaIso(v);
+  if (col === 'numero_canal') return normalizarNumeroCanal(v);
+  return v;
+};
 
 router.put('/:id', async (req, res) => {
   try {
@@ -97,6 +110,7 @@ router.put('/:id', async (req, res) => {
     res.json(rows[0]);
   } catch (err) {
     if (err instanceof ErrorCampos) return res.status(400).json({ error: err.message });
+    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Ese n.º de canal ya lo tiene otro animal sacrificado el mismo día' });
     res.status(500).json({ error: err.message });
   }
 });

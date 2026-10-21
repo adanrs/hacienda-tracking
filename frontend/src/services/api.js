@@ -295,4 +295,16 @@ export const api = {
   getEscaneosProduccion: (params) => request(`/reporte-produccion/escaneos${qs(params)}`),
   escanearProduccion: (data) => request('/reporte-produccion/escaneos', { method: 'POST', body: JSON.stringify(data) }),
   deleteEscaneoProduccion: (id) => request(`/reporte-produccion/escaneos/${id}`, { method: 'DELETE' }),
+
+  // Solicitud de deshuese (lo que se pide a la planta tras cada sacrificio)
+  getSolicitudesDeshuese: () => request('/solicitudes-deshuese'),
+  getSolicitudDeshuesePorFecha: (fecha) => request(`/solicitudes-deshuese/por-fecha${qs({ fecha })}`),
+  getSolicitudDeshuese: (id) => request(`/solicitudes-deshuese/${id}`),
+  crearSolicitudDeshuese: (data) => request('/solicitudes-deshuese', { method: 'POST', body: JSON.stringify(data) }),
+  guardarSolicitudDeshuese: (id, data) => request(`/solicitudes-deshuese/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  enviarSolicitudDeshuese: (id, enviada_a) => request(`/solicitudes-deshuese/${id}/enviar`, { method: 'POST', body: JSON.stringify({ enviada_a }) }),
+  reabrirSolicitudDeshuese: (id) => request(`/solicitudes-deshuese/${id}/reabrir`, { method: 'POST' }),
+  marcarSolicitudDeshuesada: (id) => request(`/solicitudes-deshuese/${id}/deshuesada`, { method: 'POST' }),
+  deleteSolicitudDeshuese: (id) => request(`/solicitudes-deshuese/${id}`, { method: 'DELETE' }),
+  descargarSolicitudDeshuese: (id, nombre) => descargar(`/solicitudes-deshuese/${id}/excel`, nombre),
 };
