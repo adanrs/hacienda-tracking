@@ -8,6 +8,7 @@
 //   sacrificio-wagyu-15-10-26.msg    → el mismo correo como .msg de Outlook (CFB), mínimo
 //   sacrificio-pegado-excel.txt      → la misma tabla copiada de Excel (con tabs)
 //   sacrificio-pegado-gmail.txt      → la tabla copiada como texto plano de Gmail (espacios)
+//   marmoleo-camara-pegado.txt       → tabla de la cámara de canales pegada (tabs, columnas extra)
 
 const path = require('path');
 const fs = require('fs');
@@ -163,15 +164,40 @@ function pegadoGmail() {
     ...SACRIFICIO.map(f => f.join(' '))].join('\n');
 }
 
+// Medición de marmoleo de la cámara (7 filas del 20/08/2026). La última columna «DMf» es la que
+// aparece cortada en la captura y «Operador» una columna extra que no conoce el importador.
+const MARMOLEO = [
+  ['2026-08-20 03:37:54', '5111 17DKF', 21.71, 7.38, '101.00', 6.41, 4, 620, 4, 2],
+  ['2026-08-20 03:35:41', '5110 13NKA', 22.92, 6.55, 84.21, 6.76, 5, 690, 3, 2],
+  ['2026-08-20 03:33:12', '5109 302MLF', 23.28, 6.60, 102.48, 6.87, 5, 700, 3, 3],
+  ['2026-08-20 03:31:05', '5108 185NKZ', 21.02, 5.14, 103.88, 6.20, 4, 660, 3, 1],
+  ['2026-08-20 03:29:30', '5107 31DKA', 24.94, 5.60, 75.36, 7.36, 5, 770, 3, 2],
+  ['2026-08-20 03:27:18', '5106 176FLE', 13.07, 4.41, 92.25, 3.86, 2, 430, 3, 3],
+  ['2026-08-20 03:25:02', '5105 11ELE', 24.37, 5.17, 110.56, 7.19, 5, 730, 3, 2],
+];
+const ENC_MARMOLEO = ['Taken at', 'Barcode no.', 'Body no.', 'DMp (%)', 'NFI-2', 'DMa (cm2)', 'DMs', 'DMs (AUSMEAT)', 'DMs (MSA)', 'DMc', 'DMf', 'Operador'];
+const filasMarmoleo = () => MARMOLEO.map(([t, body, ...r]) => [t, body, body, ...r, 'cam-1']);
+
+function marmoleoTexto() {
+  return [ENC_MARMOLEO, ...filasMarmoleo()].map(f => f.join('\t')).join('\n');
+}
+
+function marmoleoHtml() {
+  return `<table class="grid"><thead><tr>${ENC_MARMOLEO.map(t => `<th>${t}</th>`).join('')}</tr></thead><tbody>
+${filasMarmoleo().map(f => `<tr>${f.map(c => `<td>${c}</td>`).join('')}</tr>`).join('\n')}
+</tbody></table>`;
+}
+
 async function main() {
   await xlsxGanaderoSg();
   fs.writeFileSync(path.join(DIR, 'sacrificio-wagyu-15-10-26.eml'), eml());
   fs.writeFileSync(path.join(DIR, 'sacrificio-wagyu-15-10-26.msg'), msg());
   fs.writeFileSync(path.join(DIR, 'sacrificio-pegado-excel.txt'), pegadoExcel());
   fs.writeFileSync(path.join(DIR, 'sacrificio-pegado-gmail.txt'), pegadoGmail());
+  fs.writeFileSync(path.join(DIR, 'marmoleo-camara-pegado.txt'), marmoleoTexto());
   console.log('Fixtures generados en', DIR);
 }
 
 if (require.main === module) main().catch((e) => { console.error(e); process.exit(1); });
 
-module.exports = { SACRIFICIO, htmlSacrificio, FILAS_CAPTURA };
+module.exports = { SACRIFICIO, htmlSacrificio, FILAS_CAPTURA, MARMOLEO, marmoleoTexto, marmoleoHtml };
