@@ -33,6 +33,7 @@ import CatalogoCortes from './pages/CatalogoCortes';
 import ReporteProduccion from './pages/ReporteProduccion';
 import SolicitudDeshuese from './pages/SolicitudDeshuese';
 import ImportarGanaderoSg from './pages/ImportarGanaderoSg';
+import ImportarSacrificio from './pages/ImportarSacrificio';
 import GuiasTransporte from './pages/GuiasTransporte';
 
 // Menú ordenado según el recorrido del producto: Finca → Planta → Bodega y despacho.
@@ -228,6 +229,7 @@ function AppLayout() {
           <Route path="/potreros" element={<Potreros />} />
           <Route path="/transporte" element={<Transporte />} />
           <Route path="/sacrificio" element={<Sacrificio />} />
+          <Route path="/sacrificio/importar-ciisa" element={<ImportarSacrificio />} />
           <Route path="/guias-transporte" element={<GuiasTransporte />} />
           <Route path="/guias-transporte/:id" element={<GuiasTransporte />} />
           <Route path="/solicitud-deshuese" element={<SolicitudDeshuese />} />

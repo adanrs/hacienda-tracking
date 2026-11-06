@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Edit } from 'lucide-react';
+import { Plus, Edit, Upload } from 'lucide-react';
 import { api } from '../services/api';
 import { aviso } from '../components/ui/avisos';
 import { formatDate } from '../components/DateFormat';
@@ -70,7 +70,10 @@ export default function Sacrificio() {
     <div>
       <div className="page-header">
         <h2>Sacrificio</h2>
-        <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nuevo Sacrificio</button>
+        <div className="rp-acciones">
+          <Link to="/sacrificio/importar-ciisa" className="btn btn-secondary"><Upload size={16} aria-hidden="true" /> Importar correo de CIISA</Link>
+          <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nuevo Sacrificio</button>
+        </div>
       </div>
 
       <div className="card">
