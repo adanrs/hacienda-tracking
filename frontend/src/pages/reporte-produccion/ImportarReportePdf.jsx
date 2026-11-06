@@ -75,7 +75,7 @@ export default function ImportarReportePdf({ canEdit, onAplicado }) {
   const confirmarReemplazo = async (f) => {
     const ok = await confirmar({ titulo: `¿Reemplazar el arete del lote ${f.num_lote}?`, mensaje: `Estaba cargado ${f.cambio_arete.antes}; quedará ${f.cambio_arete.despues}. El cambio va al reporte de discrepancias.`, textoConfirmar: 'Reemplazar' });
     if (!ok) return;
-    const n = { ...reemplazos, [f.num_lote]: true };
+    const n = { ...reemplazos, [f.clave_lote]: true }; // llave fecha|lote CC (ver el procesador)
     setReemplazos(n);
     imp.replanificar({ reemplazar_arete: n });
   };
@@ -126,7 +126,7 @@ export default function ImportarReportePdf({ canEdit, onAplicado }) {
             </span>
           );
         }
-        if (f.cambio_arete && !reemplazos[f.num_lote] && canEdit) {
+        if (f.cambio_arete && !reemplazos[f.clave_lote] && canEdit) {
           return (
             <span className="imp-correccion">
               <s title="Arete que ya estaba cargado">{f.cambio_arete.antes}</s>{' → '}<strong>{f.cambio_arete.despues}</strong>

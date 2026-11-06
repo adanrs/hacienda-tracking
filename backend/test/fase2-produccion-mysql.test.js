@@ -174,7 +174,7 @@ test('MySQL real: fase 2 (reporte de producción, catálogo, trazabilidad, lotes
   plan = await motor.planificar(pool, 'reporte-produccion-ciisa', soloL2, { mapa: MAPA });
   assert.equal(plan.filas[0].accion, 'error');
   assert.deepEqual(plan.filas[0].cambio_arete, { antes: 'F2X009', despues: 'F2A225' });
-  plan = await motor.planificar(pool, 'reporte-produccion-ciisa', soloL2, { mapa: MAPA, reemplazar_arete: { 2: true } });
+  plan = await motor.planificar(pool, 'reporte-produccion-ciisa', soloL2, { mapa: MAPA, reemplazar_arete: { '2026-10-19|2': true } });
   assert.equal(plan.filas[0].accion, 'nuevo');
   assert.ok(plan.discrepancias.some((d) => /estaba cargado con F2X009/.test(d)));
 
@@ -206,4 +206,12 @@ test('MySQL real: fase 2 (reporte de producción, catálogo, trazabilidad, lotes
   assert.equal(rh.resultado.resumen.solicitudes, 1);
   const [lom] = await pool.query("SELECT DISTINCT corte_informado FROM solicitud_lineas WHERE solicitud_id = (SELECT id FROM solicitudes_deshuese WHERE fecha_sacrificio = ?) AND corte_codigo = '22101' ORDER BY corte_informado", [FECHA_SACR]);
   assert.deepEqual(lom.map((x) => x.corte_informado), ['Lomito', 'Lomito (Cabeza)']);
+  // Idempotencia: volver a aplicar la misma hoja no crea otra solicitud ni más líneas.
+  const [[antes]] = await pool.query('SELECT COUNT(*) AS n FROM solicitud_lineas');
+  const ph2 = await motor.planificar(pool, 'solicitud-deshuese-excel', entradaReal, {});
+  assert.equal(ph2.filas[0].accion, 'error');
+  assert.match(ph2.filas[0].errores.join(' '), /Ya existe la solicitud/);
+  await assert.rejects(motor.aplicar(pool, 'solicitud-deshuese-excel', entradaReal, {}, { usuarioId, huella: ph2.huella }), (e) => e.status === 400);
+  const [[despues]] = await pool.query('SELECT COUNT(*) AS n FROM solicitud_lineas');
+  assert.equal(despues.n, antes.n);
 });

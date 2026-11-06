@@ -250,8 +250,11 @@ async function planificar(conn, _tabla, opciones = {}, { lectura }) {
     // Arete ya cargado para este lote y fecha.
     const mapeo = mapeosPrevios.find((m) => m.fecha === r.fecha && Number(m.lote_cc) === Number(r.lote_cc));
     if (mapeo && f.arete && claveArete(mapeo.arete) !== claveArete(f.arete)) {
+      // La confirmación es por fecha + Lote CC (la misma llave del arete cargado): dos PDF con el mismo
+      // Num. Lote en fechas distintas no se confirman juntos.
+      f.clave_lote = `${r.fecha}|${r.lote_cc}`;
       f.cambio_arete = { antes: mapeo.arete, despues: f.arete };
-      if (reemplazarArete[r.num_lote]) {
+      if (reemplazarArete[f.clave_lote]) {
         f.avisos.push(`Se reemplaza el arete ${mapeo.arete} que ya estaba cargado para este lote por ${f.arete} (confirmado)`);
         discrepancias.push(`Lote ${r.num_lote} del ${fechaTexto(r.fecha)}: estaba cargado con ${mapeo.arete} y se cambió a ${f.arete}.`);
       } else {
