@@ -183,7 +183,8 @@ async function leerPdf(buffer) {
   let r;
   try { r = await pdf(buffer); } catch (_) { throw new ErrorArchivo('No se pudo leer el PDF'); }
   const texto = String(r.text || '');
-  if (!texto.trim()) throw new ErrorArchivo('El PDF no trae texto (parece una imagen escaneada): pegue el texto o espere la lectura por foto');
+  // PDF escaneado (sin capa de texto): no es un error del usuario, va por la lectura por foto (visión).
+  if (texto.replace(/\s+/g, '').length < 20) throw Object.assign(new ErrorArchivo('El PDF no trae texto (parece una imagen escaneada): use «Leer por foto» para transcribirlo'), { codigo: 'sin_texto' });
   return { ...desdeTexto(texto), texto };
 }
 

@@ -23,7 +23,8 @@ const MAX_ARCHIVO = 5 * 1024 * 1024; // un reporte de hato o un correo con su ta
 const MAX_PEGADO = 2 * 1024 * 1024;
 const FORMATO_VALIDO = /^[a-z0-9-]{1,40}$/;
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_ARCHIVO, files: 1, fields: 10, fieldSize: MAX_PEGADO } });
+// Hasta 40 archivos: los formatos de «documentos» (reporte de producción) suben varios PDF a la vez.
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_ARCHIVO, files: 40, fields: 10, fieldSize: MAX_PEGADO } });
 
 const envolver = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((err) => {
   if (err instanceof motor.ErrorImportacion) return res.status(err.status).json({ error: err.message, ...err.extra });
@@ -34,9 +35,10 @@ const envolver = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((err)
 // multer solo si el pedido es multipart; con JSON (texto pegado) pasa directo.
 const archivoOpcional = (req, res, next) => {
   if (!req.is('multipart/form-data')) return next();
-  upload.single('archivo')(req, res, (err) => {
+  upload.fields([{ name: 'archivo', maxCount: 1 }, { name: 'archivos', maxCount: 40 }])(req, res, (err) => {
     if (!err) return next();
-    const mensaje = err.code === 'LIMIT_FILE_SIZE' ? 'El archivo pesa más de 5 MB' : 'No se pudo recibir el archivo';
+    const mensaje = err.code === 'LIMIT_FILE_SIZE' ? 'El archivo pesa más de 5 MB'
+      : ['LIMIT_FILE_COUNT', 'LIMIT_UNEXPECTED_FILE'].includes(err.code) ? 'Demasiados archivos (máximo 40)' : 'No se pudo recibir el archivo';
     res.status(400).json({ error: mensaje });
   });
 };
@@ -57,9 +59,18 @@ function leerPedido(req) {
   const body = req.body || {};
   const opciones = jsonCampo(body.opciones, 'opciones');
   let entrada;
-  if (req.file && req.file.buffer && req.file.buffer.length) {
-    const nombre = String(req.file.originalname || 'archivo').replace(/[\u0000-\u001f]/g, '').slice(0, 255);
-    entrada = { archivo: { buffer: req.file.buffer, nombre } };
+  const limpioNombre = (f) => String(f.originalname || 'archivo').replace(/[\u0000-\u001f]/g, '').slice(0, 255);
+  const unico = req.files && req.files.archivo && req.files.archivo[0];
+  const varios = (req.files && req.files.archivos) || [];
+  if (varios.length) {
+    // Varios documentos, más el texto pegado opcional de la misma tanda.
+    const pegadoExtra = jsonCampo(body.pegado, 'pegado');
+    entrada = {
+      archivos: varios.filter(f => f.buffer && f.buffer.length).map(f => ({ buffer: f.buffer, nombre: limpioNombre(f) })),
+      pegado: typeof pegadoExtra.texto === 'string' && pegadoExtra.texto.length <= MAX_PEGADO ? { texto: pegadoExtra.texto } : null,
+    };
+  } else if (unico && unico.buffer && unico.buffer.length) {
+    entrada = { archivo: { buffer: unico.buffer, nombre: limpioNombre(unico) } };
   } else {
     const pegado = jsonCampo(body.pegado, 'pegado');
     const html = typeof pegado.html === 'string' ? pegado.html : '';

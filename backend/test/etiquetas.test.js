@@ -189,7 +189,7 @@ test('real · primal ZAMU «BCH CARNES ROJAS» (foto 3B054C58…)', () => {
   assert.deepEqual(r.errores, []);
   assert.equal(r.campos.codigoProducto, '22229');
   assert.equal(r.campos.serie, 'ARREO');
-  assert.equal(r.campos.producto, 'BCH carnes rojas (CH-Chuck)');
+  assert.equal(r.campos.producto, 'CH-Chuck res (BCH carnes rojas)');
   assert.equal(r.campos.box, '11132');
   assert.equal(r.campos.pesoKg, 27.22);
   assert.equal(r.campos.fechaEmpaque, '2023-12-07'); // MMDDAA: DEC-07-2023
@@ -207,7 +207,9 @@ test('real · caja master «SERV. MAN. RIBEYE STEAK» (foto 3B0B1A24…)', () =>
   const r = decodificar('2661300599XXX231225003111');
   assert.equal(r.tipo, 'caja');
   assert.deepEqual(r.errores, []);
-  assert.deepEqual(r.advertencias, []);
+  // «XXX» = trazabilidad perdida (dueño, 05-nov): advertencia, no error.
+  assert.deepEqual(r.advertencias.map((a) => a.codigo), ['sin_trazabilidad']);
+  assert.equal(r.campos.trazabilidad, 'sin_trazabilidad');
   assert.equal(r.campos.codigoProducto, '26613');
   assert.equal(r.campos.serie, 'F1');
   assert.equal(r.campos.producto, 'Ribeye Steak');
@@ -231,6 +233,7 @@ test('real · caja master «Torta de Hamburguesa Gourmet» (foto 3BA301BC…)', 
   assert.equal(r.campos.producto, 'Tortas gourmet');
   assert.equal(r.campos.pesoKg, 13.21);
   assert.equal(r.campos.fecha, '2025-01-29'); // vence 29/01/2026 = fecha + 12 meses (congelado)
+  assert.equal(r.campos.fechaVencimiento, '2026-01-29'); // «Consumir antes de 29/01/2026» impreso
   assert.equal(r.campos.loteDeshuese, 39);
   assert.equal(r.campos.loteLegible, '2901250039');
   assert.equal(r.campos.sufijo, '11');

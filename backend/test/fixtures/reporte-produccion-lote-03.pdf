@@ -1,0 +1,66 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 800 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 1362 >>
+stream
+BT /F1 14 Tf 80 800 Td (REPORTE DIARIO DE PRODUCCION) Tj ET
+BT /F1 9 Tf 10 775 Td (Fecha de Produccion:) Tj ET
+BT /F1 9 Tf 260 778 Td (19/10/26) Tj ET
+BT /F1 9 Tf 15 740 Td (Num. Lote) Tj ET
+BT /F1 9 Tf 120 740 Td (3) Tj ET
+BT /F1 9 Tf 215 740 Td (Tipo Produccion:) Tj ET
+BT /F1 9 Tf 380 740 Td (TEMPISQUE) Tj ET
+BT /F1 9 Tf 17 728 Td (Lote CC) Tj ET
+BT /F1 9 Tf 120 728 Td (03) Tj ET
+BT /F1 9 Tf 10 712 Td (Articulo) Tj ET
+BT /F1 9 Tf 520 712 Td (Peso) Tj ET
+BT /F1 9 Tf 585 712 Td (Unidad) Tj ET
+BT /F1 9 Tf 700 712 Td (Cajas) Tj ET
+BT /F1 9 Tf 10 700 Td (11163) Tj ET
+BT /F1 9 Tf 75 700 Td (BEEF TRIMMINGS) Tj ET
+BT /F1 9 Tf 530 700 Td (20.00) Tj ET
+BT /F1 9 Tf 600 700 Td (KGS) Tj ET
+BT /F1 9 Tf 705 700 Td (1) Tj ET
+BT /F1 9 Tf 10 688 Td (21231) Tj ET
+BT /F1 9 Tf 75 688 Td (DELMONICO) Tj ET
+BT /F1 9 Tf 530 688 Td (18.50) Tj ET
+BT /F1 9 Tf 600 688 Td (KGS) Tj ET
+BT /F1 9 Tf 705 688 Td (1) Tj ET
+BT /F1 9 Tf 10 676 Td (22229) Tj ET
+BT /F1 9 Tf 75 676 Td (CH-CHUCK RES) Tj ET
+BT /F1 9 Tf 530 676 Td (120.00) Tj ET
+BT /F1 9 Tf 600 676 Td (KGS) Tj ET
+BT /F1 9 Tf 705 676 Td (4) Tj ET
+BT /F1 9 Tf 10 634 Td (Total de Cajas por el Lote #) Tj ET
+BT /F1 9 Tf 245 634 Td (3) Tj ET
+BT /F1 9 Tf 305 634 Td (Libras) Tj ET
+BT /F1 9 Tf 375 634 Td (349.43) Tj ET
+BT /F1 9 Tf 485 634 Td (Kilos) Tj ET
+BT /F1 9 Tf 600 634 Td (158.50) Tj ET
+BT /F1 9 Tf 700 634 Td (6) Tj ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000001655 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1723
+%%EOF
