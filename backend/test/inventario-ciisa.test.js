@@ -159,6 +159,28 @@ test('plan (conn falso): ambos libros completos con advertencias, sin errores', 
   assert.equal(malaFecha.errores_generales.length, 1);
 });
 
+test('aplicar: carga simultánea del mismo contenido (llave duplicada) = ya cargado, sin 500', async () => {
+  const llamadas = [];
+  const conn = {
+    async query(sql, params = []) {
+      llamadas.push(sql);
+      if (/^INSERT INTO inventario_planta_cargas/.test(sql.trim())) throw Object.assign(new Error('Duplicate entry'), { code: 'ER_DUP_ENTRY' });
+      if (/SELECT id FROM inventario_planta_cargas WHERE contenido_sha256 = \?/.test(sql)) return [[{ id: 42, sha: params[0] }]];
+      throw new Error(`SQL no esperado: ${sql.slice(0, 60)}`);
+    },
+  };
+  const bitacora = [];
+  const plan = { carga_existente: null, filas: [{ accion: 'nuevo' }], fecha_inventario: null, archivo_nombre: 'x.xlsx', contenido: 'abc',
+    totales: {}, hojas_leidas: [], codigos_fuera_catalogo: [], vencido_referencia: '2026-11-05' };
+  const r = await inv.aplicar(conn, plan, { importacionId: 1, usuarioId: null, registrar: (...a) => bitacora.push(a) });
+  assert.deepEqual(r.resumen, { carga_id: 42, ya_cargado: true, lineas: 0 });
+  assert.equal(bitacora[0][3], 'sin_cambios');
+  assert.ok(!llamadas.some((q) => /inventario_planta_lineas/.test(q)), 'no inserta líneas');
+  // Cualquier otro error sigue subiendo.
+  const roto = { async query() { throw Object.assign(new Error('x'), { code: 'ER_LOCK_DEADLOCK' }); } };
+  await assert.rejects(inv.aplicar(roto, plan, { importacionId: 1, registrar: () => {} }), /x/);
+});
+
 test('MySQL real: aplicar los dos snapshots, re-aplicar no duplica, consulta y comparación', { skip: !HOST && 'sin TEST_MYSQL_HOST: prueba de MySQL real omitida' }, async (t) => {
   const { pool, initDB } = require('../src/models/database');
   t.after(() => pool.end());

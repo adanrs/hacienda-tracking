@@ -497,11 +497,23 @@ async function aplicar(conn, plan, { importacionId, usuarioId, registrar }) {
     return { resumen: { carga_id: plan.carga_existente.id, ya_cargado: true, lineas: 0 } };
   }
   const validas = plan.filas.filter((f) => f.accion === 'nuevo');
-  const [ins] = await conn.query(
-    `INSERT INTO inventario_planta_cargas (fecha_inventario, archivo, contenido_sha256, quien, importacion_id, resumen)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [plan.fecha_inventario, plan.archivo_nombre, plan.contenido, usuarioId || null, importacionId,
-      JSON.stringify({ totales: plan.totales, hojas: plan.hojas_leidas, fuera_catalogo: plan.codigos_fuera_catalogo.length, vencido_referencia: plan.vencido_referencia })]);
+  let ins;
+  try {
+    [ins] = await conn.query(
+      `INSERT INTO inventario_planta_cargas (fecha_inventario, archivo, contenido_sha256, quien, importacion_id, resumen)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [plan.fecha_inventario, plan.archivo_nombre, plan.contenido, usuarioId || null, importacionId,
+        JSON.stringify({ totales: plan.totales, hojas: plan.hojas_leidas, fuera_catalogo: plan.codigos_fuera_catalogo.length, vencido_referencia: plan.vencido_referencia })]);
+  } catch (e) {
+    // Dos «aplicar» del mismo inventario a la vez: el otro ya guardó el snapshot (llave única del
+    // contenido). No es un error para el usuario: el inventario quedó cargado una sola vez. En InnoDB
+    // la llave duplicada revierte solo esta sentencia, así que la transacción sigue sana.
+    if (!e || e.code !== 'ER_DUP_ENTRY') throw e;
+    const [[otra]] = await conn.query('SELECT id FROM inventario_planta_cargas WHERE contenido_sha256 = ?', [plan.contenido]);
+    if (!otra) throw e;
+    registrar(null, 'inventario_planta_carga', otra.id, 'sin_cambios', { motivo: 'Otra carga simultánea guardó el mismo inventario' });
+    return { resumen: { carga_id: otra.id, ya_cargado: true, lineas: 0 } };
+  }
   const cargaId = ins.insertId;
   const filas = validas.map((f) => [cargaId, f.hoja, f.fila_hoja, f.tarima, f.linea, f.codigo_barras, f.codigo, f.descripcion, f.caja,
     f.peso, f.medida, f.lote, f.fecha_vencimiento, f.vencido ? 1 : 0, f.despacho, f.fecha_despacho, f.pedido_por, f.orden, f.estatus,
