@@ -13,6 +13,14 @@ const { pool } = require('../models/database');
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_FILAS = 200;
+const FECHA_HORA = /^(\d{4})-(\d{2})-(\d{2})( ([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?)?$/;
+
+function fechaHoraValida(v) {
+  const m = FECHA_HORA.exec(String(v));
+  if (!m) return false;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return d.getUTCFullYear() === +m[1] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3];
+}
 
 router.get('/fechas', async (req, res) => {
   try {
@@ -41,7 +49,11 @@ router.put('/', async (req, res) => {
   const { mediciones, fecha_marmoleo } = req.body || {};
   if (!Array.isArray(mediciones) || !mediciones.length) return res.status(400).json({ error: 'Envíe al menos una medición' });
   if (mediciones.length > MAX_FILAS) return res.status(400).json({ error: `Máximo ${MAX_FILAS} canales por envío` });
-  if (fecha_marmoleo != null && fecha_marmoleo !== '' && !FECHA.test(String(fecha_marmoleo).slice(0, 10))) return res.status(400).json({ error: 'fecha_marmoleo inválida' });
+  // Se valida el valor COMPLETO (antes solo los 10 primeros caracteres: «2026-08-20xyz» llegaba a
+  // MySQL y respondía 500) y que la fecha exista (no 2026-13-45).
+  if (fecha_marmoleo != null && fecha_marmoleo !== '' && !fechaHoraValida(fecha_marmoleo)) {
+    return res.status(400).json({ error: 'fecha_marmoleo inválida: use AAAA-MM-DD o AAAA-MM-DD HH:MM[:SS]' });
+  }
   const errores = [];
   const limpias = [];
   for (const [i, m] of mediciones.entries()) {
@@ -77,4 +89,5 @@ router.put('/', async (req, res) => {
   } finally { conn.release(); }
 });
 
+router.fechaHoraValida = fechaHoraValida; // para las pruebas
 module.exports = router;
