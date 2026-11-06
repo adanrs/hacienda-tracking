@@ -1,11 +1,13 @@
 // Utilidades de la Solicitud de deshuese.
-import { FilePen, Send, CircleCheck } from 'lucide-react';
+import { FilePen, Send, CircleCheck, FileCheck2 } from 'lucide-react';
 
 // Estado: color + ícono + texto (nunca solo color).
 export const ESTADO_SOLICITUD = {
   borrador: { texto: 'Borrador', badge: 'badge-gray', Icono: FilePen },
   enviada: { texto: 'Enviada', badge: 'badge-blue', Icono: Send },
   deshuesada: { texto: 'Deshuesada', badge: 'badge-green', Icono: CircleCheck },
+  // Todas sus canales ya tienen reporte de producción (lo pone la importación del reporte).
+  con_reporte: { texto: 'Con reporte', badge: 'badge-purple', Icono: FileCheck2 },
 };
 
 export const SEXO = { macho: 'Macho', hembra: 'Hembra' };

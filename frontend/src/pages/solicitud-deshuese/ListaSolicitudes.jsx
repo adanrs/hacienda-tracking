@@ -69,7 +69,7 @@ export default function ListaSolicitudes({ onAbrir }) {
                   <td>
                     <div className="rp-acciones">
                       <Boton tamano="sm" icono={FolderOpen} onClick={() => onAbrir(s.fecha_sacrificio)}>Abrir</Boton>
-                      <Boton tamano="sm" icono={Download} cargando={descargando === s.id} onClick={() => descargar(s)}>Excel</Boton>
+                      <Boton tamano="sm" icono={Download} cargando={descargando === s.id} onClick={() => descargar(s)} aria-label={`Descargar Excel para la planta de la solicitud ${s.numero}`}>Excel para la planta</Boton>
                     </div>
                   </td>
                 </tr>

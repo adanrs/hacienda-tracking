@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { FileSpreadsheet, ScanLine, Upload, Tag } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { FileSpreadsheet, ScanLine, Upload, Tag, Beef, FileUp, Scissors, Slice } from 'lucide-react';
 import { api } from '../services/api';
 import { aviso } from '../components/ui/avisos';
 import { useAuth } from '../components/AuthContext';
@@ -8,23 +9,38 @@ import CargaCiisa from './reporte-produccion/CargaCiisa';
 import EscaneoDeshuese from './reporte-produccion/EscaneoDeshuese';
 import TablaAretes from './reporte-produccion/TablaAretes';
 import { hoyIso } from './reporte-produccion/util';
+import PorAnimal from './reporte-produccion/PorAnimal';
+import ImportarReportePdf from './reporte-produccion/ImportarReportePdf';
+import Deshuese from './Deshuese';
+import Cortes from './Cortes';
 
 /*
-  Reporte Diario de Producción (formato CIISA) con dos fuentes y su conciliación:
+  Pantalla única «Reporte de producción» (fase 2): fusiona las pantallas viejas «Deshuese» y «Cortes
+  por animal», cuyas rutas (/deshuese, /cortes) redirigen aquí a su pestaña con los datos históricos.
+    - «Por animal» (principal): un reporte de CIISA por animal, con rendimiento y trazabilidad.
+    - «Importar PDF»: varios PDF + la lista lote → arete, con vista previa (motor de importación).
+    - «Del día» y el resto: el Reporte Diario de Producción con dos fuentes y su conciliación:
     - lo que se escanea en la app (etiquetas de deshuese: caja o primal), y
     - lo que declara CIISA en su reporte (Excel/CSV, pegado o capturado a mano),
   más la tabla posición → arete del día. La pestaña «Reporte» las cruza por lote CC y artículo.
 */
 const PESTANAS = [
-  { id: 'reporte', texto: 'Reporte', Icono: FileSpreadsheet },
+  { id: 'animales', texto: 'Por animal', Icono: Beef },
+  { id: 'importar', texto: 'Importar PDF', Icono: FileUp },
+  { id: 'reporte', texto: 'Del día', Icono: FileSpreadsheet },
   { id: 'escanear', texto: 'Escanear etiquetas', Icono: ScanLine },
-  { id: 'cargar', texto: 'Cargar reporte CIISA', Icono: Upload },
+  { id: 'cargar', texto: 'Captura manual', Icono: Upload },
   { id: 'aretes', texto: 'Aretes por posición', Icono: Tag },
+  { id: 'deshuese', texto: 'Deshuese (histórico)', Icono: Scissors },
+  { id: 'cortes', texto: 'Cortes (histórico)', Icono: Slice },
 ];
+const IDS = PESTANAS.map(p => p.id);
 
 export default function ReporteProduccion() {
   const { canEdit } = useAuth();
-  const [tab, setTab] = useState('reporte');
+  const [params, setParams] = useSearchParams();
+  const tab = IDS.includes(params.get('pestana')) ? params.get('pestana') : 'animales';
+  const setTab = (t) => setParams(t === 'animales' ? {} : { pestana: t }, { replace: true });
   const [fecha, setFechaCruda] = useState(hoyIso());
   const [dias, setDias] = useState([]);
   const [edicion, setEdicion] = useState(null);
@@ -59,7 +75,7 @@ export default function ReporteProduccion() {
     if (irAlReporte) setTab('reporte');
   };
 
-  const visibles = PESTANAS.filter(p => canEdit || p.id !== 'cargar');
+  const visibles = PESTANAS.filter(p => canEdit || !['cargar', 'importar'].includes(p.id));
 
   return (
     <div>
@@ -85,6 +101,10 @@ export default function ReporteProduccion() {
       </div>
 
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
+        {tab === 'animales' && <PorAnimal key={version} irA={setTab} />}
+        {tab === 'importar' && canEdit && <ImportarReportePdf canEdit={canEdit} onAplicado={() => { cargarDias(); setVersion(v => v + 1); }} />}
+        {tab === 'deshuese' && <Deshuese />}
+        {tab === 'cortes' && <Cortes />}
         {tab === 'reporte' && (
           <VistaReporte key={version} fecha={fecha} setFecha={setFecha} dias={dias} canEdit={canEdit} onCorregir={corregir} irA={setTab} />
         )}

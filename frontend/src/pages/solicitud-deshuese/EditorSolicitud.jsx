@@ -460,7 +460,7 @@ export default function EditorSolicitud({ fecha, setFecha, canEdit, onSucio, onC
             </>
           )}
           {(sol || editable) && (
-            <Boton icono={Download} cargando={ocupado === 'excel'} disabled={Boolean(ocupado)} onClick={descargar}>Descargar Excel</Boton>
+            <Boton icono={Download} cargando={ocupado === 'excel'} disabled={Boolean(ocupado)} onClick={descargar}>Descargar Excel para la planta</Boton>
           )}
           {canEdit && sol?.estado === 'enviada' && (
             <>

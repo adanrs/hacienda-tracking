@@ -17,6 +17,9 @@ services:
       # Integración con la tienda (docs/integracion-tienda/README.md). Sin secreto → 503.
       - INTEGRACION_TIENDA_MODO=${INTEGRACION_TIENDA_MODO:-apagado}
       - INTEGRACION_TIENDA_SECRETO=${INTEGRACION_TIENDA_SECRETO:-}
+      # Lectura por foto (backend/src/lib/vision.js). Sin URL o sin token → «Lectura por foto no disponible».
+      - KIWI_VISION_URL=${KIWI_VISION_URL:-}
+      - KIWI_VISION_TOKEN=${KIWI_VISION_TOKEN:-}
     command: ["npm", "start"]
     restart: always
 

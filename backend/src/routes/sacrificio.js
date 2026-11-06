@@ -18,6 +18,33 @@ router.get('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── Selección múltiple ────────────────────────────────────────────────────
+// (Va antes de /:id: si no, Express toma «propuesta» como :id y idsNumericos responde 400.)
+// GET /api/sacrificio/propuesta?fecha=AAAA-MM-DD → animales de las guías de transporte (o transportes
+// sueltos) que salieron hasta 7 días antes de esa fecha y todavía NO tienen sacrificio. Es la lista que
+// la pantalla propone para llenar la tabla editable.
+router.get('/propuesta', async (req, res) => {
+  const fecha = String(req.query.fecha || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return res.status(400).json({ error: 'fecha debe ser AAAA-MM-DD' });
+  try {
+    const [rows] = await pool.query(
+      `SELECT a.id AS animal_id, a.numero_trazabilidad, a.identificacion_electronica, a.sexo, a.finca, p.nombre AS potrero_nombre,
+              MAX(COALESCE(gta.peso_salida_kg, t.peso_pie_finca)) AS peso_salida_kg,
+              MAX(g.numero) AS guia_numero, MAX(DATE_FORMAT(COALESCE(g.fecha_salida, t.fecha_salida), '%Y-%m-%d')) AS fecha_salida
+       FROM animales a
+       LEFT JOIN potreros p ON p.id = a.potrero_id
+       LEFT JOIN guia_transporte_animales gta ON gta.animal_id = a.id
+       LEFT JOIN guias_transporte g ON g.id = gta.guia_id AND g.estado <> 'anulada'
+       LEFT JOIN transporte t ON t.animal_id = a.id AND t.estado <> 'cancelado'
+       WHERE NOT EXISTS (SELECT 1 FROM sacrificios s WHERE s.animal_id = a.id)
+         AND (g.fecha_salida BETWEEN DATE_SUB(?, INTERVAL 7 DAY) AND ? OR DATE(t.fecha_salida) BETWEEN DATE_SUB(?, INTERVAL 7 DAY) AND ?)
+       GROUP BY a.id, a.numero_trazabilidad, a.identificacion_electronica, a.sexo, a.finca, p.nombre
+       ORDER BY a.numero_trazabilidad
+       LIMIT 500`, [fecha, fecha, fecha, fecha]);
+    res.json(rows.map((r) => ({ ...r, peso_salida_kg: r.peso_salida_kg == null ? null : Number(r.peso_salida_kg) })));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.get('/:id', async (req, res) => {
   try {
     const [rows] = await pool.query(`
@@ -52,32 +79,6 @@ router.post('/', async (req, res) => {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Este animal ya tiene un registro de sacrificio' });
     res.status(500).json({ error: err.message });
   } finally { conn.release(); }
-});
-
-// ── Selección múltiple ────────────────────────────────────────────────────
-// GET /api/sacrificio/propuesta?fecha=AAAA-MM-DD → animales de las guías de transporte (o transportes
-// sueltos) que salieron hasta 7 días antes de esa fecha y todavía NO tienen sacrificio. Es la lista que
-// la pantalla propone para llenar la tabla editable.
-router.get('/propuesta', async (req, res) => {
-  const fecha = String(req.query.fecha || '');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return res.status(400).json({ error: 'fecha debe ser AAAA-MM-DD' });
-  try {
-    const [rows] = await pool.query(
-      `SELECT a.id AS animal_id, a.numero_trazabilidad, a.identificacion_electronica, a.sexo, a.finca, p.nombre AS potrero_nombre,
-              MAX(COALESCE(gta.peso_salida_kg, t.peso_pie_finca)) AS peso_salida_kg,
-              MAX(g.numero) AS guia_numero, MAX(DATE_FORMAT(COALESCE(g.fecha_salida, t.fecha_salida), '%Y-%m-%d')) AS fecha_salida
-       FROM animales a
-       LEFT JOIN potreros p ON p.id = a.potrero_id
-       LEFT JOIN guia_transporte_animales gta ON gta.animal_id = a.id
-       LEFT JOIN guias_transporte g ON g.id = gta.guia_id AND g.estado <> 'anulada'
-       LEFT JOIN transporte t ON t.animal_id = a.id AND t.estado <> 'cancelado'
-       WHERE NOT EXISTS (SELECT 1 FROM sacrificios s WHERE s.animal_id = a.id)
-         AND (g.fecha_salida BETWEEN DATE_SUB(?, INTERVAL 7 DAY) AND ? OR DATE(t.fecha_salida) BETWEEN DATE_SUB(?, INTERVAL 7 DAY) AND ?)
-       GROUP BY a.id, a.numero_trazabilidad, a.identificacion_electronica, a.sexo, a.finca, p.nombre
-       ORDER BY a.numero_trazabilidad
-       LIMIT 500`, [fecha, fecha, fecha, fecha]);
-    res.json(rows.map((r) => ({ ...r, peso_salida_kg: r.peso_salida_kg == null ? null : Number(r.peso_salida_kg) })));
-  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // POST /api/sacrificio/lote { fecha, filas: [{ animal_id, peso_vivo, peso_canal_caliente, numero_canal,
