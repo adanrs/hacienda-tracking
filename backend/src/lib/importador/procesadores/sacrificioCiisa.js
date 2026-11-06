@@ -215,7 +215,7 @@ async function planificar(conn, tabla, opciones = {}) {
 }
 
 function textoReporte(fecha, discrepancias, filas) {
-  const lineas = [`Sacrificio Wagyu ${fechaTexto(fecha)} — revisión contra la guía de transporte (Wagyu Cross)`, ''];
+  const lineas = [`Sacrificio Wagyu ${fechaTexto(fecha)} — revisión contra la guía de transporte (Hacienda Tempisque)`, ''];
   if (!discrepancias.length) lineas.push('Sin diferencias: todos los aretes, sexos y rendimientos coinciden con la guía.');
   else { lineas.push('Diferencias encontradas:'); for (const d of discrepancias) lineas.push(`- ${d}`); }
   const ok = filas.filter(f => f.accion !== 'error').length;

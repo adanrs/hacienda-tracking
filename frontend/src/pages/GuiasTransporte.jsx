@@ -116,7 +116,7 @@ function DetalleGuia({ id }) {
         <div className="guia-encabezado">
           <div>
             <h3 style={{ margin: 0 }}>Guía de transporte de ganado {guia.numero}</h3>
-            <div className="rp-tenue">Wagyu Cross · trazabilidad</div>
+            <div className="rp-tenue">Hacienda Tempisque · trazabilidad</div>
           </div>
           <span className={`badge ${CLASE_ESTADO[guia.estado]}`}>{ESTADOS[guia.estado]}</span>
         </div>

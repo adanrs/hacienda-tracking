@@ -127,7 +127,7 @@ function AppLayout() {
   // Al cambiar de pantalla: cerrar el menú y actualizar el título de la pestaña.
   useEffect(() => {
     setNavAbierta(false);
-    document.title = pagina ? `${pagina} · Trazabilidad` : 'Trazabilidad · Hacienda Tempisque';
+    document.title = pagina ? `${pagina} · Hacienda Tempisque` : 'Trazabilidad · Hacienda Tempisque';
   }, [location.pathname, pagina]);
 
   // Menú abierto en tablet/celular: foco al primer enlace y Escape para cerrar.

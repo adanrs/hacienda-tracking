@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Trazabilidad Wagyu — hoja de estilos base
+   Trazabilidad Hacienda Tempisque — hoja de estilos base
    La referencia de cada token y componente está en frontend/DESIGN.md.
    1. Tokens de diseño (colores, tipografía, espacios, radios, sombras)
    2. Base y accesibilidad (foco visible, sr-only, salto al contenido)
@@ -13,7 +13,8 @@
 
 /* 1. Tokens ---------------------------------------------------------------- */
 :root {
-  /* Marca Wagyu Cross: negro/blanco con carmesí como único acento.
+  /* Marca Hacienda Tempisque (la app de ganadería): negro/blanco con carmesí como único acento.
+     Wagyu Cross es solo la marca de la tienda; aquí no se usa ni su nombre ni su logo.
      El carmesí NO pinta superficies grandes: solo navegación activa, enlaces, foco y el dato principal
      de un gráfico. La acción primaria va en tinta (negro), como en el resto de la marca. */
   --marca: #b8184a;            /* 6.3:1 sobre blanco: sirve como texto */
