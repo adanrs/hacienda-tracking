@@ -3,6 +3,7 @@ const { migrarBaseIntegracion } = require('./nucleoV10');
 const { migrarImportaciones } = require('./importaciones');
 const { migrarProduccionCatalogo } = require('./produccionCatalogo');
 const { migrarInventarioPlanta } = require('./inventarioPlanta');
+const { migrarTrasladosTienda } = require('./trasladosTienda');
 const catalogoCortes = require('../lib/catalogoCortes');
 
 const pool = mysql.createPool({
@@ -843,6 +844,8 @@ async function initDB() {
 
     // Snapshots del inventario semanal de la planta CIISA: ver models/inventarioPlanta.js.
     await migrarInventarioPlanta(conn);
+    // Traslados 107 → tienda (WC-01) desde el inventario de la planta y su recepción: ver models/trasladosTienda.js.
+    await migrarTrasladosTienda(conn);
 
     // BMS de la caja (Juan Carlos, 06-nov-2026): los 2 últimos dígitos del código de caja son el
     // BMS (0–12). Las cajas escaneadas antes lo tienen guardado crudo en `sufijo`: se copia una sola

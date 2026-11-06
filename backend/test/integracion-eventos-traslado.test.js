@@ -22,3 +22,11 @@ test('traslado.recibido: diferencia con acción «devolver en el mismo transport
   assert.match(con({ tipo: 'peso_no_cuadra', accion: 'devolver_mismo_transporte' }).errores.join(' '), /motivo es obligatorio/);
   assert.match(con({ tipo: 'peso_no_cuadra', accion: 'tirarla', motivo: 'x' }).errores.join(' '), /accion debe ser una de/);
 });
+
+test('traslado.recibido: no llegó ninguna caja (todo faltante) es válido si trae las diferencias', () => {
+  const r = validarSobre(sobre({ ...base, cajas: [], diferencias: [{ tipo: 'caja_faltante', codigo: CAJA, accion: 'avisar_planta', motivo: 'No llegó el camión' }] }));
+  assert.equal(r.ok, true, r.errores.join('; '));
+  const vacia = validarSobre(sobre({ ...base, cajas: [], diferencias: [] }));
+  assert.equal(vacia.ok, false);
+  assert.match(vacia.errores.join(), /al menos una caja o una diferencia/);
+});

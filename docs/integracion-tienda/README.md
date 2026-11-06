@@ -70,7 +70,8 @@ un secreto mal configurado y no conviene descartar eventos por eso.
 |---|---|
 | `apagado` (por omisión) | Todo responde 503 |
 | `sombra` | `GET` normales. `POST /eventos` valida, revisa las etiquetas en modo solo lectura, registra el evento en `integracion_eventos` y responde. **No mueve inventario** |
-| `encendido` | `GET` normales. `POST /eventos` responde 503 `procesadores_no_disponibles` mientras no existan los procesadores de las fases 2 y 3. Así ningún evento queda guardado como «visto» sin haberse aplicado |
+| `pruebas` | Como `encendido`, pero solo con datos PRUEBA: `GET /despachos` muestra solo órdenes `es_prueba = 1`, y `traslado.recibido` se aplica solo si la orden es de prueba (si no, 422 `solo_pruebas`). Los demás tipos se registran como en sombra |
+| `encendido` | `GET` normales. `traslado.recibido` se aplica (procesador de la fase 2, `lib/integracion/procesadorTraslado.js`). Los demás tipos responden 503 `procesadores_no_disponibles` mientras no exista su procesador. Así ningún evento queda guardado como «visto» sin haberse aplicado |
 
 Un evento guardado en modo sombra **no cuenta como aplicado** (`integracion_eventos.estado =
 'registrado'`, `modo = 'sombra'`). Cuando lleguen los procesadores, un reenvío de esa clave en modo
@@ -267,7 +268,9 @@ TEST_MYSQL_HOST=127.0.0.1 TEST_MYSQL_PORT=33061 npm test
    si aparece `[initDB:v10] trigger …`, correr el SQL de `backend/migraciones/` como root.
 3. Cuando la tienda tenga su fase 1, pasar a `sombra` y revisar `integracion_eventos` y los avisos
    durante una semana.
-4. `encendido` recién con los procesadores de las fases 2 y 3.
+4. `pruebas` para recorrer el flujo con los datos PRUEBA. `encendido` cuando se quiera que los
+   traslados reales queden registrados. La recepción ya tiene procesador; ventas, bajas y tomas
+   todavía no.
 
 ## Traslados planta → tienda: recepción por caja (Juan Carlos, 06-nov-2026)
 
@@ -280,4 +283,58 @@ TEST_MYSQL_HOST=127.0.0.1 TEST_MYSQL_PORT=33061 npm test
   `avisar_planta`, con `motivo` obligatorio cuando viene `accion` (opcional para los eventos de antes).
 - La caja trae su **BMS** en los 2 últimos dígitos del código (0–12): la tienda lo lee con el mismo
   decodificador (`wagyu-demo/src/lib/etiqueta.ts`).
-- Pendiente en la tienda: la pantalla de recepción de traslados todavía no existe.
+- La tienda ya tiene la pantalla «Traslados por recibir» (`wagyu-demo`, `docs/integracion-ganaderia.md`).
+
+### Cómo se pide y cómo vuelve (06-nov-2026)
+
+1. **Inventario de la planta**: en el último snapshot se marcan cajas de INV GENERAL (con código de
+   barras) y se usa «Pedir a la tienda…». `POST /api/traslados-tienda` crea la orden de salida
+   107 → WC-01. Cada ítem guarda una copia de la línea (código CIISA, artículo, kg, lote, BMS y
+   arete) en `ordenes_salida_items`. Una línea solo puede estar en una orden viva, y un código que ya
+   está en otra orden viva genera un aviso. La regla de bodegas admite 107 → WC-01
+   (`lib/bodegasV10.js`); el resto sigue igual.
+2. **Traslados a la tienda** (`/traslados-tienda/:id`): la lista para la planta se imprime, se copia
+   o se manda por WhatsApp. Cuando la planta carga las cajas, se usa «Despachar» (el mismo
+   `POST /api/ordenes-salida/:id/despachar`).
+3. La orden despachada aparece en `GET /despachos` con líneas `{tipo:'caja', formato:'ciisa_caja',
+   codigo, codigo_articulo, kg, lote, fecha, bms, arete}` y `prueba: true|false`. Ganadería no
+   necesita cola de salida: «publicar» el traslado es despacharlo. La tienda es el único cliente.
+4. La tienda recibe por caja y manda `traslado.recibido` con:
+   - `cajas[{codigo, copia, kg_etiqueta, kg_recibido?}]`: lo que llegó a la puerta;
+   - `diferencias[{tipo: caja_faltante | caja_no_solicitada | peso_no_cuadra, codigo, esperado?,
+     recibido?, accion, motivo}]`.
+5. En `encendido` o `pruebas` el procesador cruza ese evento contra los ítems de la orden. El
+   resultado queda en `recepciones_tienda` y `recepciones_tienda_cajas`, con una de estas
+   categorías por caja: recibida, otro_peso, faltante o sobrante, y su acción y motivo. También se
+   actualizan `ordenes_salida.recepcion_estado`, `recepcion_en` y `recepcion_por` (quién cerró en la
+   tienda). Todo va en la misma transacción que `integracion_eventos`.
+   - Si llega la misma clave con el mismo cuerpo, se devuelve el resultado guardado.
+   - Si llega la misma clave con otro cuerpo, se responde 409.
+   - Si el evento se registró en sombra, se aplica al llegar en encendido.
+   - Sin cajas (no llegó ninguna) también vale, siempre que traiga las diferencias.
+   - No se aplica, y no se guarda nada, si la orden no va a WC-01 (422 `orden_no_es_traslado_tienda`),
+     si no está despachada (409 `orden_no_despachada`) o si ya tiene una recepción con otra
+     `recepcion_id` (409 `orden_ya_recibida`). En `pruebas`, una orden real da 422 `solo_pruebas`.
+   - **Cursor en `pruebas`**: `/despachos` solo devuelve órdenes PRUEBA, así que el cursor que
+     devuelve salta las reales. La tienda guarda un cursor aparte por modo
+     (`despachos_cursor_pruebas`) y al encender sigue con el real intacto.
+   - Una orden despachada o con recepción no se borra (`DELETE` → 409): se anula.
+   - 107 → WC-01 solo se arma desde `/api/traslados-tienda`; el POST/PUT genérico de órdenes de
+     salida sigue rechazando la 107 como origen. Un PUT que no cambia bodegas (anular, notas) no
+     revalida.
+   - La carga PRUEBA del seed queda con `inventario_planta_cargas.es_prueba = 1`: no es «el último
+     snapshot» real (ni en la pantalla, ni al pedir cajas, ni en la comparación del importador).
+6. Todavía no se mueve el kardex por etiqueta (`etiquetas` / `movimientos_etiqueta`): la 107 vive
+   en el snapshot semanal de la planta.
+
+### Datos de prueba de punta a punta
+
+- `backend/src/seeds/prueba-flujo.js` es idempotente. Crea el animal PRUEBA con su guía, sacrificio,
+  marmoleo, solicitud de deshuese, deshuese, reporte de producción (Num. Lote 9999) y 4 cajas en
+  la 107 (snapshot «PRUEBA-flujo-completo.xlsx»). Todo queda marcado PRUEBA.
+- `backend/src/seeds/borrar-prueba-flujo.js` lo borra por esos marcadores y borra también las
+  órdenes `es_prueba = 1` con sus recepciones y sus eventos.
+- Local: `DB_HOST=127.0.0.1 DB_PORT=33061 node src/seeds/prueba-flujo.js`.
+- Producción: no se corre sin decisión. El comando es
+  `docker exec -e PRUEBA_CONFIRMAR=1 <contenedor-backend> node src/seeds/prueba-flujo.js`. Sin
+  `PRUEBA_CONFIRMAR=1` y con `NODE_ENV=production` aborta.

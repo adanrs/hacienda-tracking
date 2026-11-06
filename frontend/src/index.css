@@ -1075,3 +1075,6 @@ tr.rp-fila-falta > td { background: var(--alerta-suave); }
 .tabla-compacta th, .tabla-compacta td { padding: 4px 8px; }
 .lista-archivos { list-style: none; padding: 0; margin: var(--esp-2) 0; display: flex; flex-direction: column; gap: 4px; }
 .lista-archivos li { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--border); border-radius: var(--radius); padding: 2px 8px; }
+
+/* Inventario de la planta: caja marcada para pedir a la tienda. */
+tr.fila-seleccionada td { background: var(--info-suave, #e8f1fb); }

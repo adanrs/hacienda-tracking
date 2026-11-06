@@ -24,7 +24,7 @@ async function responder(sql, params = []) {
   llamadas.push({ sql, params });
   const s = sql.replace(/\s+/g, ' ').trim();
   if (/^SELECT id FROM usuarios WHERE username = \?/.test(s)) return [estado.sinUsuario ? [] : [{ id: 99 }]];
-  if (/^SELECT hash_cuerpo, resultado FROM integracion_eventos WHERE clave = \?/.test(s)) {
+  if (/^SELECT hash_cuerpo, resultado(, estado)? FROM integracion_eventos WHERE clave = \?/.test(s)) {
     if (estado.carrera) { estado.carrera = false; return [[]]; } // el otro envío todavía no confirmó
     const f = eventos.get(params[0]);
     return [f ? [{ hash_cuerpo: f.hash, resultado: JSON.parse(f.resultado) }] : []];

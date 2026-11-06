@@ -90,6 +90,8 @@ app.use('/api/reporte-produccion', protegida, require('./routes/reporte-producci
 app.use('/api/solicitudes-deshuese', protegida, require('./routes/solicitudes-deshuese'));
 // Snapshots del inventario semanal de la planta (solo lectura; se cargan con el importador).
 app.use('/api/inventario-planta', protegida, require('./routes/inventario-planta'));
+// Traslados 107 → tienda (WC-01): marcar cajas del inventario de la planta y generar la orden.
+app.use('/api/traslados-tienda', protegida, require('./routes/traslados-tienda'));
 // Etiquetas solo expone POST /decodificar, que es cálculo puro (no escribe en la base):
 // el viewer lo puede usar para consultar una etiqueta escaneada.
 app.use('/api/etiquetas', authMiddleware, require('./routes/etiquetas'));

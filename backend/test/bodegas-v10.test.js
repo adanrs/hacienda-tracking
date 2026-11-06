@@ -18,10 +18,15 @@ test('custodia/entradas: ninguna bodega v10, ni siquiera WC-01', async () => {
   for (const id of [2, 3, 4]) assert.match(await errorSiV10(conn, [String(id)]), /inventario por etiqueta/);
 });
 
-test('orden de salida: origen nunca v10, destino solo BOD-* o WC-01, origen ≠ destino', async () => {
+test('orden de salida: origen nunca v10 (salvo 107 → WC-01), destino solo BOD-* o WC-01, origen ≠ destino', async () => {
   assert.equal(await errorBodegasOrdenSalida(conn, { origen: 1, destino: 3 }), null);
   assert.equal(await errorBodegasOrdenSalida(conn, { origen: 1, destino: null }), null);
+  // 107 → WC-01 solo desde traslados-tienda (permitirTrasladoTienda), nunca en la orden genérica.
   assert.match(await errorBodegasOrdenSalida(conn, { origen: 2, destino: 3 }), /origen 107/);
+  assert.equal(await errorBodegasOrdenSalida(conn, { origen: 2, destino: 3, permitirTrasladoTienda: true }), null);
+  assert.match(await errorBodegasOrdenSalida(conn, { origen: 2, destino: 1, permitirTrasladoTienda: true }), /origen 107/);
+  assert.match(await errorBodegasOrdenSalida(conn, { origen: 2, destino: 1 }), /origen 107/);
+  assert.match(await errorBodegasOrdenSalida(conn, { origen: 2, destino: null }), /origen 107/);
   assert.match(await errorBodegasOrdenSalida(conn, { origen: 3, destino: null }), /origen WC-01/);
   assert.match(await errorBodegasOrdenSalida(conn, { origen: 1, destino: 4 }), /destino 12/);
   assert.match(await errorBodegasOrdenSalida(conn, { origen: '1', destino: 1 }), /misma/);

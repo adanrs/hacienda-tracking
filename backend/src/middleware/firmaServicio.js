@@ -15,7 +15,9 @@
 const { verificar, cargarClaves } = require('../lib/integracion/firma');
 
 const CABECERAS_CLOUDFLARE = ['cf-ray', 'cf-connecting-ip', 'cf-ipcountry', 'cf-visitor'];
-const MODOS = ['apagado', 'sombra', 'encendido'];
+// «pruebas» (06-nov-2026): como encendido, pero solo con datos marcados PRUEBA (órdenes es_prueba):
+// sirve para recorrer el flujo completo en producción sin tocar traslados reales.
+const MODOS = ['apagado', 'sombra', 'pruebas', 'encendido'];
 
 /** Modo vigente. Un valor desconocido cuenta como apagado (falla cerrada). */
 function modoIntegracion(env = process.env) {

@@ -383,4 +383,8 @@ export const api = {
   getInventarioPlantaCargas: () => request('/inventario-planta/cargas'),
   getInventarioPlantaLineas: (params = {}) => request(`/inventario-planta/lineas${qs(params)}`),
   getInventarioPlantaComparacion: (params = {}) => request(`/inventario-planta/comparacion${qs(params)}`),
+  // Traslados 107 → tienda (WC-01): cajas marcadas en el inventario de la planta.
+  getTrasladosTienda: () => request('/traslados-tienda'),
+  getTrasladoTienda: (id) => request(`/traslados-tienda/${id}`),
+  crearTrasladoTienda: (data) => request('/traslados-tienda', { method: 'POST', body: JSON.stringify(data) }),
 };
