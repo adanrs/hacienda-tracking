@@ -1,4 +1,5 @@
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { pool, initDB } = require('../models/database');
 const { sembrarCatalogoCiisa } = require('./catalogo-ciisa');
 
@@ -8,8 +9,17 @@ async function runSeed() {
   // Check if already seeded
   const [admins] = await pool.query('SELECT id FROM usuarios WHERE username = ?', ['admin.tempisque']);
   if (!admins.length) {
-    const adminPwd = process.env.ADMIN_PASSWORD || 'HT$2026!Adm1n#Tmp';
-    const operPwd = process.env.OPER_PASSWORD || 'HT$2026!0per#Tmp';
+    // Sin contraseñas por omisión en el código: las fijas que había quedaron publicadas en el
+    // repo (CREDENCIALES.md). Si no vienen por variable de entorno se genera una al azar y se
+    // muestra UNA vez en la consola del seed, para que el admin la cambie al entrar.
+    const azar = () => crypto.randomBytes(12).toString('base64url');
+    const adminPwd = process.env.ADMIN_PASSWORD || azar();
+    const operPwd = process.env.OPER_PASSWORD || azar();
+    if (!process.env.ADMIN_PASSWORD || !process.env.OPER_PASSWORD) {
+      console.log('Contraseñas iniciales generadas (cámbielas al entrar):');
+      if (!process.env.ADMIN_PASSWORD) console.log(`  admin.tempisque: ${adminPwd}`);
+      if (!process.env.OPER_PASSWORD) console.log(`  operador.campo: ${operPwd}`);
+    }
     await pool.query('INSERT INTO usuarios (username, password, nombre, email, rol) VALUES (?, ?, ?, ?, ?)',
       ['admin.tempisque', bcrypt.hashSync(adminPwd, 12), 'Administrador', 'admin@haciendatempisque.com', 'admin']);
     await pool.query('INSERT INTO usuarios (username, password, nombre, email, rol) VALUES (?, ?, ?, ?, ?)',

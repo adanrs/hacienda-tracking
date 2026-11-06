@@ -1,3 +1,5 @@
+// auth.js ya no arranca sin JWT_SECRET (sin valor por omisión): las pruebas usan uno propio.
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'secreto-solo-para-pruebas-0123456789abcdef';
 // Rutas de /api/reporte-produccion con Express + JWT reales y un pool falso que registra el SQL.
 // Verifica permisos (viewer solo lee), validación, 409 de duplicados y que ningún valor del
 // request termine concatenado en el SQL (todo va por `?`).

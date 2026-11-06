@@ -12,7 +12,11 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
       - DB_SSL=true
-      - JWT_SECRET=${JWT_SECRET}
+      # Obligatorio: sin JWT_SECRET el backend no arranca (el compose se corta con un aviso si falta).
+      - JWT_SECRET=${JWT_SECRET:?definir JWT_SECRET en el .env}
+      # Integración con la tienda (docs/integracion-tienda/README.md). Sin secreto → 503.
+      - INTEGRACION_TIENDA_MODO=${INTEGRACION_TIENDA_MODO:-apagado}
+      - INTEGRACION_TIENDA_SECRET=${INTEGRACION_TIENDA_SECRET:-}
     command: ["npm", "start"]
     restart: always
 

@@ -1,3 +1,5 @@
+// auth.js ya no arranca sin JWT_SECRET (sin valor por omisión): las pruebas usan uno propio.
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'secreto-solo-para-pruebas-0123456789abcdef';
 // Prueba de punta a punta de PUT/DELETE /api/deshuese con Express real, JWT real y un pool
 // de MySQL falso que registra cada sentencia: así se comprueba que una clave maliciosa no
 // llega a ejecutar SQL, que el viewer no escribe y que un no-admin no reabre un cerrado.
