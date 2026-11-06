@@ -60,7 +60,10 @@
  *     puede empezar en 0. El formato con guion (NNNN-L, «0103-M») no se considera relleno.
  */
 
-const { CATALOGO_POR_CODIGO } = require('../data/catalogo-ciisa');
+// El catálogo sale de la base (caché en memoria) con el archivo data/catalogo-ciisa.js de respaldo:
+// ver lib/catalogoCortes.js.
+const catalogo = require('./catalogoCortes');
+const { vencimientoDe } = require('./vencimiento');
 
 const LARGO_PAQUETE = 28;
 const LARGO_CAJA_PRIMAL = 25;
@@ -179,8 +182,8 @@ function normalizarArete(texto) {
  */
 function serieDeCodigo(codigo) {
   const c = String(codigo == null ? '' : codigo).trim();
-  const entrada = CATALOGO_POR_CODIGO[c];
-  if (entrada) return entrada.serie;
+  const entrada = catalogo.buscar(c);
+  if (entrada && entrada.serie) return entrada.serie;
   if (FB_FUERA_DE_SERIE.has(c)) return 'FB';
   if (!/^\d{5}$/.test(c)) return null;
   if (c.startsWith('266')) return 'F1';
@@ -189,7 +192,7 @@ function serieDeCodigo(codigo) {
 }
 
 function datosProducto(codigo) {
-  const entrada = CATALOGO_POR_CODIGO[codigo];
+  const entrada = catalogo.buscar(codigo);
   return {
     codigoProducto: codigo,
     serie: serieDeCodigo(codigo),
@@ -199,13 +202,30 @@ function datosProducto(codigo) {
 
 // ── Lectores por tipo (asumen el largo ya verificado) ───────────────────────
 
+/**
+ * «Trazabilidad perdida»: cuando la planta no sabe de qué animal viene el producto, rellena el
+ * campo del arete con «xxx» (cualquier combinación de mayúsculas) o con ceros («000000», típico de
+ * las hamburguesas). NO es un arete: nunca se busca un animal con ese número. Se devuelve como
+ * advertencia (no error) para que la etiqueta igual se pueda registrar.
+ */
+function esSinTrazabilidad(texto) {
+  const t = String(texto == null ? '' : texto).trim().toUpperCase();
+  if (!t) return false;
+  return /^0+$/.test(t) || (/X/.test(t) && /^[X0]+$/.test(t));
+}
+
 function leerPaquete(s) {
   const errores = [];
   const advertencias = [];
 
   const areteTxt = pos(s, 1, 6);
-  const { valido: areteValido, error: errArete } = validarArete(areteTxt);
-  if (!areteValido) errores.push(errArete);
+  const sinArete = esSinTrazabilidad(areteTxt);
+  const { valido: areteValido0, error: errArete } = validarArete(areteTxt);
+  const areteValido = areteValido0 && !sinArete;
+  if (sinArete) {
+    advertencias.push(error('sin_trazabilidad', 'arete',
+      `Sin trazabilidad: la planta puso «${areteTxt}» en lugar del arete (no se sabe de qué animal viene)`));
+  } else if (!areteValido) errores.push(errArete);
 
   const codigo = pos(s, 7, 11);
   const errCodigo = codigoProductoDesde(codigo);
@@ -267,7 +287,10 @@ function leerPaquete(s) {
   return {
     tipo: 'paquete',
     campos: {
-      arete: areteTxt,
+      // Con «xxx»/«000000» el arete es null (nunca el texto literal) y queda el crudo aparte.
+      arete: sinArete ? null : areteTxt,
+      areteCrudo: areteTxt,
+      trazabilidad: sinArete ? 'sin_trazabilidad' : 'con_arete',
       areteSinRelleno,
       ...producto,
       fechaProduccion: f.fecha,
@@ -308,13 +331,20 @@ function leerCaja(s) {
     advertencias.push(error('fecha_ambigua', 'fecha',
       'Día ≤ 12: la fecha podría leerse como DDMMAA o MMDDAA; validar contra la fecha registrada del lote'));
   }
+  const campoXXX = pos(s, 11, 13);
+  const sinArete = esSinTrazabilidad(campoXXX);
+  if (sinArete) {
+    advertencias.push(error('sin_trazabilidad', 'campoXXX',
+      `Sin trazabilidad: la planta puso «${campoXXX}» en lugar del animal; se puede recuperar por fecha + lote de deshuese si calza con un único reporte de producción con arete`));
+  }
 
   return {
     tipo: 'caja',
     campos: {
       ...datosProducto(codigo),
       pesoKg: peso.pesoKg,
-      campoXXX: pos(s, 11, 13), // significado por confirmar con CIISA: no se valida
+      campoXXX, // «xxx» = trazabilidad perdida (dueño, 05-nov); otro valor: por confirmar con CIISA
+      trazabilidad: sinArete ? 'sin_trazabilidad' : 'por_lote',
       fecha: f.fecha,
       // Regla del cliente (12-oct): el lote de la caja master es fecha del deshuese + 00 + n.º de deshuese.
       fechaDeshuese: f.fecha,
@@ -322,6 +352,9 @@ function leerCaja(s) {
       loteDeshuese: lote.loteDeshuese,
       loteTexto: lote.loteTexto,
       loteLegible: pos(s, 14, 23),
+      // Lote de 10 dígitos = fecha del deshuese DDMMAA + LOTE DE DESHUESE de 4 dígitos (el «Num. Lote»
+      // del reporte de producción de CIISA). Con «xxx» la trazabilidad se recupera por ese puente:
+      // ver lib/trazabilidadEtiqueta.js.
       sufijo: pos(s, 24, 25), // por confirmar con CIISA
     },
     errores,
@@ -389,10 +422,21 @@ function leerPrimal(s) {
  *             alternativas?: object[] }}
  *   Cada error/advertencia es { codigo, campo, mensaje }.
  */
+/**
+ * Vencimiento = fecha de la etiqueta + 12 meses (regla del dueño, ver lib/vencimiento.js). Se llena
+ * en toda lectura que traiga fecha: paquete (producción), caja (fecha del lote) y primal (empaque).
+ */
+function conVencimiento(r) {
+  const base = r.campos && (r.campos.fechaProduccion || r.campos.fecha || r.campos.fechaEmpaque);
+  if (base && !r.campos.fechaVencimiento) r.campos.fechaVencimiento = vencimientoDe(base);
+  if (Array.isArray(r.alternativas)) r.alternativas = r.alternativas.map(conVencimiento);
+  return r;
+}
+
 function decodificar(codigoCrudo) {
   const crudo = codigoCrudo == null ? '' : String(codigoCrudo);
   const s = normalizar(crudo);
-  const envolver = (r) => ({ ...r, crudo, normalizado: s });
+  const envolver = (r) => conVencimiento({ ...r, crudo, normalizado: s });
 
   if (s.length === LARGO_PAQUETE) {
     return envolver(leerPaquete(s));
@@ -435,6 +479,7 @@ function decodificar(codigoCrudo) {
 
 module.exports = {
   decodificar,
+  esSinTrazabilidad,
   validarArete,
   normalizarArete,
   serieDeCodigo,

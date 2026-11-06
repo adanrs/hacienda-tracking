@@ -17,7 +17,7 @@ const BORDE = { style: 'thin', color: { argb: 'FFB9B5AC' } };
 const BORDES = { top: BORDE, left: BORDE, bottom: BORDE, right: BORDE };
 const COLS_FIJAS = 3; // A Código · B NAMP · C Corte (en el encabezado, A–C es la etiqueta)
 
-const ESTADO_TEXTO = { borrador: 'Borrador', enviada: 'Enviada', deshuesada: 'Deshuesada' };
+const ESTADO_TEXTO = { borrador: 'Borrador', enviada: 'Enviada', deshuesada: 'Deshuesada', con_reporte: 'Con reporte' };
 const SEXO_TEXTO = { macho: 'Macho', hembra: 'Hembra' };
 
 const fechaCR = (iso) => (iso ? iso.split('-').reverse().join('/') : '');

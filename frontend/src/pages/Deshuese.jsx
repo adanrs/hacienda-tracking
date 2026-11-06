@@ -150,7 +150,7 @@ export default function Deshuese() {
                   <td>{d.peso_entrada ? `${parseFloat(d.peso_entrada).toFixed(2)} kg` : '-'}</td>
                   <td><span className={`badge ${estadoBadge[d.estado] || 'badge-gray'}`}>{d.estado || '-'}</span></td>
                   <td>{d.responsable || '-'}</td>
-                  <td>{d.pdf_url ? <a href={d.pdf_url} target="_blank" rel="noreferrer"><FileText size={18} /></a> : '-'}</td>
+                  <td>{d.pdf_url ? <button type="button" className="btn-icon" aria-label={`Abrir el PDF del deshuese ${d.numero_lote}`} onClick={() => api.abrirArchivo(d.pdf_url).catch(e => aviso.error(e.message))}><FileText size={18} aria-hidden="true" /></button> : '-'}</td>
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn-icon" onClick={() => openEdit(d)}><Edit size={16} /></button>

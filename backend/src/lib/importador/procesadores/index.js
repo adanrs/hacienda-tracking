@@ -2,4 +2,9 @@
 module.exports = {
   ganaderoSg: require('./ganaderoSg'),
   sacrificioCiisa: require('./sacrificioCiisa'),
+  marmoleoCamara: require('./marmoleoCamara'),
+  reporteProduccionCiisa: require('./reporteProduccionCiisa'),
+  catalogoCortes: require('./catalogoCortes'),
+  solicitudDeshueseExcel: require('./solicitudDeshueseExcel'),
+  inventarioCiisa: require('./inventarioCiisa'),
 };

@@ -5,6 +5,7 @@ import { useAuth } from '../components/AuthContext';
 import { confirmar } from '../components/ui/confirmar';
 import EditorSolicitud from './solicitud-deshuese/EditorSolicitud';
 import ListaSolicitudes from './solicitud-deshuese/ListaSolicitudes';
+import ImportarHistorico from './solicitud-deshuese/ImportarHistorico';
 import { hoyIso } from './reporte-produccion/util';
 
 /*
@@ -101,6 +102,7 @@ export default function SolicitudDeshuese() {
           />
         )}
         {tab === 'lista' && <ListaSolicitudes key={version} canEdit={canEdit} onAbrir={abrir} />}
+        {tab === 'lista' && canEdit && <ImportarHistorico canEdit={canEdit} onAplicado={() => setVersion(v => v + 1)} />}
       </div>
     </div>
   );

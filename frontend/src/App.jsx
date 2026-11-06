@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Routes, Route, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Beef, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Scissors, Slice, Package, Snowflake, Clock, Boxes, FileOutput, FileInput, RotateCcw, Barcode, Utensils, BookOpen, Menu, X, FileSpreadsheet, ClipboardList, ClipboardCheck } from 'lucide-react';
+import { LayoutDashboard, Beef, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Package, Snowflake, Clock, Boxes, FileOutput, FileInput, RotateCcw, Barcode, Utensils, BookOpen, Menu, X, FileSpreadsheet, ClipboardList, Gauge, PackageSearch } from 'lucide-react';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { CowWalking } from './components/CowIcon';
 import { Avisos } from './components/ui/avisos';
@@ -18,8 +18,6 @@ import Potreros from './pages/Potreros';
 import Usuarios from './pages/Usuarios';
 import Transporte from './pages/Transporte';
 import Sacrificio from './pages/Sacrificio';
-import Cortes from './pages/Cortes';
-import Deshuese from './pages/Deshuese';
 import Bodegas from './pages/Bodegas';
 import Custodia from './pages/Custodia';
 import Maduracion from './pages/Maduracion';
@@ -35,6 +33,8 @@ import SolicitudDeshuese from './pages/SolicitudDeshuese';
 import ImportarGanaderoSg from './pages/ImportarGanaderoSg';
 import ImportarSacrificio from './pages/ImportarSacrificio';
 import GuiasTransporte from './pages/GuiasTransporte';
+import Marmoleo from './pages/Marmoleo';
+import InventarioPlanta from './pages/InventarioPlanta';
 
 // Menú ordenado según el recorrido del producto: Finca → Planta → Bodega y despacho.
 const grupos = [
@@ -56,13 +56,13 @@ const grupos = [
   {
     titulo: 'Planta',
     items: [
-      { to: '/guias-transporte', icon: ClipboardCheck, label: 'Guías de transporte' },
+      // Nombres del dueño (reunión 05-nov). Las guías se abren desde Transporte; Deshuese y Cortes
+      // por animal quedaron dentro de «Reporte de producción» (sus rutas viejas redirigen).
       { to: '/transporte', icon: Truck, label: 'Transporte' },
       { to: '/sacrificio', icon: Warehouse, label: 'Sacrificio' },
+      { to: '/marmoleo', icon: Gauge, label: 'Marmoleo' },
       { to: '/solicitud-deshuese', icon: ClipboardList, label: 'Solicitud de deshuese' },
-      { to: '/deshuese', icon: Scissors, label: 'Deshuese' },
       { to: '/reporte-produccion', icon: FileSpreadsheet, label: 'Reporte de producción' },
-      { to: '/cortes', icon: Slice, label: 'Cortes por animal' },
       { to: '/custodia', icon: Package, label: 'Custodia' },
       { to: '/maduracion', icon: Clock, label: 'Maduración' },
       { to: '/porcionado', icon: Boxes, label: 'Porcionado' },
@@ -74,6 +74,8 @@ const grupos = [
     titulo: 'Bodega y despacho',
     items: [
       { to: '/bodegas', icon: Snowflake, label: 'Bodegas' },
+      // Snapshot semanal del Excel que manda la planta (bodega 107 / paquetería).
+      { to: '/inventario-planta', icon: PackageSearch, label: 'Inventario planta' },
       { to: '/ordenes-entrada', icon: FileInput, label: 'Órdenes de entrada' },
       { to: '/ordenes-salida', icon: FileOutput, label: 'Órdenes de salida' },
       { to: '/devoluciones', icon: RotateCcw, label: 'Devoluciones' },
@@ -90,7 +92,11 @@ const grupos = [
 
 const rolLegible = { admin: 'Administrador', operador: 'Operador', viewer: 'Solo lectura' };
 
+// Pantallas que no están en el menú pero pertenecen a una etapa (para el título y las migas).
+const EXTRA_UBICACION = [{ prefijo: '/guias-transporte', etapa: 'Planta', pagina: 'Transporte · guías' }];
+
 function ubicacionActual(pathname) {
+  for (const x of EXTRA_UBICACION) if (pathname.startsWith(x.prefijo)) return { etapa: x.etapa, pagina: x.pagina };
   for (const g of grupos) {
     for (const it of g.items) {
       const coincide = it.to === '/' ? pathname === '/' : pathname === it.to || pathname.startsWith(`${it.to}/`);
@@ -237,21 +243,23 @@ function AppLayout() {
           <Route path="/transporte" element={<Transporte />} />
           <Route path="/sacrificio" element={<Sacrificio />} />
           <Route path="/sacrificio/importar-ciisa" element={<ImportarSacrificio />} />
+          <Route path="/marmoleo" element={<Marmoleo />} />
           <Route path="/guias-transporte" element={<GuiasTransporte />} />
           <Route path="/guias-transporte/:id" element={<GuiasTransporte />} />
           <Route path="/solicitud-deshuese" element={<SolicitudDeshuese />} />
-          <Route path="/deshuese" element={<Deshuese />} />
+          <Route path="/deshuese" element={<Navigate to="/reporte-produccion?pestana=deshuese" replace />} />
           <Route path="/reporte-produccion" element={<ReporteProduccion />} />
           <Route path="/custodia" element={<Custodia />} />
           <Route path="/maduracion" element={<Maduracion />} />
           <Route path="/porcionado" element={<Porcionado />} />
-          <Route path="/cortes" element={<Cortes />} />
+          <Route path="/cortes" element={<Navigate to="/reporte-produccion?pestana=cortes" replace />} />
           <Route path="/cajas" element={<Cajas />} />
           <Route path="/ordenes-salida" element={<OrdenesSalida />} />
           <Route path="/ordenes-entrada" element={<OrdenesEntrada />} />
           <Route path="/paqueteria" element={<Paqueteria />} />
           <Route path="/devoluciones" element={<Devoluciones />} />
           <Route path="/bodegas" element={<Bodegas />} />
+          <Route path="/inventario-planta" element={<InventarioPlanta />} />
           <Route path="/catalogo-cortes" element={<CatalogoCortes />} />
           <Route path="/usuarios" element={<Usuarios />} />
         </Routes>

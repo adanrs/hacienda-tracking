@@ -251,6 +251,12 @@ export default function EditorSolicitud({ fecha, setFecha, canEdit, onSucio, onC
           </div>
         )}
         {avisoEnOtra}
+        {canales.some(c => c.marmoleo == null) && (
+          <div className="banner info">
+            <Info size={18} aria-hidden="true" /> {canales.filter(c => c.marmoleo == null).length} canal(es) sin marmoleo medido ({canales.filter(c => c.marmoleo == null).map(c => c.arete).join(', ')}).
+            {' '}Puede seguir, pero conviene medirlas antes: <Link to={`/marmoleo?fecha=${fecha}`}>ir a Marmoleo</Link>.
+          </div>
+        )}
         {modelo.canales_quitadas > 0 && (
           <div className="banner info"><Info size={18} aria-hidden="true" /> {modelo.canales_quitadas} canal(es) ya no son de esta fecha (se corrigió el sacrificio) y se quitaron. Guarde para confirmarlo.</div>
         )}
@@ -285,6 +291,14 @@ export default function EditorSolicitud({ fecha, setFecha, canEdit, onSucio, onC
                   <td key={c.sacrificio_id} className="num">
                     {fmtKg(c.peso_canal)}
                     {c.peso_canal_origen && <span className="sd-tenue-bloque">{c.peso_canal_origen === 'frio' ? 'frío' : 'caliente'}</span>}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <th scope="row" className="sd-fija">Marmoleo AUS-MEAT</th>
+                {canales.map(c => (
+                  <td key={c.sacrificio_id} className="num">
+                    {c.marmoleo != null ? <strong>{c.marmoleo}</strong> : <span className="badge badge-yellow" title="Mídalo en la pantalla Marmoleo antes de mandar la solicitud">Sin medir</span>}
                   </td>
                 ))}
               </tr>
@@ -446,7 +460,7 @@ export default function EditorSolicitud({ fecha, setFecha, canEdit, onSucio, onC
             </>
           )}
           {(sol || editable) && (
-            <Boton icono={Download} cargando={ocupado === 'excel'} disabled={Boolean(ocupado)} onClick={descargar}>Descargar Excel</Boton>
+            <Boton icono={Download} cargando={ocupado === 'excel'} disabled={Boolean(ocupado)} onClick={descargar}>Descargar Excel para la planta</Boton>
           )}
           {canEdit && sol?.estado === 'enviada' && (
             <>
