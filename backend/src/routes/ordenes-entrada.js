@@ -5,17 +5,13 @@ const { idsNumericos } = require('../lib/params');
 idsNumericos(router);
 
 const { pool } = require('../models/database');
+const { numeroDiario } = require('../lib/consecutivos');
 
 const SELECT_BASE = `
   SELECT o.*, b.codigo as bodega_destino_codigo, b.nombre as bodega_destino_nombre
   FROM ordenes_entrada o
   LEFT JOIN bodegas b ON o.bodega_destino_id = b.id
 `;
-
-function pad(n, w) { return String(n).padStart(w, '0'); }
-function ymd(d = new Date()) {
-  return `${d.getFullYear()}${pad(d.getMonth() + 1, 2)}${pad(d.getDate(), 2)}`;
-}
 
 async function fetchItems(id) {
   const [items] = await pool.query(`
@@ -56,10 +52,9 @@ router.post('/', async (req, res) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const today = ymd();
-    const [cnt] = await conn.query('SELECT COUNT(*) as c FROM ordenes_entrada WHERE numero LIKE ?', [`OE-${today}-%`]);
-    const seq = pad(cnt[0].c + 1, 3);
-    const numero = `OE-${today}-${seq}`;
+    // Consecutivo atómico (lib/consecutivos.js): «cantidad del día + 1» chocaba con el UNIQUE
+    // cuando dos usuarios creaban a la vez y repetía números tras borrar una orden.
+    const numero = await numeroDiario(conn, { prefijo: 'OE', tabla: 'ordenes_entrada' });
     const [result] = await conn.query(`
       INSERT INTO ordenes_entrada (numero, fecha, origen, bodega_destino_id, responsable, estado, notas)
       VALUES (?, ?, ?, ?, ?, 'pendiente', ?)

@@ -180,6 +180,16 @@ export default function OrdenesSalida() {
                   </select>
                 </div>
               </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="os-bodega-destino">Bodega de destino</label>
+                  {/* WC-01 = traslado a la tienda: al despacharse, la tienda la ve en su consulta de traslados. */}
+                  <select id="os-bodega-destino" value={form.bodega_destino_id || ''} onChange={e => setForm({ ...form, bodega_destino_id: e.target.value })}>
+                    <option value="">Sin bodega (destino externo)</option>
+                    {bodegas.map(b => <option key={b.id} value={b.id}>{b.codigo} - {b.nombre}</option>)}
+                  </select>
+                </div>
+              </div>
               <div className="form-group">
                 <label htmlFor="os-notas">Notas</label>
                 <textarea id="os-notas" rows={2} value={form.notas || ''} onChange={e => setForm({ ...form, notas: e.target.value })} />
@@ -250,6 +260,7 @@ export default function OrdenesSalida() {
               <div><strong>Solicitante:</strong> {showView.solicitante || '-'}</div>
               <div><strong>Destino:</strong> {showView.destino || '-'}</div>
               <div><strong>Bodega:</strong> {showView.bodega_codigo || '-'}</div>
+              <div><strong>Bodega destino:</strong> {showView.bodega_destino_codigo || '-'}</div>
             </div>
             <h4 style={{ marginBottom: 8 }}>Items</h4>
             <div className="table-container">

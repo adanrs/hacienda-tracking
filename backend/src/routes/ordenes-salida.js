@@ -6,17 +6,16 @@ idsNumericos(router);
 
 const { pool } = require('../models/database');
 const { construirUpdate, ErrorCampos } = require('../lib/sqlUpdate');
+const { numeroDiario } = require('../lib/consecutivos');
 
 const SELECT_BASE = `
-  SELECT o.*, b.codigo as bodega_codigo, b.nombre as bodega_nombre
+  SELECT o.*, b.codigo as bodega_codigo, b.nombre as bodega_nombre,
+         bd.codigo as bodega_destino_codigo, bd.nombre as bodega_destino_nombre
   FROM ordenes_salida o
   LEFT JOIN bodegas b ON o.bodega_origen_id = b.id
+  LEFT JOIN bodegas bd ON o.bodega_destino_id = bd.id
 `;
 
-function pad(n, w) { return String(n).padStart(w, '0'); }
-function ymd(d = new Date()) {
-  return `${d.getFullYear()}${pad(d.getMonth() + 1, 2)}${pad(d.getDate(), 2)}`;
-}
 
 async function fetchItems(id) {
   const [items] = await pool.query(`
@@ -52,19 +51,18 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { fecha, solicitante, destino, bodega_origen_id, notas, items } = req.body;
+  const { fecha, solicitante, destino, bodega_origen_id, bodega_destino_id, notas, items } = req.body;
   if (!fecha) return res.status(400).json({ error: 'fecha es requerida' });
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const today = ymd();
-    const [cnt] = await conn.query('SELECT COUNT(*) as c FROM ordenes_salida WHERE numero LIKE ?', [`OS-${today}-%`]);
-    const seq = pad(cnt[0].c + 1, 3);
-    const numero = `OS-${today}-${seq}`;
+    // Consecutivo atómico (lib/consecutivos.js): «cantidad del día + 1» chocaba con el UNIQUE
+    // cuando dos usuarios creaban a la vez y repetía números tras borrar una orden.
+    const numero = await numeroDiario(conn, { prefijo: 'OS', tabla: 'ordenes_salida' });
     const [result] = await conn.query(`
-      INSERT INTO ordenes_salida (numero, fecha, solicitante, destino, bodega_origen_id, estado, notas)
-      VALUES (?, ?, ?, ?, ?, 'pendiente', ?)
-    `, [numero, fecha, solicitante || null, destino || null, bodega_origen_id || null, notas || null]);
+      INSERT INTO ordenes_salida (numero, fecha, solicitante, destino, bodega_origen_id, bodega_destino_id, estado, notas)
+      VALUES (?, ?, ?, ?, ?, ?, 'pendiente', ?)
+    `, [numero, fecha, solicitante || null, destino || null, bodega_origen_id || null, bodega_destino_id || null, notas || null]);
     const orden_id = result.insertId;
     if (Array.isArray(items)) {
       for (const it of items) {
@@ -85,7 +83,8 @@ router.post('/', async (req, res) => {
 });
 
 // Lista blanca de la orden de salida. numero se genera al crear; items tiene su propio flujo.
-const ORDEN_SALIDA_EDITABLES = ['fecha', 'solicitante', 'destino', 'bodega_origen_id', 'estado', 'notas'];
+// bodega_destino_id = WC-01 hace que la tienda vea la orden al despacharse (integracion-tienda.js).
+const ORDEN_SALIDA_EDITABLES = ['fecha', 'solicitante', 'destino', 'bodega_origen_id', 'bodega_destino_id', 'estado', 'notas'];
 // 'despachada' NO se acepta por PUT: despachar mueve cajas y stickers en POST /:id/despachar;
 // marcarla a mano dejaría la orden despachada con las cajas todavía en bodega.
 const ORDEN_SALIDA_ENUMS = { estado: ['pendiente', 'en_preparacion', 'cancelada'] };
@@ -114,6 +113,12 @@ router.post('/:id/despachar', async (req, res) => {
     const [ordenRows] = await conn.query('SELECT * FROM ordenes_salida WHERE id = ?', [req.params.id]);
     if (!ordenRows.length) { await conn.rollback(); return res.status(404).json({ error: 'Orden no encontrada' }); }
     const orden = ordenRows[0];
+    // Despachar dos veces movía otra vez las cajas y ahora además cambiaría despachada_en, con lo
+    // que la tienda vería el mismo traslado como nuevo. Una cancelada tampoco se despacha.
+    if (orden.estado === 'despachada' || orden.estado === 'cancelada') {
+      await conn.rollback();
+      return res.status(409).json({ error: `La orden ya está ${orden.estado}` });
+    }
 
     const [items] = await conn.query('SELECT * FROM ordenes_salida_items WHERE orden_id = ?', [req.params.id]);
     const cajasIds = items.map(it => it.caja_id).filter(Boolean);
@@ -131,7 +136,8 @@ router.post('/:id/despachar', async (req, res) => {
       }
     }
 
-    await conn.query("UPDATE ordenes_salida SET estado = 'despachada' WHERE id = ?", [req.params.id]);
+    // despachada_en es el cursor con que la tienda consulta los despachos hacia WC-01.
+    await conn.query("UPDATE ordenes_salida SET estado = 'despachada', despachada_en = NOW(3) WHERE id = ?", [req.params.id]);
     for (const it of items) {
       if (it.caja_id) {
         await conn.query("UPDATE cajas SET estado = 'despachada' WHERE id = ?", [it.caja_id]);

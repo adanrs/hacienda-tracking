@@ -287,6 +287,10 @@ CREATE TABLE IF NOT EXISTS documentos_ciisa_lineas (
 -- -----------------------------------------------------------------------------
 -- 5. Etiquetas: la unidad de inventario a cualquier nivel
 -- -----------------------------------------------------------------------------
+-- 05-nov-2026: `etiquetas`, `formatos_etiqueta`, `movimientos_etiqueta` y `consecutivos` YA SE
+-- CREAN desde backend/src/models/nucleoV10.js (integración con la tienda, fase 1) con esta misma
+-- definición. Cualquier cambio aquí se replica allá: test/nucleo-v10-esquema.test.js compara las
+-- dos y falla si se desalinean.
 
 CREATE TABLE IF NOT EXISTS formatos_etiqueta (
   id           INT NOT NULL AUTO_INCREMENT COMMENT 'PK',
@@ -303,7 +307,8 @@ CREATE TABLE IF NOT EXISTS formatos_etiqueta (
 
 CREATE TABLE IF NOT EXISTS etiquetas (
   id                 INT NOT NULL AUTO_INCREMENT COMMENT 'PK',
-  codigo_crudo       VARCHAR(64) NOT NULL COMMENT 'Lectura exacta del escáner: es la llave (§ etiquetas CIISA)',
+  codigo_crudo       VARCHAR(64) NOT NULL COMMENT 'Lectura exacta del escáner (normalizada: mayúsculas, sin espacios): es la llave (§ etiquetas CIISA)',
+  copia              SMALLINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '>1 solo si el operador confirmó que es OTRA unidad con la misma etiqueta (mismo criterio que reporte_produccion_escaneos)',
   tipo               ENUM('paquete','caja','primal','interna_previa') NOT NULL COMMENT 'interna_previa = sticker del modelo anterior, inactivo',
   formato_id         INT NULL COMMENT 'FK formatos_etiqueta usado para decodificar',
   -- campos decodificados
@@ -328,6 +333,7 @@ CREATE TABLE IF NOT EXISTS etiquetas (
   origen_reempaque_id INT NULL COMMENT 'Etiqueta original si esta es un reempaque (misma pieza, nueva bolsa)',
   origen_etapa       ENUM('deshuese','porcionado','paqueteria','reempaque','migracion') NOT NULL COMMENT 'Dónde nació la etiqueta; deshuese define los kg deshuesados del balance',
   primal_legacy_id   INT NULL COMMENT 'FK primales.id del modelo anterior',
+  tienda_pieza_id    VARCHAR(64) NULL COMMENT 'Id de la pieza en la tienda (wagyu-demo), solo referencia: la llave común es (codigo_crudo, copia)',
   -- estado de inventario
   bodega_actual_id   INT NULL COMMENT 'FK bodegas; solo la cambia un movimiento_etiqueta',
   estado             ENUM('disponible','apartada','vendida','devuelta','descartada','bloqueada','transformada') NOT NULL DEFAULT 'disponible' COMMENT 'transformada = primal porcionado o caja desagregada en paquetes (sale del conteo)',
@@ -339,13 +345,14 @@ CREATE TABLE IF NOT EXISTS etiquetas (
   created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Primer escaneo/alta',
   updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Último cambio',
   PRIMARY KEY (id),
-  UNIQUE KEY uk_etq_codigo (codigo_crudo),
+  UNIQUE KEY uk_etq_codigo (codigo_crudo, copia),
   KEY idx_etq_bodega_estado (bodega_actual_id, estado),
   KEY idx_etq_arete (arete),
   KEY idx_etq_lote (lote_deshuese_id),
   KEY idx_etq_caja (caja_padre_id),
   KEY idx_etq_articulo (articulo_codigo),
   KEY idx_etq_dat (dat_pendiente_id),
+  KEY idx_etq_tienda_pieza (tienda_pieza_id),
   CONSTRAINT fk_etq_formato FOREIGN KEY (formato_id) REFERENCES formatos_etiqueta(id),
   CONSTRAINT fk_etq_animal FOREIGN KEY (animal_id) REFERENCES animales(id),
   CONSTRAINT fk_etq_articulo FOREIGN KEY (articulo_id) REFERENCES catalogo_cortes(id),
@@ -612,7 +619,7 @@ CREATE TABLE IF NOT EXISTS movimientos_etiqueta (
   estado_anterior   VARCHAR(20) NULL COMMENT 'Estado antes',
   estado_nuevo      VARCHAR(20) NOT NULL COMMENT 'Estado después',
   kg                DECIMAL(10,3) NOT NULL COMMENT 'kg de la etiqueta en ese momento',
-  documento_tipo    ENUM('dat','orden_traslado','orden_despacho','devolucion_reempaque','descarte','ajuste','porcionado','migracion') NOT NULL COMMENT 'Documento origen (nunca manual)',
+  documento_tipo    ENUM('dat','orden_traslado','orden_despacho','devolucion_reempaque','descarte','ajuste','porcionado','migracion','integracion_tienda','planta') NOT NULL COMMENT 'Documento origen (nunca manual). integracion_tienda = integracion_eventos.id',
   documento_id      INT NOT NULL COMMENT 'Id del documento origen',
   usuario_id        INT NOT NULL COMMENT 'Usuario que ejecutó',
   autorizacion_id   BIGINT NULL COMMENT 'PIN que respalda el movimiento',

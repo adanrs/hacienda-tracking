@@ -14,6 +14,10 @@ app.use(cors({
   credentials: true,
 }));
 app.use(morgan('dev'));
+// Integración con la tienda (servicio a servicio, HMAC, sin JWT). Va ANTES de express.json():
+// la firma se verifica sobre el cuerpo crudo y el parser global consumiría el stream.
+// Rechaza con 404 lo que llegue por Cloudflare (ver middleware/firmaServicio.js).
+app.use('/api/integracion/tienda', require('./routes/integracion-tienda'));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
