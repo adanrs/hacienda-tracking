@@ -81,6 +81,28 @@ const qs = (params = {}) => {
   return s ? `?${s}` : '';
 };
 
+// Importador masivo (planificar → vista previa → aplicar). Con archivo va como multipart con
+// «opciones» y «huella» en JSON; con texto pegado va como JSON. El servidor no guarda nada al
+// planificar: aplicar repite el plan y exige la huella de la vista previa que vio el usuario.
+async function importacion(paso, formato, { archivo, pegado, opciones = {}, huella } = {}) {
+  const ruta = `/importaciones/${encodeURIComponent(formato)}/${paso}`;
+  if (!archivo) return request(ruta, { method: 'POST', body: JSON.stringify({ pegado, opciones, huella }) });
+  const token = getToken();
+  const fd = new FormData();
+  fd.append('archivo', archivo);
+  fd.append('opciones', JSON.stringify(opciones));
+  if (huella) fd.append('huella', huella);
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${ruta}`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd });
+  } catch {
+    throw new Error('No hay conexión con el servidor. Revise la red e intente de nuevo.');
+  }
+  const datos = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(datos.error || `Error del servidor (${res.status})`), { status: res.status, datos });
+  return datos;
+}
+
 export const api = {
   // Auth
   login: (username, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
@@ -307,4 +329,14 @@ export const api = {
   marcarSolicitudDeshuesada: (id) => request(`/solicitudes-deshuese/${id}/deshuesada`, { method: 'POST' }),
   deleteSolicitudDeshuese: (id) => request(`/solicitudes-deshuese/${id}`, { method: 'DELETE' }),
   descargarSolicitudDeshuese: (id, nombre) => descargar(`/solicitudes-deshuese/${id}/excel`, nombre),
+
+  // Importador masivo y guías de transporte
+  planificarImportacion: (formato, entrada) => importacion('planificar', formato, entrada),
+  aplicarImportacion: (formato, entrada) => importacion('aplicar', formato, entrada),
+  getImportaciones: (params = {}) => request(`/importaciones${qs(params)}`),
+  getImportacion: (id) => request(`/importaciones/${id}`),
+  getGuiasTransporte: (params = {}) => request(`/guias-transporte${qs(params)}`),
+  getGuiaTransporte: (id) => request(`/guias-transporte/${id}`),
+  updateGuiaTransporte: (id, data) => request(`/guias-transporte/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  getPendientesSacrificio: (fecha) => request(`/guias-transporte/pendientes-sacrificio${qs({ fecha })}`),
 };

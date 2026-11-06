@@ -1,5 +1,6 @@
 const mysql = require('mysql2/promise');
 const { migrarBaseIntegracion } = require('./nucleoV10');
+const { migrarImportaciones } = require('./importaciones');
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'mysql',
@@ -828,6 +829,9 @@ async function initDB() {
     // Va al final porque depende de usuarios, bodegas, animales, catalogo_cortes, primales y
     // ordenes_salida. Definiciones completas de propuesta.sql: ver la cabecera de nucleoV10.js.
     await migrarBaseIntegracion(conn);
+
+    // Importador masivo (Ganadero SG, sacrificio CIISA) y guía de transporte: ver models/importaciones.js.
+    await migrarImportaciones(conn);
 
     console.log('Database tables initialized');
   } finally {

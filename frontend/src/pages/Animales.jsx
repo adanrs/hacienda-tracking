@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, Eye, Trash2, Edit } from 'lucide-react';
+import { Plus, Search, Eye, Trash2, Edit, Upload } from 'lucide-react';
 import { api } from '../services/api';
 import { confirmar } from '../components/ui/confirmar';
 import { aviso } from '../components/ui/avisos';
@@ -80,7 +80,10 @@ export default function Animales() {
     <div>
       <div className="page-header">
         <h2>Animales</h2>
-        <button type="button" className="btn btn-primary" onClick={openNew}><Plus size={18} aria-hidden="true" /> Nuevo animal</button>
+        <div className="rp-acciones">
+          <Link to="/animales/importar-ganadero-sg" className="btn btn-secondary"><Upload size={18} aria-hidden="true" /> Importar desde Ganadero SG</Link>
+          <button type="button" className="btn btn-primary" onClick={openNew}><Plus size={18} aria-hidden="true" /> Nuevo animal</button>
+        </div>
       </div>
 
       <div className="filter-bar" role="search" aria-label="Filtrar animales">

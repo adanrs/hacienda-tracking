@@ -18,6 +18,10 @@ app.use(morgan('dev'));
 // la firma se verifica sobre el cuerpo crudo y el parser global consumiría el stream.
 // Rechaza con 404 lo que llegue por Cloudflare (ver middleware/firmaServicio.js).
 app.use('/api/integracion/tienda', require('./routes/integracion-tienda'));
+// Importador masivo: su propio parser JSON (el texto pegado de un correo puede pasar los 100 kB
+// del parser global) y va antes de él para que el global no lo corte con 413.
+const protegidaImport = [authMiddleware, soloLecturaViewer];
+app.use('/api/importaciones', protegidaImport, express.json({ limit: '3mb' }), require('./routes/importaciones'));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
@@ -58,6 +62,7 @@ app.use('/api/reproduccion', protegida, require('./routes/reproduccion'));
 app.use('/api/potreros', protegida, require('./routes/potreros'));
 app.use('/api/dashboard', protegida, require('./routes/dashboard'));
 app.use('/api/transporte', protegida, require('./routes/transporte'));
+app.use('/api/guias-transporte', protegida, require('./routes/guias-transporte'));
 app.use('/api/sacrificio', protegida, require('./routes/sacrificio'));
 app.use('/api/cortes', protegida, require('./routes/cortes'));
 app.use('/api/catalogo-cortes', protegida, require('./routes/catalogo-cortes'));

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Routes, Route, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Beef, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Scissors, Slice, Package, Snowflake, Clock, Boxes, FileOutput, FileInput, RotateCcw, Barcode, Utensils, BookOpen, Menu, X, FileSpreadsheet, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Beef, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Scissors, Slice, Package, Snowflake, Clock, Boxes, FileOutput, FileInput, RotateCcw, Barcode, Utensils, BookOpen, Menu, X, FileSpreadsheet, ClipboardList, ClipboardCheck } from 'lucide-react';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { CowWalking } from './components/CowIcon';
 import { Avisos } from './components/ui/avisos';
@@ -32,6 +32,9 @@ import Paqueteria from './pages/Paqueteria';
 import CatalogoCortes from './pages/CatalogoCortes';
 import ReporteProduccion from './pages/ReporteProduccion';
 import SolicitudDeshuese from './pages/SolicitudDeshuese';
+import ImportarGanaderoSg from './pages/ImportarGanaderoSg';
+import ImportarSacrificio from './pages/ImportarSacrificio';
+import GuiasTransporte from './pages/GuiasTransporte';
 
 // Menú ordenado según el recorrido del producto: Finca → Planta → Bodega y despacho.
 const grupos = [
@@ -53,6 +56,7 @@ const grupos = [
   {
     titulo: 'Planta',
     items: [
+      { to: '/guias-transporte', icon: ClipboardCheck, label: 'Guías de transporte' },
       { to: '/transporte', icon: Truck, label: 'Transporte' },
       { to: '/sacrificio', icon: Warehouse, label: 'Sacrificio' },
       { to: '/solicitud-deshuese', icon: ClipboardList, label: 'Solicitud de deshuese' },
@@ -216,6 +220,7 @@ function AppLayout() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/animales" element={<Animales />} />
+          <Route path="/animales/importar-ganadero-sg" element={<ImportarGanaderoSg />} />
           <Route path="/animales/:id" element={<AnimalDetalle />} />
           <Route path="/pesajes" element={<Pesajes />} />
           <Route path="/salud" element={<Salud />} />
@@ -224,6 +229,9 @@ function AppLayout() {
           <Route path="/potreros" element={<Potreros />} />
           <Route path="/transporte" element={<Transporte />} />
           <Route path="/sacrificio" element={<Sacrificio />} />
+          <Route path="/sacrificio/importar-ciisa" element={<ImportarSacrificio />} />
+          <Route path="/guias-transporte" element={<GuiasTransporte />} />
+          <Route path="/guias-transporte/:id" element={<GuiasTransporte />} />
           <Route path="/solicitud-deshuese" element={<SolicitudDeshuese />} />
           <Route path="/deshuese" element={<Deshuese />} />
           <Route path="/reporte-produccion" element={<ReporteProduccion />} />

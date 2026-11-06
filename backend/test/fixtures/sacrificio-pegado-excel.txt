@@ -1,0 +1,7 @@
+Cantidad	Número de canal	Sexo	Peso pie (kg)	Peso canal (kg)	Rendimiento %	Arete	Musculo	Dientes	Grasa	Golpe
+1	5256	M	628	378.5	60.27	225MLE	1	4	3	-
+2	5257	M	740	460	62.16	438MLF	1	4	3	-
+3	5258	M	710	420	59.15	81FLB	1	4	3	-
+4	5259	M	732	439	59.97	177NFU	2	8	2	-
+5	5260	H	690	416.5	60.36	33FLE	1	6	3	-
+6	5261	H	592	341.5	57.69	710FLF	1	4	3	-
