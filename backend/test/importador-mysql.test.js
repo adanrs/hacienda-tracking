@@ -22,7 +22,7 @@ if (HOST) {
 
 const FIX = path.join(__dirname, 'fixtures');
 const archivo = (nombre) => ({ archivo: { buffer: fs.readFileSync(path.join(FIX, nombre)), nombre } });
-const ARETES = ['225MLE', '33FLE', '438MLF', '710FLF', '81FLB', '177MFU', '900XYZ', '901XYZ', '902XYZ'];
+const ARETES = ['225MLE', '33FLE', '438MLF', '710FLF', '81FLB', '177MFU', '900XYZ', '901XYZ', '902XYZ', 'MANUAL1'];
 
 test('MySQL real: Ganadero SG → guía de transporte → sacrificio CIISA', opciones, async (t) => {
   const { pool, initDB } = require('../src/models/database');
@@ -151,4 +151,28 @@ test('MySQL real: Ganadero SG → guía de transporte → sacrificio CIISA', opc
   assert.match(p3.filas[0].avisos.join(), /Rendimiento informado 61/);
   assert.match(p3.filas[1].errores.join(), /repetida/);
   assert.match(p3.filas[1].errores.join(), /ZZZ999 no está/);
+
+  // 7. Revisión #9: re-importar un correo SIN músculo/dientes/grasa/golpe no borra lo digitado a
+  //    mano, y si el día no cambia se conserva la hora del registro.
+  await pool.query("UPDATE sacrificios SET fecha = '2026-10-15 07:45:00', musculo = 3, golpe = 'pierna' WHERE id = ?", [s.id]);
+  const corto = ['Número de canal\tSexo\tPeso pie (kg)\tPeso canal (kg)\tArete', '5259\tM\t732\t439\t177MFU'].join('\n');
+  const p4 = await motor.planificar(pool, 'sacrificio-ciisa', { pegado: { texto: corto } }, { fecha_sacrificio: '2026-10-15' });
+  assert.equal(p4.resumen.errores, 0);
+  await motor.aplicar(pool, 'sacrificio-ciisa', { pegado: { texto: corto } }, { fecha_sacrificio: '2026-10-15' }, { usuarioId, huella: p4.huella });
+  const [[s2]] = await pool.query("SELECT DATE_FORMAT(fecha, '%Y-%m-%d %H:%i') AS f, musculo, denticion, grasa, golpe FROM sacrificios WHERE id = ?", [s.id]);
+  assert.deepEqual({ ...s2 }, { f: '2026-10-15 07:45', musculo: 3, denticion: 8, grasa: 2, golpe: 'pierna' });
+
+  // 8. Revisión #9: un transporte a matadero cargado a mano (sin guía) se adopta en la guía.
+  const [am] = await pool.query("INSERT INTO animales (numero_trazabilidad, tipo, sexo, estado) VALUES ('MANUAL1', 'bovino', 'macho', 'activo')");
+  const [tm] = await pool.query("INSERT INTO transporte (animal_id, tipo, fecha_salida, estado) VALUES (?, 'matadero', '2026-10-15 05:00:00', 'programado')", [am.insertId]);
+  const sg = ['01-003 - ENGORDE  WAGYU', '', 'Número\tSexo\tF. Nto\tRaza\tI.E.\tFec. salida\tPeso sal.\tVendido a',
+    'MANUAL1\tM\t3/1/2024\tWAG/50-BRA/50\t\t10/15/2026\t700\tEQTBL RECIPROC'].join('\n');
+  const p5 = await motor.planificar(pool, 'ganadero-sg', { pegado: { texto: sg } });
+  assert.equal(p5.resumen.errores, 0);
+  assert.match(p5.filas[0].avisos.join(), /se incorpora a la guía/);
+  await motor.aplicar(pool, 'ganadero-sg', { pegado: { texto: sg } }, {}, { usuarioId, huella: p5.huella });
+  const [tr2] = await pool.query('SELECT id, guia_id FROM transporte WHERE animal_id = ?', [am.insertId]);
+  assert.equal(tr2.length, 1);
+  assert.equal(tr2[0].id, tm.insertId);
+  assert.equal(tr2[0].guia_id, g.id);
 });

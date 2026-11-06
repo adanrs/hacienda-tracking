@@ -236,9 +236,12 @@ function leerPaquete(s) {
 
   // Validación cruzada serie ↔ genética (§11.3: Denver 26632 y Picanha 26606 salieron con
   // código F1 en lotes de animales FB). Solo aplica a series F1/FB.
+  // Es ADVERTENCIA, no error: la etiqueta real «0PG087…F111» (New York FB, campo racial F1) la
+  // imprimió CIISA así y es legítima; como error, la integración rechazaba el paquete entero.
+  // Por confirmar con el dueño qué manda cuando difieren (nombre/código o campo racial).
   if ((producto.serie === 'F1' || producto.serie === 'FB')
       && (genetica === 'F1' || genetica === 'FB') && producto.serie !== genetica) {
-    errores.push(error('genetica_cruzada', 'genetica',
+    advertencias.push(error('genetica_cruzada', 'genetica',
       `El código ${codigo} es serie ${producto.serie} pero la etiqueta dice ${genetica}`));
   }
 
