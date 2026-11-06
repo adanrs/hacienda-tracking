@@ -2,4 +2,5 @@
 module.exports = {
   ganaderoSg: require('./ganaderoSg'),
   sacrificioCiisa: require('./sacrificioCiisa'),
+  marmoleoCamara: require('./marmoleoCamara'),
 };

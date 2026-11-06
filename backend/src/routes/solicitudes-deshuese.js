@@ -103,7 +103,7 @@ async function canalesDelDia(db, fecha, solicitudId = null) {
   // Pasa cuando se corrige la fecha de un sacrificio que ya se había pedido en otro día.
   const [filas] = await db.query(
     `SELECT s.id AS sacrificio_id, s.animal_id, a.numero_trazabilidad AS arete, a.sexo, a.nombre AS animal_nombre,
-            s.peso_vivo, s.peso_canal_caliente, s.peso_canal_frio, s.numero_canal, s.resultado_inspeccion,
+            s.peso_vivo, s.peso_canal_caliente, s.peso_canal_frio, s.numero_canal, s.resultado_inspeccion, s.marmoleo,
             (SELECT t.peso_pie_finca FROM transporte t
               WHERE t.animal_id = s.animal_id AND t.peso_pie_finca IS NOT NULL
               ORDER BY t.fecha_salida DESC, t.id DESC LIMIT 1) AS peso_pie_finca,
@@ -130,6 +130,8 @@ async function canalesDelDia(db, fecha, solicitudId = null) {
       peso_canal_origen: canal.origen,
       numero_canal: f.numero_canal,
       resultado_inspeccion: f.resultado_inspeccion,
+      // Marmoleo AUS-MEAT medido en la cámara: la solicitud avisa (no bloquea) si falta.
+      marmoleo: f.marmoleo === null || f.marmoleo === undefined ? null : Number(f.marmoleo),
       peso_deshuese_est: sd.pesoDeshueseEstimado(canal.kg),
       en_otra_solicitud: f.otra_id ? { id: f.otra_id, numero: Number(f.otra_numero), fecha_sacrificio: f.otra_fecha, estado: f.otra_estado } : null,
     };

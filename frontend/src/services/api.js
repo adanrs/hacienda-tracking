@@ -339,4 +339,7 @@ export const api = {
   getGuiaTransporte: (id) => request(`/guias-transporte/${id}`),
   updateGuiaTransporte: (id, data) => request(`/guias-transporte/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   getPendientesSacrificio: (fecha) => request(`/guias-transporte/pendientes-sacrificio${qs({ fecha })}`),
+  getMarmoleoFechas: () => request('/marmoleo/fechas'),
+  getMarmoleo: (fecha) => request(`/marmoleo${qs({ fecha })}`),
+  guardarMarmoleo: (data) => request('/marmoleo', { method: 'PUT', body: JSON.stringify(data) }),
 };

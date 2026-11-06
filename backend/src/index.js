@@ -64,6 +64,7 @@ app.use('/api/dashboard', protegida, require('./routes/dashboard'));
 app.use('/api/transporte', protegida, require('./routes/transporte'));
 app.use('/api/guias-transporte', protegida, require('./routes/guias-transporte'));
 app.use('/api/sacrificio', protegida, require('./routes/sacrificio'));
+app.use('/api/marmoleo', protegida, require('./routes/marmoleo'));
 app.use('/api/cortes', protegida, require('./routes/cortes'));
 app.use('/api/catalogo-cortes', protegida, require('./routes/catalogo-cortes'));
 app.use('/api/config-planta', protegida, require('./routes/config-planta'));

@@ -92,6 +92,33 @@ const FORMATOS = {
     ],
   },
 
+  // Medición de marmoleo de la cámara de canales (página web del proveedor: no exporta Excel,
+  // se selecciona la tabla y se pega). Lo único que se registra es DMs (AUSMEAT) por animal; el
+  // resto de columnas (DMp, NFI-2, DMa, DMs, DMs MSA, DMc y cualquier otra a la derecha) se
+  // guarda como dato extra. «Body no.» = número de sacrificio (canal) + espacio + arete.
+  'marmoleo-camara': {
+    nombre: 'Marmoleo · cámara de canales',
+    descripcion: 'Tabla de la cámara (Taken at, Body no., DMs AUSMEAT…) pegada desde la página o exportada',
+    procesador: 'marmoleoCamara',
+    extensiones: ['csv', 'txt', 'xlsx', 'html', 'htm'],
+    minimoColumnas: 2,
+    ordenFechas: 'dmy',
+    guardarDesconocidas: true,
+    columnas: [
+      { clave: 'taken_at', encabezados: ['taken at', 'fecha', 'fecha hora'], tipo: 'fechahora' },
+      { clave: 'body', encabezados: ['body no', 'body', 'body n'], tipo: 'texto', obligatoria: true },
+      { clave: 'barcode', encabezados: ['barcode no', 'barcode', 'barcode n'], tipo: 'texto' },
+      { clave: 'ausmeat', encabezados: ['dms ausmeat', 'dms aus meat', 'ausmeat', 'marmoleo ausmeat', 'marmoleo aus meat'], tipo: 'texto', obligatoria: true },
+      { clave: 'dmp', encabezados: ['dmp %', 'dmp'], tipo: 'numero' },
+      { clave: 'nfi2', encabezados: ['nfi 2', 'nfi2'], tipo: 'numero' },
+      { clave: 'dma', encabezados: ['dma cm2', 'dma'], tipo: 'numero' },
+      { clave: 'dms', encabezados: ['dms'], tipo: 'numero' },
+      { clave: 'dms_msa', encabezados: ['dms msa'], tipo: 'numero' },
+      { clave: 'dmc', encabezados: ['dmc'], tipo: 'numero' },
+    ],
+    metadatos: [],
+  },
+
   // PRÓXIMO (no implementado): inventario por tarimas que manda CIISA («INV WAGYU SEMANA 41.xlsx»,
   // hojas INV GENERAL / MADURACION / TORTAS WAGYU). El lector ya detecta su encabezado; falta el
   // procesador que concilie contra etiquetas/primales/cajas. `procesador: null` lo deja fuera

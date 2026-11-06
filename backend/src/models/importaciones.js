@@ -136,6 +136,13 @@ async function migrarImportaciones(conn) {
   await ignorarSiExiste(`ALTER TABLE sacrificios ADD COLUMN grasa INT NULL COMMENT 'Puntaje de grasa que informa CIISA'`, SIN_IMPORTADOR);
   await ignorarSiExiste(`ALTER TABLE sacrificios ADD COLUMN rendimiento_informado DECIMAL(5,2) NULL COMMENT 'Rendimiento % tal como lo informa la planta'`, SIN_IMPORTADOR);
   await ignorarSiExiste(`ALTER TABLE sacrificios ADD COLUMN importacion_id INT NULL COMMENT 'Importación que lo creó o actualizó por última vez'`);
+
+  // Medición de marmoleo: `sacrificios.marmoleo` (ya existía) guarda DMs AUS-MEAT 0–9; aquí van
+  // las demás columnas de la cámara (DMp, NFI-2, DMa, DMs, MSA, DMc y las que aparezcan) y quién la cargó.
+  const SIN_MARMOLEO = 'la carga de marmoleo NO va a funcionar hasta corregirlo';
+  await ignorarSiExiste(`ALTER TABLE sacrificios ADD COLUMN marmoleo_extra JSON NULL COMMENT 'Columnas de la cámara de canales además de DMs AUSMEAT'`, SIN_MARMOLEO);
+  await ignorarSiExiste(`ALTER TABLE sacrificios ADD COLUMN marmoleo_importacion_id INT NULL COMMENT 'Importación que cargó el marmoleo'`, SIN_MARMOLEO);
+  await ignorarSiExiste(`ALTER TABLE sacrificios ADD COLUMN marmoleo_por INT NULL COMMENT 'Usuario que registró el marmoleo a mano'`, SIN_MARMOLEO);
 }
 
 module.exports = { migrarImportaciones };
