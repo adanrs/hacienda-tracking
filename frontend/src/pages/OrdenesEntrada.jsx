@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, CheckCircle, FileInput } from 'lucide-react';
 import { api } from '../services/api';
+import { soloLegacy } from '../services/bodegas';
 import { confirmar } from '../components/ui/confirmar';
 import { aviso } from '../components/ui/avisos';
 import Escaner from '../components/ui/Escaner';
@@ -32,7 +33,8 @@ export default function OrdenesEntrada() {
   };
   useEffect(() => {
     load();
-    api.getBodegas().then(setBodegas).catch(aviso.errorCarga('las bodegas'));
+    // Sin las bodegas v10 (12, 107, WC-01): su inventario va por etiqueta (services/bodegas.js).
+    api.getBodegas().then(bs => setBodegas(soloLegacy(bs))).catch(aviso.errorCarga('las bodegas'));
     api.getPrimales().then(setPrimales).catch(aviso.errorCarga('los primales'));
     api.getCajas().then(setCajas).catch(aviso.errorCarga('las cajas'));
   }, []);

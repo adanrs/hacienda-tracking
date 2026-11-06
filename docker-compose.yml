@@ -35,7 +35,7 @@ services:
       # Solo desarrollo local: el backend ya no arranca sin JWT_SECRET. En el servidor va en el .env.
       - JWT_SECRET=${JWT_SECRET:-solo-desarrollo-local-no-usar-en-servidor-0123456789}
       - INTEGRACION_TIENDA_MODO=${INTEGRACION_TIENDA_MODO:-apagado}
-      - INTEGRACION_TIENDA_SECRET=${INTEGRACION_TIENDA_SECRET:-}
+      - INTEGRACION_TIENDA_SECRETO=${INTEGRACION_TIENDA_SECRETO:-}
     depends_on:
       mysql:
         condition: service_healthy

@@ -344,7 +344,8 @@ async function migrarBaseIntegracion(conn) {
       await conn.query('CREATE INDEX idx_os_despacho ON ordenes_salida (estado, bodega_destino_id, despachada_en, id)');
     }
     // Las despachadas antes de esta columna toman su última modificación (la mejor aproximación).
-    await conn.query("UPDATE ordenes_salida SET despachada_en = updated_at WHERE estado = 'despachada' AND despachada_en IS NULL");
+    // `updated_at = updated_at` evita que el ON UPDATE CURRENT_TIMESTAMP las marque como editadas hoy.
+    await conn.query("UPDATE ordenes_salida SET despachada_en = updated_at, updated_at = updated_at WHERE estado = 'despachada' AND despachada_en IS NULL");
   }, 'la consulta de despachos hacia WC-01 no va a funcionar');
 
   await paso('usuario de servicio', async () => {

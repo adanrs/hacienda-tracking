@@ -10,16 +10,27 @@
 // Se llama DENTRO de la transacción que inserta el documento: si el documento hace rollback, el
 // incremento también (no quedan huecos) y el candado de la fila dura hasta el commit.
 
+// El «día» del número OS/OE es el de Costa Rica, sin importar el TZ del contenedor (una orden
+// creada a las 19:00 de CR es del mismo día aunque en UTC ya sea mañana). Solo afecta al número:
+// las demás fechas se siguen guardando como antes.
+const ZONA_NUMERACION = 'America/Costa_Rica';
+const formatoDia = new Intl.DateTimeFormat('en-CA', { timeZone: ZONA_NUMERACION, year: 'numeric', month: '2-digit', day: '2-digit' });
+
+/** { anio, mes, dia } (mes y dia con 2 dígitos) de `fecha` en hora de Costa Rica. */
+function diaCostaRica(fecha = new Date()) {
+  const p = Object.fromEntries(formatoDia.formatToParts(fecha).map(x => [x.type, x.value]));
+  return { anio: Number(p.year), mes: p.month, dia: p.day };
+}
+
 /**
  * Serie diaria para la tabla consecutivos: `serie` es VARCHAR(10), así que el día va como
  * PREFIJO-MMDD y el año en `anio` (p. ej. OS-1105 / 2026).
  */
 function serieDiaria(prefijo, fecha = new Date()) {
-  const mm = String(fecha.getMonth() + 1).padStart(2, '0');
-  const dd = String(fecha.getDate()).padStart(2, '0');
-  const serie = `${prefijo}-${mm}${dd}`;
+  const { anio, mes, dia } = diaCostaRica(fecha);
+  const serie = `${prefijo}-${mes}${dia}`;
   if (serie.length > 10) throw new Error(`Serie de consecutivo demasiado larga: ${serie}`);
-  return { serie, anio: fecha.getFullYear() };
+  return { serie, anio };
 }
 
 /**
@@ -52,8 +63,8 @@ async function siguienteConsecutivo(conn, { serie, anio, semilla }) {
  */
 async function numeroDiario(conn, { prefijo, tabla, fecha = new Date() }) {
   if (!/^[a-z_]+$/.test(tabla)) throw new Error('tabla inválida');
-  const ymd = `${fecha.getFullYear()}${String(fecha.getMonth() + 1).padStart(2, '0')}${String(fecha.getDate()).padStart(2, '0')}`;
-  const base = `${prefijo}-${ymd}-`;
+  const { anio: a, mes, dia } = diaCostaRica(fecha);
+  const base = `${prefijo}-${a}${mes}${dia}-`;
   const { serie, anio } = serieDiaria(prefijo, fecha);
   const n = await siguienteConsecutivo(conn, {
     serie, anio,
@@ -67,4 +78,4 @@ async function numeroDiario(conn, { prefijo, tabla, fecha = new Date() }) {
   return `${base}${String(n).padStart(3, '0')}`;
 }
 
-module.exports = { siguienteConsecutivo, numeroDiario, serieDiaria };
+module.exports = { siguienteConsecutivo, numeroDiario, serieDiaria, diaCostaRica, ZONA_NUMERACION };

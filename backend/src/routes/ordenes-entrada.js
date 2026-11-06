@@ -6,6 +6,7 @@ idsNumericos(router);
 
 const { pool } = require('../models/database');
 const { numeroDiario } = require('../lib/consecutivos');
+const { errorSiV10 } = require('../lib/bodegasV10');
 
 const SELECT_BASE = `
   SELECT o.*, b.codigo as bodega_destino_codigo, b.nombre as bodega_destino_nombre
@@ -51,6 +52,9 @@ router.post('/', async (req, res) => {
   if (!fecha) return res.status(400).json({ error: 'fecha es requerida' });
   const conn = await pool.getConnection();
   try {
+    // Las bodegas v10 (12, 107, WC-01) no reciben primales por el flujo viejo (lib/bodegasV10.js).
+    const errBodega = await errorSiV10(conn, [bodega_destino_id], 'bodega de destino');
+    if (errBodega) return res.status(400).json({ error: errBodega });
     await conn.beginTransaction();
     // Consecutivo atómico (lib/consecutivos.js): «cantidad del día + 1» chocaba con el UNIQUE
     // cuando dos usuarios creaban a la vez y repetía números tras borrar una orden.

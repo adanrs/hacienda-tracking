@@ -41,7 +41,9 @@ Encabezados obligatorios en cada petición:
   firma antes de parsear el JSON.
 - Vectores de prueba: `backend/test/fixtures/integracion-firma-vectores.json`. La tienda tiene
   que reproducirlos byte a byte en su propia suite (mismo archivo en los dos repos).
-- **Rotación**: `INTEGRACION_TIENDA_SECRET` acepta un secreto solo (id `tienda-v1`) o una lista
+- Variable: `INTEGRACION_TIENDA_SECRETO`, el nombre del diseño. `INTEGRACION_TIENDA_SECRET` se
+  acepta como alias, con un aviso en el log.
+- **Rotación**: `INTEGRACION_TIENDA_SECRETO` acepta un secreto solo (id `tienda-v1`) o una lista
   `tienda-v2:<nuevo>,tienda-v1:<viejo>`. Primero se agrega la clave nueva en ganadería, después se
   cambia la tienda a `tienda-v2` y al final se quita la vieja. Cada secreto debe tener al menos 32
   caracteres (`openssl rand -hex 32`). Un secreto más corto se descarta y se avisa en el log, sin
@@ -113,7 +115,14 @@ encendido tiene que aplicarse (y no devolver el resultado de la sombra).
   cursor vuelve igual. El cursor es opaco: no hay que interpretarlo.
 - Un despacho se publica 5 s después de confirmado. Esa pausa evita que dos transacciones que
   terminan en otro orden dejen uno por detrás del cursor.
-- La tienda hace upsert por `numero`.
+- **La tienda tiene que deduplicar por `numero` (upsert).** Cuando ya está al día (el cursor que
+  manda se emitió con `hay_mas = false`), la consulta siguiente relee los últimos 60 s antes del
+  cursor. Así se recupera un despacho cuya transacción confirmó tarde con un `despachada_en`
+  anterior. Entre páginas de una misma consulta no se relee nada, así que no hay bucles.
+- `despachada_en` se escribe como última sentencia del despacho, justo antes del commit. La orden
+  se lee con `SELECT … FOR UPDATE`: con un doble clic o dos usuarios, el segundo recibe 409 y no se
+  duplican ni `despachada_en` ni `movimientos_bodega`.
+- Una orden despachada o cancelada ya no se modifica: `PUT` responde 409.
 - Límite de esta fase: una orden que se cancela **después** de despachada deja de aparecer, pero
   la tienda no recibe un aviso explícito. Las órdenes de traslado v10 (fase 2) traen el estado
   `cancelada`.
@@ -122,6 +131,14 @@ encendido tiene que aplicarse (y no devolver el resultado de la sombra).
 
 Para que una orden aparezca, en **Órdenes de salida** se elige «Bodega de destino = WC-01» y se
 despacha.
+
+**Bodegas v10 en el flujo viejo** (decisión del 05-nov, vale hasta el corte v10): 12, 107 y WC-01
+no aparecen en los selectores de Custodia, Maduración/Porcionado, Deshuese ni Órdenes de entrada.
+En Órdenes de salida no aparecen como origen y, como destino, solo aparece WC-01. El backend lo
+valida igual (`lib/bodegasV10.js`): en custodia (`/recibir`, `/mover`) y en órdenes de entrada
+rechaza una bodega v10, y en órdenes de salida el origen no puede ser v10, el destino solo puede
+ser una `BOD-*` o WC-01, y origen y destino tienen que ser distintos. Una bodega es v10 cuando
+tiene `naturaleza`.
 
 ### `POST /eventos`
 
@@ -219,7 +236,9 @@ Antes, `OS-AAAAMMDD-NNN` y `OE-AAAAMMDD-NNN` salían de «cantidad del día + 1�
 la vez, el segundo chocaba con el UNIQUE, y después de borrar una orden se repetía un número.
 Ahora salen de `consecutivos` (`serie = 'OS-MMDD'`, `anio`) con
 `UPDATE … SET ultimo = LAST_INSERT_ID(ultimo + 1)`, dentro de la misma transacción que crea la
-orden. Un rollback no consume número. El día del despliegue el contador arranca en el mayor número
+orden. Un rollback no consume número. El **día** del número es el de Costa Rica
+(`America/Costa_Rica`), sea cual sea el TZ del contenedor: una orden de las 21:00 de CR es de ese
+día aunque en UTC ya sea el siguiente. Las demás fechas se guardan igual que antes. El día del despliegue el contador arranca en el mayor número
 ya emitido ese día. Lo prueban `test/consecutivos.test.js` y `test/mysql-integracion.test.js`
 (30 órdenes concurrentes contra MySQL real).
 
@@ -237,7 +256,7 @@ TEST_MYSQL_HOST=127.0.0.1 TEST_MYSQL_PORT=33061 npm test
 
 1. Definir en `/opt/kiwi/.env` y mapear en el servicio `hacienda-backend` de
    `/opt/kiwi/docker-compose.yml`: `JWT_SECRET` (ya existe), `INTEGRACION_TIENDA_MODO=apagado` y
-   `INTEGRACION_TIENDA_SECRET` (nuevo, también en el servicio `wagyu`).
+   `INTEGRACION_TIENDA_SECRETO` (nuevo, también en el servicio `wagyu`).
 2. Mergear. El auto-deploy reconstruye el backend e initDB migra. Revisar el log del contenedor:
    si aparece `[initDB:v10] trigger …`, correr el SQL de `backend/migraciones/` como root.
 3. Cuando la tienda tenga su fase 1, pasar a `sombra` y revisar `integracion_eventos` y los avisos

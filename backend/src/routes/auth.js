@@ -107,6 +107,10 @@ router.put('/usuarios/:id', authMiddleware, requireRole('admin'), async (req, re
 router.delete('/usuarios/:id', authMiddleware, requireRole('admin'), async (req, res) => {
   if (parseInt(req.params.id) === req.user.id) return res.status(400).json({ error: 'No puedes eliminarte a ti mismo' });
   try {
+    // Borrar el usuario de servicio apagaría la integración con la tienda y dejaría huérfanos
+    // los movimientos que firmó (movimientos_etiqueta.usuario_id).
+    const [objetivo] = await pool.query('SELECT rol FROM usuarios WHERE id = ?', [req.params.id]);
+    if (objetivo.length && objetivo[0].rol === 'servicio') return res.status(400).json({ error: 'Los usuarios de servicio no se eliminan desde la app' });
     const [result] = await pool.query('DELETE FROM usuarios WHERE id = ?', [req.params.id]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
     res.json({ message: 'Usuario eliminado' });

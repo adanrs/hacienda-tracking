@@ -48,7 +48,7 @@ test('MySQL real: migración idempotente y consecutivo sin carreras', opciones, 
   assert.equal(fe[0].n, 3);
 
   // 30 órdenes a la vez, cada una en su transacción, como POST /api/ordenes-salida.
-  const fecha = new Date(2031, 0, 15, 9, 0); // día sin órdenes previas
+  const fecha = new Date('2031-01-15T15:00:00Z'); // 15-ene-2031 9:00 en CR, día sin órdenes previas
   await pool.query("DELETE FROM ordenes_salida WHERE numero LIKE 'OS-20310115-%'");
   await pool.query("DELETE FROM consecutivos WHERE serie = 'OS-0115' AND anio = 2031");
   const crear = async () => {
@@ -81,6 +81,59 @@ test('MySQL real: migración idempotente y consecutivo sin carreras', opciones, 
   await pool.query(ins, fila);
   await assert.rejects(pool.query(ins, fila), { code: 'ER_DUP_ENTRY' });
   await pool.query("DELETE FROM integracion_eventos WHERE clave = 'baja.aplicada:prueba'");
+
+  // Órdenes de salida por la API real: doble despacho simultáneo, PUT tras despachar y bodegas v10.
+  const express = require('express');
+  const app = express();
+  app.use(express.json());
+  app.use('/os', require('../src/routes/ordenes-salida'));
+  process.env.INTEGRACION_TIENDA_MODO = 'sombra';
+  process.env.INTEGRACION_TIENDA_SECRETO = 'b'.repeat(64);
+  const appInt = express();
+  appInt.use('/api/integracion/tienda', require('../src/routes/integracion-tienda'));
+  const servidor = await new Promise((ok) => { const s = app.listen(0, '127.0.0.1', () => ok(s)); });
+  t.after(() => new Promise((ok) => servidor.close(ok)));
+  const url = `http://127.0.0.1:${servidor.address().port}/os`;
+  const llamar = async (metodo, ruta, cuerpo) => {
+    const r = await fetch(url + ruta, { method: metodo, headers: { 'Content-Type': 'application/json' }, body: cuerpo && JSON.stringify(cuerpo) });
+    return { status: r.status, body: await r.json() };
+  };
+  const [bods] = await pool.query("SELECT id, codigo FROM bodegas WHERE codigo IN ('BOD-DSP','BOD-CUS','WC-01','107')");
+  const id = Object.fromEntries(bods.map(b => [b.codigo, b.id]));
+  // v10: el origen nunca; el destino solo WC-01; origen ≠ destino.
+  assert.equal((await llamar('POST', '/', { fecha: '2026-11-05', bodega_origen_id: id['107'], bodega_destino_id: id['WC-01'] })).status, 400);
+  assert.equal((await llamar('POST', '/', { fecha: '2026-11-05', bodega_origen_id: id['BOD-DSP'], bodega_destino_id: id['107'] })).status, 400);
+  assert.equal((await llamar('POST', '/', { fecha: '2026-11-05', bodega_origen_id: id['BOD-DSP'], bodega_destino_id: id['BOD-DSP'] })).status, 400);
+  const orden = await llamar('POST', '/', { fecha: '2026-11-05', bodega_origen_id: id['BOD-DSP'], bodega_destino_id: id['WC-01'] });
+  assert.equal(orden.status, 201);
+  assert.equal((await llamar('PUT', `/${orden.body.id}`, { bodega_destino_id: id['107'] })).status, 400);
+  // Doble clic: dos despachos a la vez → uno 200 y el otro 409, un solo despachada_en.
+  const dobles = await Promise.all([llamar('POST', `/${orden.body.id}/despachar`), llamar('POST', `/${orden.body.id}/despachar`)]);
+  assert.deepEqual(dobles.map(r => r.status).sort(), [200, 409]);
+  // Después del despacho no se cambia ni el estado ni la bodega de destino.
+  assert.equal((await llamar('PUT', `/${orden.body.id}`, { estado: 'cancelada' })).status, 409);
+  assert.equal((await llamar('PUT', `/${orden.body.id}`, { bodega_destino_id: id['BOD-CUS'] })).status, 409);
+
+  // /despachos con SQL real (CAST + INTERVAL del solapamiento): aparece pasado el asentamiento de
+  // 5 s y vuelve a aparecer en la consulta siguiente (relee 60 s; la tienda deduplica por número).
+  const { firmar } = require('../src/lib/integracion/firma');
+  const srvInt = await new Promise((ok) => { const s = appInt.listen(0, '127.0.0.1', () => ok(s)); });
+  t.after(() => new Promise((ok) => srvInt.close(ok)));
+  const despachos = async (cursor) => {
+    const ruta = `/api/integracion/tienda/despachos${cursor ? `?cursor=${cursor}` : ''}`;
+    const fecha = String(Date.now());
+    const r = await fetch(`http://127.0.0.1:${srvInt.address().port}${ruta}`, { headers: {
+      'X-Integracion-Clave': 'tienda-v1', 'X-Integracion-Fecha': fecha,
+      'X-Integracion-Firma': firmar({ secreto: 'b'.repeat(64), fecha, metodo: 'GET', ruta, cuerpo: Buffer.alloc(0) }) } });
+    return r.json();
+  };
+  await new Promise(r => setTimeout(r, 5500));
+  const d1 = await despachos();
+  assert.ok(d1.despachos.some(d => d.numero === orden.body.numero));
+  const d2 = await despachos(d1.siguiente_cursor);
+  assert.ok(d2.despachos.some(d => d.numero === orden.body.numero));
+
+  await pool.query('DELETE FROM ordenes_salida WHERE id = ?', [orden.body.id]);
 
   // Triggers append-only: si se pudieron crear, bloquean UPDATE/DELETE del kardex.
   const [trg] = await pool.query("SELECT TRIGGER_NAME AS n FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE() AND EVENT_OBJECT_TABLE = 'movimientos_etiqueta'");

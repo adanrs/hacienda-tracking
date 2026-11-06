@@ -27,7 +27,7 @@ function firmar({ secreto, fecha, metodo, ruta, cuerpo }) {
 }
 
 /**
- * Lee las claves vigentes de INTEGRACION_TIENDA_SECRET. Acepta:
+ * Lee las claves vigentes de INTEGRACION_TIENDA_SECRETO. Acepta:
  *   - un secreto solo                     → id «tienda-v1»
  *   - lista «id:secreto,id2:secreto2»     → rotación: se agrega la nueva, se migra la tienda y
  *                                           después se quita la vieja, sin cortar el servicio.
@@ -38,7 +38,7 @@ function cargarClaves(valor) {
   const claves = new Map();
   const errores = [];
   const texto = String(valor || '').trim();
-  if (!texto) return { claves, errores: ['INTEGRACION_TIENDA_SECRET no está definido'] };
+  if (!texto) return { claves, errores: ['INTEGRACION_TIENDA_SECRETO no está definido'] };
   const partes = texto.split(',').map(s => s.trim()).filter(Boolean);
   for (const parte of partes) {
     // El secreto es hex (openssl rand -hex 32), así que «:» solo puede separar id y secreto.

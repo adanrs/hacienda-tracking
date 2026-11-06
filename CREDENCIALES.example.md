@@ -30,6 +30,6 @@ OPER_PASSWORD=<solo para el seed inicial>
 
 # Integración con la tienda (docs/integracion-tienda/README.md)
 INTEGRACION_TIENDA_MODO=apagado            # apagado | sombra | encendido
-INTEGRACION_TIENDA_SECRET=<openssl rand -hex 32>
-# Rotación: INTEGRACION_TIENDA_SECRET=tienda-v2:<nuevo>,tienda-v1:<viejo>
+INTEGRACION_TIENDA_SECRETO=<openssl rand -hex 32>
+# Rotación: INTEGRACION_TIENDA_SECRETO=tienda-v2:<nuevo>,tienda-v1:<viejo>
 ```

@@ -7,6 +7,7 @@ idsNumericos(router);
 const { pool } = require('../models/database');
 const { construirUpdate, ErrorCampos } = require('../lib/sqlUpdate');
 const { numeroDiario } = require('../lib/consecutivos');
+const { errorBodegasOrdenSalida } = require('../lib/bodegasV10');
 
 const SELECT_BASE = `
   SELECT o.*, b.codigo as bodega_codigo, b.nombre as bodega_nombre,
@@ -55,6 +56,8 @@ router.post('/', async (req, res) => {
   if (!fecha) return res.status(400).json({ error: 'fecha es requerida' });
   const conn = await pool.getConnection();
   try {
+    const errBodegas = await errorBodegasOrdenSalida(conn, { origen: bodega_origen_id, destino: bodega_destino_id });
+    if (errBodegas) return res.status(400).json({ error: errBodegas });
     await conn.beginTransaction();
     // Consecutivo atómico (lib/consecutivos.js): «cantidad del día + 1» chocaba con el UNIQUE
     // cuando dos usuarios creaban a la vez y repetía números tras borrar una orden.
@@ -90,27 +93,47 @@ const ORDEN_SALIDA_EDITABLES = ['fecha', 'solicitante', 'destino', 'bodega_orige
 const ORDEN_SALIDA_ENUMS = { estado: ['pendiente', 'en_preparacion', 'cancelada'] };
 
 router.put('/:id', async (req, res) => {
+  const conn = await pool.getConnection();
   try {
     const { sql, params } = construirUpdate({
       tabla: 'ordenes_salida', id: req.params.id, body: req.body,
       permitidas: ORDEN_SALIDA_EDITABLES, enums: ORDEN_SALIDA_ENUMS,
     });
-    const [result] = await pool.query(sql, params);
-    if (result.affectedRows === 0) return res.status(404).json({ error: 'Orden no encontrada' });
+    await conn.beginTransaction();
+    // FOR UPDATE: la revisión de estado y el UPDATE no pueden cruzarse con un despacho en curso.
+    const [actual] = await conn.query(
+      'SELECT estado, bodega_origen_id, bodega_destino_id FROM ordenes_salida WHERE id = ? FOR UPDATE', [req.params.id]);
+    if (!actual.length) { await conn.rollback(); return res.status(404).json({ error: 'Orden no encontrada' }); }
+    // Una orden despachada ya está en la consulta de la tienda (y sus cajas ya salieron): cambiarle
+    // el estado o la bodega de destino dejaría a la tienda con un traslado que ya no existe.
+    // Una cancelada tampoco se reabre.
+    if (['despachada', 'cancelada'].includes(actual[0].estado)) {
+      await conn.rollback();
+      return res.status(409).json({ error: `La orden está ${actual[0].estado} y ya no se puede modificar` });
+    }
+    const origen = 'bodega_origen_id' in req.body ? req.body.bodega_origen_id : actual[0].bodega_origen_id;
+    const destino = 'bodega_destino_id' in req.body ? req.body.bodega_destino_id : actual[0].bodega_destino_id;
+    const errBodegas = await errorBodegasOrdenSalida(conn, { origen, destino });
+    if (errBodegas) { await conn.rollback(); return res.status(400).json({ error: errBodegas }); }
+    await conn.query(sql, params);
+    await conn.commit();
     const [rows] = await pool.query(SELECT_BASE + ' WHERE o.id = ?', [req.params.id]);
     const items = await fetchItems(req.params.id);
     res.json({ ...rows[0], items });
   } catch (err) {
+    try { await conn.rollback(); } catch { /* sin transacción abierta */ }
     if (err instanceof ErrorCampos) return res.status(400).json({ error: err.message });
     res.status(500).json({ error: err.message });
-  }
+  } finally { conn.release(); }
 });
 
 router.post('/:id/despachar', async (req, res) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const [ordenRows] = await conn.query('SELECT * FROM ordenes_salida WHERE id = ?', [req.params.id]);
+    // FOR UPDATE: con doble clic o dos usuarios, el segundo espera aquí al primero y después ve la
+    // orden ya despachada (409), en vez de duplicar movimientos_bodega y despachada_en.
+    const [ordenRows] = await conn.query('SELECT * FROM ordenes_salida WHERE id = ? FOR UPDATE', [req.params.id]);
     if (!ordenRows.length) { await conn.rollback(); return res.status(404).json({ error: 'Orden no encontrada' }); }
     const orden = ordenRows[0];
     // Despachar dos veces movía otra vez las cajas y ahora además cambiaría despachada_en, con lo
@@ -136,8 +159,6 @@ router.post('/:id/despachar', async (req, res) => {
       }
     }
 
-    // despachada_en es el cursor con que la tienda consulta los despachos hacia WC-01.
-    await conn.query("UPDATE ordenes_salida SET estado = 'despachada', despachada_en = NOW(3) WHERE id = ?", [req.params.id]);
     for (const it of items) {
       if (it.caja_id) {
         await conn.query("UPDATE cajas SET estado = 'despachada' WHERE id = ?", [it.caja_id]);
@@ -148,6 +169,16 @@ router.post('/:id/despachar', async (req, res) => {
           VALUES (?, ?, NULL, 'otro', NOW(), ?, ?)
         `, [it.primal_id, orden.bodega_origen_id, orden.solicitante, req.params.id]);
       }
+    }
+    // Última sentencia antes del commit: despachada_en es el cursor con que la tienda consulta los
+    // despachos hacia WC-01; así queda lo más cerca posible del momento en que la orden se vuelve
+    // visible (menos desfase entre transacciones; además /despachos relee 60 s hacia atrás).
+    const [upd] = await conn.query(
+      "UPDATE ordenes_salida SET estado = 'despachada', despachada_en = NOW(3) WHERE id = ? AND estado NOT IN ('despachada','cancelada')",
+      [req.params.id]);
+    if (upd.affectedRows !== 1) {
+      await conn.rollback();
+      return res.status(409).json({ error: 'La orden cambió de estado mientras se despachaba' });
     }
     await conn.commit();
     const [rows] = await pool.query(SELECT_BASE + ' WHERE o.id = ?', [req.params.id]);

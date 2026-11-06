@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Edit, Trash2, Upload, FileText } from 'lucide-react';
 import { api } from '../services/api';
+import { soloLegacy } from '../services/bodegas';
 import { confirmar } from '../components/ui/confirmar';
 import { aviso } from '../components/ui/avisos';
 import { formatDate } from '../components/DateFormat';
@@ -30,7 +31,8 @@ export default function Deshuese() {
   useEffect(() => {
     load();
     api.getSacrificios().then(setSacrificios).catch(aviso.errorCarga());
-    api.getBodegas().then(setBodegas).catch(aviso.errorCarga());
+    // Sin las bodegas v10 (12, 107, WC-01): su inventario va por etiqueta (services/bodegas.js).
+    api.getBodegas().then(bs => setBodegas(soloLegacy(bs))).catch(aviso.errorCarga());
   }, []);
 
   const bodegasDeshuese = bodegas.filter(b => b.tipo === 'deshuese');

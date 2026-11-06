@@ -16,7 +16,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:?definir JWT_SECRET en el .env}
       # Integración con la tienda (docs/integracion-tienda/README.md). Sin secreto → 503.
       - INTEGRACION_TIENDA_MODO=${INTEGRACION_TIENDA_MODO:-apagado}
-      - INTEGRACION_TIENDA_SECRET=${INTEGRACION_TIENDA_SECRET:-}
+      - INTEGRACION_TIENDA_SECRETO=${INTEGRACION_TIENDA_SECRETO:-}
     command: ["npm", "start"]
     restart: always
 

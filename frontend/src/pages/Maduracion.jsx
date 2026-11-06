@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Clock, Send, Plus, Trash2, Thermometer } from 'lucide-react';
 import { api } from '../services/api';
+import { soloLegacy } from '../services/bodegas';
 import { confirmar } from '../components/ui/confirmar';
 import { aviso } from '../components/ui/avisos';
 import { formatDate } from '../components/DateFormat';
@@ -108,7 +109,8 @@ export default function Maduracion() {
 
   useEffect(() => {
     load();
-    api.getBodegas().then(setBodegas).catch(aviso.errorCarga());
+    // Sin las bodegas v10 (12, 107, WC-01): su inventario va por etiqueta (services/bodegas.js).
+    api.getBodegas().then(bs => setBodegas(soloLegacy(bs))).catch(aviso.errorCarga());
   }, []);
 
   useEffect(() => { loadTemperaturas(); }, [tempBodegaFilter]);

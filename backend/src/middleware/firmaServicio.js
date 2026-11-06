@@ -39,8 +39,18 @@ function crearFirmaServicio({ buscarUsuarioServicio, env = process.env, ahora = 
   let avisado = false;
   let usuarioId = null;
 
+  let avisoAlias = false;
   const claves = () => {
-    const valor = env.INTEGRACION_TIENDA_SECRET;
+    // Nombre del diseño: INTEGRACION_TIENDA_SECRETO. INTEGRACION_TIENDA_SECRET se acepta como alias
+    // (fue el nombre de la primera versión de este PR) con aviso, para no cortar un .env ya hecho.
+    let valor = env.INTEGRACION_TIENDA_SECRETO;
+    if ((valor === undefined || valor === '') && env.INTEGRACION_TIENDA_SECRET) {
+      valor = env.INTEGRACION_TIENDA_SECRET;
+      if (!avisoAlias) {
+        console.warn('[integracion-tienda] INTEGRACION_TIENDA_SECRET está obsoleto: renombrarlo a INTEGRACION_TIENDA_SECRETO');
+        avisoAlias = true;
+      }
+    }
     if (valor !== cacheClaves.valor) {
       const r = cargarClaves(valor);
       cacheClaves = { valor, ...r };

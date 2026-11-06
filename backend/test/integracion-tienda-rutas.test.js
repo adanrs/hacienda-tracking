@@ -14,7 +14,7 @@ const { firmar } = require('../src/lib/integracion/firma');
 const SECRETO = vectores.secreto;
 const llamadas = [];
 const eventos = new Map(); // clave → fila
-const estado = { carrera: false, sinUsuario: false };
+const estado = { carrera: false, sinUsuario: false, solapes: [] };
 const dup = () => Object.assign(new Error('Duplicate entry'), { code: 'ER_DUP_ENTRY' });
 
 // Paquete de 28 real (test/etiquetas.test.js): arete 34GKAE, artículo 26632, 0,416 kg.
@@ -45,8 +45,10 @@ async function responder(sql, params = []) {
       { id: 3, numero: 'OS-20261105-001', fecha: new Date('2026-11-05T12:00:00Z'), destino: 'Tienda', notas: null, despachada_en: new Date('2026-11-05T15:00:00.120Z'), despachada_txt: '2026-11-05 09:00:00.120000', origen_codigo: '107', origen_nombre: 'Custodia', origen_codigo_ciisa: '107' },
       { id: 4, numero: 'OS-20261105-002', fecha: new Date('2026-11-05T12:00:00Z'), destino: null, notas: 'x', despachada_en: new Date('2026-11-05T15:00:00.120Z'), despachada_txt: '2026-11-05 09:00:00.120000', origen_codigo: '107', origen_nombre: 'Custodia', origen_codigo_ciisa: '107' },
     ];
-    const [, t, , id, limite] = params;
-    const resto = todas.filter(o => o.despachada_txt > t || (o.despachada_txt === t && o.id > id));
+    const [, t, solape, , , id, limite] = params;
+    estado.solapes.push(solape);
+    // Con solapamiento (60 s) se relee todo: los dos despachos están en el mismo instante.
+    const resto = solape > 0 ? todas : todas.filter(o => o.despachada_txt > t || (o.despachada_txt === t && o.id > id));
     return [resto.slice(0, limite)];
   }
   if (/FROM ordenes_salida_items i/.test(s)) {
@@ -86,9 +88,10 @@ test.after(() => new Promise((ok) => server.close(ok)));
 test.beforeEach(() => {
   llamadas.length = 0;
   eventos.clear();
-  Object.assign(estado, { carrera: false, sinUsuario: false });
+  Object.assign(estado, { carrera: false, sinUsuario: false, solapes: [] });
+  delete process.env.INTEGRACION_TIENDA_SECRET;
   process.env.INTEGRACION_TIENDA_MODO = 'sombra';
-  process.env.INTEGRACION_TIENDA_SECRET = SECRETO;
+  process.env.INTEGRACION_TIENDA_SECRETO = SECRETO;
 });
 
 async function pedir(metodo, ruta, { cuerpo, cabeceras = {}, firma, fecha = String(Date.now()), clave = 'tienda-v1', sinFirma = false } = {}) {
@@ -135,10 +138,16 @@ test('interruptor: apagado (o valor desconocido) responde 503 sin tocar la base'
 });
 
 test('sin secreto o con secreto corto: 503 (configuración incompleta)', async () => {
-  delete process.env.INTEGRACION_TIENDA_SECRET;
+  delete process.env.INTEGRACION_TIENDA_SECRETO;
   assert.equal((await pedir('GET', `${R}/salud`)).status, 503);
-  process.env.INTEGRACION_TIENDA_SECRET = 'corto';
+  process.env.INTEGRACION_TIENDA_SECRETO = 'corto';
   assert.equal((await pedir('GET', `${R}/salud`)).body.error, 'integracion_sin_configurar');
+});
+
+test('INTEGRACION_TIENDA_SECRET (nombre viejo) sigue valiendo como alias', async () => {
+  delete process.env.INTEGRACION_TIENDA_SECRETO;
+  process.env.INTEGRACION_TIENDA_SECRET = SECRETO;
+  assert.equal((await pedir('GET', `${R}/salud`)).status, 200);
 });
 
 test('firma: ausente, vencida o de otro cuerpo → 401; válida → salud firmada', async () => {
@@ -295,9 +304,12 @@ test('despachos: paginado por cursor, con las etiquetas de cada caja', async () 
   const p2 = await pedir('GET', `${R}/despachos?limite=1&cursor=${p1.body.siguiente_cursor}`);
   assert.deepEqual(p2.body.despachos.map(x => x.numero), ['OS-20261105-002']); // mismo instante, id mayor
   assert.equal(p2.body.hay_mas, false);
+  // p2 terminó (hay_mas = false): la consulta siguiente relee 60 s hacia atrás y vuelven a salir
+  // los dos; la tienda los deduplica por número.
   const p3 = await pedir('GET', `${R}/despachos?cursor=${p2.body.siguiente_cursor}`);
-  assert.deepEqual(p3.body.despachos, []);
-  assert.equal(p3.body.siguiente_cursor, p2.body.siguiente_cursor); // se conserva para la próxima
+  assert.deepEqual(p3.body.despachos.map(x => x.numero), ['OS-20261105-001', 'OS-20261105-002']);
+  assert.deepEqual(estado.solapes, [0, 0, 60]); // entre páginas no se relee
+  assert.equal(p3.body.hay_mas, false);
 
   assert.equal((await pedir('GET', `${R}/despachos?cursor=basura`)).status, 400);
   assert.equal((await pedir('GET', `${R}/despachos?limite=500`)).status, 400);

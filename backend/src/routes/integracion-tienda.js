@@ -24,7 +24,12 @@ const LIMITE_MAXIMO = 200;
 // devolvió (transacciones que terminan en otro orden). Esperar unos segundos antes de exponerlo
 // evita que la tienda avance el cursor por encima de él y lo pierda.
 const ASENTAMIENTO_SEGUNDOS = 5;
-const CURSOR_INICIAL = { t: '1000-01-01 00:00:00.000000', id: 0 };
+// Cuando la tienda ya está al día (el cursor que trae se emitió con hay_mas = false), la próxima
+// consulta relee los últimos 60 s antes del cursor: cubre un despacho cuya transacción confirmó
+// tarde con un despachada_en anterior. Por eso la tienda DEBE deduplicar por `numero` (upsert).
+// Solo se relee al empezar una consulta nueva, nunca entre páginas, así que no hay bucles.
+const SOLAPAMIENTO_SEGUNDOS = 60;
+const CURSOR_INICIAL = { t: '1000-01-01 00:00:00.000000', id: 0, fin: false };
 const RE_CURSOR_T = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3,6}$/;
 
 const router = express.Router();
@@ -52,7 +57,7 @@ function codificarCursor(c) { return Buffer.from(JSON.stringify(c)).toString('ba
 function decodificarCursor(texto) {
   try {
     const c = JSON.parse(Buffer.from(String(texto), 'base64url').toString('utf8'));
-    if (c && RE_CURSOR_T.test(c.t) && Number.isInteger(c.id) && c.id >= 0) return { t: c.t, id: c.id };
+    if (c && RE_CURSOR_T.test(c.t) && Number.isInteger(c.id) && c.id >= 0) return { t: c.t, id: c.id, fin: c.fin === true };
   } catch { /* cae al null */ }
   return null;
 }
@@ -90,6 +95,7 @@ router.get('/despachos', async (req, res) => {
     cursor = decodificarCursor(req.query.cursor);
     if (!cursor) return res.status(400).json({ error: 'cursor inválido' });
   }
+  const solape = cursor.fin ? SOLAPAMIENTO_SEGUNDOS : 0;
   try {
     const [wc] = await pool.query("SELECT id FROM bodegas WHERE codigo = 'WC-01' LIMIT 1");
     if (!wc.length) return res.status(503).json({ error: 'No existe la bodega WC-01' });
@@ -104,10 +110,11 @@ router.get('/despachos', async (req, res) => {
         AND o.bodega_destino_id = ?
         AND o.despachada_en IS NOT NULL
         AND o.despachada_en <= NOW(3) - INTERVAL ${ASENTAMIENTO_SEGUNDOS} SECOND
-        AND (o.despachada_en > ? OR (o.despachada_en = ? AND o.id > ?))
+        AND (o.despachada_en > (CAST(? AS DATETIME(6)) - INTERVAL ? SECOND)
+             OR (o.despachada_en = (CAST(? AS DATETIME(6)) - INTERVAL ? SECOND) AND o.id > ?))
       ORDER BY o.despachada_en, o.id
       LIMIT ?
-    `, [wc[0].id, cursor.t, cursor.t, cursor.id, limite + 1]);
+    `, [wc[0].id, cursor.t, solape, cursor.t, solape, cursor.fin ? 0 : cursor.id, limite + 1]);
 
     const hayMas = ordenes.length > limite;
     const pagina = hayMas ? ordenes.slice(0, limite) : ordenes;
@@ -168,9 +175,11 @@ router.get('/despachos', async (req, res) => {
       lineas: itemsPorOrden.get(o.id) || [],
     }));
     const ultimo = pagina[pagina.length - 1];
+    // Sin filas nuevas el cursor no avanza (y queda marcado como «al día» para el solapamiento).
+    const siguiente = ultimo ? { t: ultimo.despachada_txt, id: ultimo.id } : { t: cursor.t, id: cursor.id };
     res.json({
       despachos,
-      siguiente_cursor: ultimo ? codificarCursor({ t: ultimo.despachada_txt, id: ultimo.id }) : (req.query.cursor || null),
+      siguiente_cursor: codificarCursor({ ...siguiente, fin: !hayMas }),
       hay_mas: hayMas,
     });
   } catch (err) {
