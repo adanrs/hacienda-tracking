@@ -3,11 +3,12 @@ const { decodificar } = require('../lib/etiquetas');
 const { pool } = require('../models/database');
 const { compararConEtiqueta } = require('../lib/importador/procesadores/marmoleoCamara');
 const { recuperarPorReporte } = require('../lib/trazabilidadEtiqueta');
+const { compararBmsCaja, marmoleosDe, marmoleoDeLinea } = require('../lib/bmsCaja');
 
 // POST /api/etiquetas/decodificar  { codigo } → resultado de decodificar.
 // El decodificador es cálculo puro; aquí solo se agrega una LECTURA: si la etiqueta trae arete y
 // marmoleo, se compara con el marmoleo AUS-MEAT medido en la canal de ese animal (pantalla
-// Marmoleo) y se avisa si difieren. Si la consulta falla, la decodificación igual se devuelve.
+// Marmoleo) y se avisa si difieren. Lo mismo con el BMS de una caja cuyo lote traza a un animal. Si la consulta falla, la decodificación igual se devuelve.
 router.post('/decodificar', async (req, res) => {
   const codigo = req.body ? req.body.codigo : undefined;
   if (typeof codigo !== 'string' || !codigo.trim()) {
@@ -50,6 +51,23 @@ router.post('/decodificar', async (req, res) => {
     }
   } else if (c && c.trazabilidad) {
     r.trazabilidad = { estado: c.trazabilidad };
+  }
+  // Caja con BMS (pos. 24–25, Juan Carlos 06-nov-2026): si su lote traza a un animal con marmoleo
+  // medido en la canal, se compara. Solo un aviso: la lectura no cambia (lib/bmsCaja.js).
+  if (c && r.tipo === 'caja' && c.marmoleo != null) {
+    try {
+      const t = r.trazabilidad && r.trazabilidad.animal_id ? r.trazabilidad : await recuperarPorReporte(pool, r);
+      if (t && t.estado === 'recuperada') {
+        const m = await marmoleosDe(pool, { animalIds: [t.animal_id], aretes: [t.arete] });
+        const comp = compararBmsCaja(c.marmoleo, marmoleoDeLinea(m, t));
+        if (comp) {
+          r.bms_comparacion = { arete: t.arete, ...comp };
+          if (comp.estado === 'no_cuadra' && Array.isArray(r.advertencias)) r.advertencias.push({ codigo: 'bms_distinto', campo: 'marmoleo', mensaje: comp.aviso });
+        }
+      }
+    } catch (err) {
+      console.error('[etiquetas] comparación de BMS de la caja', err.message);
+    }
   }
   res.json(r);
 });

@@ -1,8 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  decodificar, validarArete, normalizarArete, serieDeCodigo, interpretarFecha,
+  decodificar, validarArete, normalizarArete, serieDeCodigo, interpretarFecha, bmsDesdeTexto,
 } = require('../src/lib/etiquetas');
+const { compararBmsCaja, marmoleoDeLinea } = require('../src/lib/bmsCaja');
 const { CATALOGO_CIISA, CATALOGO_POR_CODIGO } = require('../src/data/catalogo-ciisa');
 
 const codigos = (r) => r.errores.map((e) => e.codigo);
@@ -121,7 +122,8 @@ test('caja real con espacios', () => {
   assert.equal(r.campos.loteDeshuese, 31);
   assert.equal(r.campos.loteTexto, '0031');
   assert.equal(r.campos.loteLegible, '2201250031');
-  assert.equal(r.campos.sufijo, '11');
+  assert.equal(r.campos.marmoleo, 11); // pos. 24–25 = BMS (JC, 06-nov-2026), ya no «sufijo»
+  assert.equal(r.campos.sufijo, undefined);
 });
 
 test('caja real sin espacios', () => {
@@ -224,7 +226,7 @@ test('real · caja master «SERV. MAN. RIBEYE STEAK» (foto 3B0B1A24…)', () =>
   assert.equal(r.campos.loteDeshuese, 31); // 23/12/25 + 00 + deshuese 31
   assert.equal(r.campos.loteTexto, '0031');
   assert.equal(r.campos.loteLegible, '2312250031');
-  assert.equal(r.campos.sufijo, '11');
+  assert.equal(r.campos.marmoleo, 11);
 });
 
 test('real · caja master «Torta de Hamburguesa Gourmet» (foto 3BA301BC…)', () => {
@@ -240,7 +242,7 @@ test('real · caja master «Torta de Hamburguesa Gourmet» (foto 3BA301BC…)', 
   assert.equal(r.campos.fechaVencimiento, '2026-01-29'); // «Consumir antes de 29/01/2026» impreso
   assert.equal(r.campos.loteDeshuese, 39);
   assert.equal(r.campos.loteLegible, '2901250039');
-  assert.equal(r.campos.sufijo, '11');
+  assert.equal(r.campos.marmoleo, 11);
 });
 
 test('real · paquete «FB NEW YORK STEAK» (foto 3BB734AB…)', () => {
@@ -364,4 +366,63 @@ test('catálogo: códigos únicos y equivalencias F1↔FB simétricas', () => {
   }
   assert.equal(CATALOGO_POR_CODIGO['26632'].codigo_equivalente, '26341');
   assert.equal(CATALOGO_POR_CODIGO['26645'].codigo_equivalente, '26684');
+});
+
+// ── BMS en los 2 últimos dígitos (Juan Carlos, 06-nov-2026) ─────────────────
+
+test('BMS de 2 dígitos: 11 → 11, 00 → 0; 13 y «xx» inválidos', () => {
+  assert.deepEqual(bmsDesdeTexto('11'), { bms: 11, error: null });
+  assert.deepEqual(bmsDesdeTexto('00'), { bms: 0, error: null });
+  assert.equal(bmsDesdeTexto('12').bms, 12);
+  for (const t of ['13', 'xx', 'XX', '1', '', '99']) {
+    const r = bmsDesdeTexto(t);
+    assert.equal(r.bms, null, t);
+    assert.equal(r.error.codigo, 'marmoleo_invalido', t);
+  }
+});
+
+test('caja del ejemplo de JC: 2661700874xxx061125003511 → 26617, 8.74 kg, lote 0035, BMS 11', () => {
+  const r = decodificar('2661700874xxx061125003511');
+  assert.equal(r.tipo, 'caja');
+  assert.deepEqual(r.errores, []);
+  assert.equal(r.campos.codigoProducto, '26617');
+  assert.equal(r.campos.pesoKg, 8.74);
+  assert.equal(r.campos.campoXXX, 'XXX');
+  assert.equal(r.campos.trazabilidad, 'sin_trazabilidad');
+  assert.equal(r.campos.fechaDeshuese, '2025-11-06');
+  assert.equal(r.campos.loteTexto, '0035');
+  assert.equal(r.campos.loteDeshuese, 35);
+  assert.equal(r.campos.marmoleo, 11);
+  assert.equal(decodificar('2661700874XXX061125003500').campos.marmoleo, 0);
+});
+
+test('caja con BMS 13 o «XX»: sigue siendo caja, sin BMS y con advertencia (no error)', () => {
+  for (const cola of ['13', 'XX']) {
+    const r = decodificar(`2661700874XXX0611250035${cola}`);
+    assert.equal(r.tipo, 'caja', cola);
+    assert.deepEqual(r.errores, [], cola);
+    assert.equal(r.campos.marmoleo, null, cola);
+    assert.ok(avisos(r).includes('marmoleo_invalido'), cola);
+  }
+});
+
+test('paquete con BMS 00 es válido (rango 0–12)', () => {
+  const r = decodificar('0103-M266322309243300416F100');
+  assert.equal(r.campos.marmoleo, 0);
+  assert.ok(!codigos(r).includes('marmoleo_invalido'));
+});
+
+test('BMS de la caja contra el marmoleo del animal: aviso si no cuadra, nunca bloquea', () => {
+  assert.equal(compararBmsCaja(null, 4), null);
+  assert.equal(compararBmsCaja(4, null), null);
+  assert.equal(compararBmsCaja(4, 4).estado, 'coincide');
+  const distinto = compararBmsCaja(4, 6);
+  assert.equal(distinto.estado, 'no_cuadra');
+  assert.match(distinto.aviso, /distinto/);
+  // La cámara mide AUS-MEAT 0–9: un BMS 10–12 no se compara sin tabla de conversión.
+  assert.equal(compararBmsCaja(11, 5).estado, 'no_comparable');
+  const m = { porAnimal: new Map([[77, 5]]), porArete: new Map([['ABC', 3]]) };
+  assert.equal(marmoleoDeLinea(m, { animal_id: 77, arete: 'ABC' }), 5);
+  assert.equal(marmoleoDeLinea(m, { animal_id: null, arete: 'ABC' }), 3);
+  assert.equal(marmoleoDeLinea(m, { animal_id: 1 }), null);
 });

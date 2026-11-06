@@ -254,7 +254,7 @@ Los productos de paquetería que mezclan aretes (carne molida, chorizo) se regis
 | # | Pregunta | Para quién | Impacto |
 |---|---|---|---|
 | A1 | **Campo «XXX» de la etiqueta de caja**: ¿qué significa (planta, turno, operario, consecutivo)? 12-oct: literal `XXX` en las 2 cajas reales. | CIISA | Puede ser parte de la unicidad de la caja. |
-| A2 | **Sufijos** de caja y primal: ¿qué codifican? 12-oct: anchos confirmados con etiquetas reales; sufijo `11` en todas las cajas y `10` en todos los primales conocidos. | CIISA | Hoy los regex de caja y primal son provisionales. |
+| A2 | **Sufijos** de caja y primal. **Caja: resuelto el 06-nov-2026** (Juan Carlos): las posiciones 24–25 son el **BMS** (marmoleo 0–12), se guarda como `marmoleo`/`bms`. Primal: el `10` de todos los primales conocidos sigue sin confirmar. | CIISA | Caja resuelta; el regex del primal sigue provisional. |
 | A3 | ~~**Lote de 4 dígitos en caja vs. 2 en paquete/primal**~~ **Respondida (cliente, 12-oct)**: es el mismo n.º de deshuese (posición) con `00` delante; la fecha del lote de la caja es la del deshuese. | CIISA | Es lo que resuelve el arete de la caja. |
 | A4 | **¿Quién imprime la etiqueta de paquete** (28 caracteres, con arete y marmoleo)? ¿CIISA en paquetería o WC al reempacar? ¿Qué formato lleva el reempaque? | WC + CIISA | Define si el reempaque genera una etiqueta CIISA o una propia de WC, y su formato. |
 | A5 | **Simbología** de cada etiqueta (Code 128, GS1-128, Code 39 en primal): ¿hay caracteres de control o prefijos AI que el escáner entregue? | CIISA | Afecta la normalización de `codigo_crudo`. |

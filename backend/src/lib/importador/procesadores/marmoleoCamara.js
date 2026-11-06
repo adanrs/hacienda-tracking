@@ -11,7 +11,8 @@
 // (opciones.confirmaciones[fila] = id del sacrificio); queda además en el reporte para la planta.
 //
 // Conversión a la etiqueta CIISA: la etiqueta de 28 caracteres trae el marmoleo en las posiciones
-// 27–28 con rango 01–12 (lib/etiquetas.js). La cámara entrega AUS-MEAT 0–9. Mientras no se
+// 27–28 (bolsa) o 24–25 (caja) con rango 00–12 (lib/etiquetas.js, BMS confirmado por el dueño el
+// 06-nov-2026). La cámara entrega AUS-MEAT 0–9. Mientras no se
 // confirme la escala de la etiqueta, se compara el número tal cual (AUS-MEAT = etiqueta) y un
 // valor de etiqueta > 9 se informa como «escala BMS, no comparable» (ver compararConEtiqueta).
 
@@ -28,7 +29,7 @@ function separarBody(texto) {
 /** Compara el marmoleo AUS-MEAT medido con el de una etiqueta CIISA (01–12). */
 function compararConEtiqueta(ausmeat, etiqueta) {
   if (ausmeat == null || etiqueta == null) return { comparable: false };
-  if (etiqueta > 9) return { comparable: false, aviso: `La etiqueta trae marmoleo ${etiqueta} (escala BMS 1–12): no se puede comparar con AUS-MEAT ${ausmeat} sin la tabla de conversión` };
+  if (etiqueta > 9) return { comparable: false, aviso: `La etiqueta trae marmoleo ${etiqueta} (escala BMS 0–12): no se puede comparar con AUS-MEAT ${ausmeat} sin la tabla de conversión` };
   if (Number(etiqueta) !== Number(ausmeat)) return { comparable: true, coincide: false, aviso: `Marmoleo de la etiqueta ${etiqueta} distinto del medido en la canal (AUS-MEAT ${ausmeat})` };
   return { comparable: true, coincide: true };
 }

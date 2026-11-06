@@ -493,7 +493,8 @@ function etiquetaParaReporte(codigo, tipoElegido) {
       lote_cc: c.loteDeshuese,
       fecha_ambigua: Boolean(c.fechaAmbigua),
       box_codigo: c.box || null,
-      sufijo: c.sufijo || null,
+      sufijo: c.sufijo || null, // solo primal (crudo); en la caja esas posiciones son el BMS
+      bms: lectura.tipo === 'caja' && c.marmoleo != null ? c.marmoleo : null,
       decodificado: { tipo: lectura.tipo, campos: c, advertencias: lectura.advertencias },
     },
   };

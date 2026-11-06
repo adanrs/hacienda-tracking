@@ -168,7 +168,7 @@ Tipos que se aceptan en esta fase y su clave obligatoria:
 | `venta.salida` | `venta.salida:<pedido>` | `pedido`, `canal` (`web`\|`planta`), `salida_en`, `piezas[{codigo, copia, kg}]` y/o `unidades[{codigo_articulo, cantidad}]`, `montos?`, `cliente?`, `fe?` |
 | `venta.anulada` | `venta.anulada:<pedido>:<n>` | `pedido`, `piezas[{codigo, copia}]`, `motivo` |
 | `baja.aplicada` | `baja.aplicada:<baja_id>` | `baja_id`, `motivo_tienda` (`descarte`\|`mercadeo`\|`toma_fisica`\|`devuelta_planta`\|`otro`; con `otro`, `nota` es obligatoria), `motivo_ganaderia?`, `piezas[{codigo, copia, kg}]`, `aprobada_por` |
-| `traslado.recibido` | `traslado.recibido:<recepcion_id>` | `numero_orden` (o `null`), `recepcion_id`, `cerrada_en`, `cajas[{codigo, copia, kg_etiqueta, paquetes[{codigo, copia, kg, …}]}]`, `diferencias[{tipo, …}]` |
+| `traslado.recibido` | `traslado.recibido:<recepcion_id>` | `numero_orden` (o `null`), `recepcion_id`, `cerrada_en`, `cajas[{codigo, copia, kg_etiqueta, paquetes?[{codigo, copia, kg, …}]}]`, `diferencias[{tipo, accion?, motivo?, …}]` |
 
 Los demás tipos del diseño (`solicitud.creada`, `traslado.diferencia_resuelta`, `toma.aplicada`,
 `devolucion.*`) responden 422 hasta su fase. Máximo 2000 piezas por evento y 1 MB por cuerpo.
@@ -268,3 +268,16 @@ TEST_MYSQL_HOST=127.0.0.1 TEST_MYSQL_PORT=33061 npm test
 3. Cuando la tienda tenga su fase 1, pasar a `sombra` y revisar `integracion_eventos` y los avisos
    durante una semana.
 4. `encendido` recién con los procesadores de las fases 2 y 3.
+
+## Traslados planta → tienda: recepción por caja (Juan Carlos, 06-nov-2026)
+
+- Son unos **1 por semana** y los piden Carolina, Michelle o Juan Carlos (usuarios de la tienda).
+- La planta **pistolea la caja completa sin abrirla** (en su propio sistema): no hay escaneo por pieza en
+  origen. Por eso la recepción en la tienda es **por caja**: en `traslado.recibido` cada caja puede venir
+  sin `paquetes` (la lista es opcional), y los paquetes se dan de alta cuando la tienda abre la caja.
+- Si el peso no cuadra o los productos no coinciden, la tienda **devuelve en el mismo transporte** o
+  **avisa a la planta**. En el evento va en cada diferencia: `accion` = `devolver_mismo_transporte` |
+  `avisar_planta`, con `motivo` obligatorio cuando viene `accion` (opcional para los eventos de antes).
+- La caja trae su **BMS** en los 2 últimos dígitos del código (0–12): la tienda lo lee con el mismo
+  decodificador (`wagyu-demo/src/lib/etiqueta.ts`).
+- Pendiente en la tienda: la pantalla de recepción de traslados todavía no existe.

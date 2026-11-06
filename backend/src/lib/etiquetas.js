@@ -12,7 +12,7 @@
  *      18–19 lote de deshuese (2 dígitos)
  *      20–24 peso de la pieza en gramos (5 dígitos)
  *      25–26 contenido genético (F1 | FB)
- *      27–28 marmoleo DMs AUSMEAT (01–12)
+ *      27–28 BMS (marmoleo, 00–12)
  *
  *  B · Caja / fondo (25 caracteres)
  *      1–5   código de producto
@@ -20,8 +20,13 @@
  *      11–13 campo «XXX» (significado por confirmar con CIISA; se guarda crudo)
  *      14–19 fecha DDMMAA (base del vencimiento)
  *      20–23 lote de deshuese (4 dígitos)
- *      24–25 sufijo (por confirmar; se guarda crudo)
- *      Texto legible «Lote 2201250031» = posiciones 14–23.
+ *      24–25 BMS (marmoleo, 00–12). Juan Carlos lo confirmó el 06-nov-2026: los 2 últimos
+ *            dígitos son el BMS de la caja (antes se guardaban crudos como «sufijo»). Fuera de
+ *            rango o no numérico → advertencia y `marmoleo: null`; NO es error, para no cambiar
+ *            la desambiguación caja / primal.
+ *      Texto legible «Lote 2201250031» = posiciones 14–23. Ejemplo real de JC:
+ *      «2661700874xxx061125003511» = 26617 · 8.74 kg · xxx (trazabilidad perdida) · 06-11-25 ·
+ *      lote 0035 (= «Num. Lote» del reporte de producción → arete) · BMS 11.
  *
  *  C · Primal (25 dígitos, Code 39)
  *      1–5   código Arreo del primal
@@ -29,7 +34,7 @@
  *      11–15 peso neto en centésimas de kg
  *      16–21 fecha de empaque MMDDAA (¡mes primero!)
  *      22–23 lote de deshuese (2 dígitos)
- *      24–25 sufijo (se guarda crudo)
+ *      24–25 sufijo (se guarda crudo: en el primal NO está confirmado que sea el BMS)
  *      Texto legible «Lot 03112620» = posiciones 16–23.
  *
  * Desambiguación por estructura (antes de interpretar nada):
@@ -76,6 +81,19 @@ const FB_FUERA_DE_SERIE = new Set(['26676', '26680', '26684']);
 
 function error(codigo, campo, mensaje) {
   return { codigo, campo, mensaje };
+}
+
+const BMS_MIN = 0;
+const BMS_MAX = 12;
+
+/**
+ * BMS de los 2 últimos dígitos de la etiqueta: «11» → 11, «00» → 0; «13», «xx», «1» → null con
+ * el error listo. Mismo rango que la tienda (wagyu-demo, lib/bms.ts): 0–12.
+ */
+function bmsDesdeTexto(texto, campo = 'marmoleo') {
+  const n = /^\d{2}$/.test(texto) ? Number(texto) : NaN;
+  if (Number.isInteger(n) && n >= BMS_MIN && n <= BMS_MAX) return { bms: n, error: null };
+  return { bms: null, error: error('marmoleo_invalido', campo, `BMS «${texto}» fuera de rango 00–12: la caja queda sin BMS`) };
 }
 
 /** Quita espacios y saltos de línea (conserva guiones) y pasa a mayúsculas. */
@@ -246,11 +264,9 @@ function leerPaquete(s) {
     errores.push(error('genetica_invalida', 'genetica', `Contenido genético «${genetica}» no es F1 ni FB`));
   }
 
-  const marmoleoTxt = pos(s, 27, 28);
-  const marmoleo = esDigitos(marmoleoTxt) ? Number(marmoleoTxt) : null;
-  if (marmoleo === null || marmoleo < 1 || marmoleo > 12) {
-    errores.push(error('marmoleo_invalido', 'marmoleo', `Marmoleo «${marmoleoTxt}» fuera de rango DMs AUSMEAT 01–12`));
-  }
+  const bms = bmsDesdeTexto(pos(s, 27, 28));
+  const marmoleo = bms.bms;
+  if (bms.error) errores.push(bms.error);
 
   const producto = datosProducto(codigo);
 
@@ -331,6 +347,9 @@ function leerCaja(s) {
     advertencias.push(error('fecha_ambigua', 'fecha',
       'Día ≤ 12: la fecha podría leerse como DDMMAA o MMDDAA; validar contra la fecha registrada del lote'));
   }
+  // 24–25 = BMS (ver cabecera). Inválido → advertencia, no error.
+  const bms = bmsDesdeTexto(pos(s, 24, 25));
+  if (bms.error) advertencias.push(bms.error);
   const campoXXX = pos(s, 11, 13);
   const sinArete = esSinTrazabilidad(campoXXX);
   if (sinArete) {
@@ -355,7 +374,7 @@ function leerCaja(s) {
       // Lote de 10 dígitos = fecha del deshuese DDMMAA + LOTE DE DESHUESE de 4 dígitos (el «Num. Lote»
       // del reporte de producción de CIISA). Con «xxx» la trazabilidad se recupera por ese puente:
       // ver lib/trazabilidadEtiqueta.js.
-      sufijo: pos(s, 24, 25), // por confirmar con CIISA
+      marmoleo: bms.bms,
     },
     errores,
     advertencias,
@@ -479,6 +498,9 @@ function decodificar(codigoCrudo) {
 
 module.exports = {
   decodificar,
+  bmsDesdeTexto,
+  BMS_MIN,
+  BMS_MAX,
   esSinTrazabilidad,
   validarArete,
   normalizarArete,

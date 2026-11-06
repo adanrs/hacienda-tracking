@@ -36,7 +36,7 @@ Los valores esperados de cada caso se tomaron del **texto impreso** de la etique
 | Peso | 5.99 kg | 13.21 kg | ✓ ambos |
 | Fecha (deshuese) | 23-dic-2025 | 29-ene-2025 | Ribeye: «Fecha de producción 23/12/2025»; Tortas: «Consumir antes 29/01/2026» = fecha + 12 meses |
 | Lote | 0031 → 31 | 0039 → 39 | «Lote 2312250031», «Lote 2901250039» ✓ |
-| XXX / sufijo | XXX / 11 | XXX / 11 | sin significado |
+| XXX / BMS | XXX / 11 | XXX / 11 | XXX = trazabilidad perdida; 11 = BMS (06-nov-2026) |
 
 **Paquete:** `0PG087 | 26338 | 231124 | 07 | 02026 | F1 | 11`
 
@@ -84,7 +84,7 @@ En cambio, la caja y el primal sí llevan la fecha del deshuese en el lote. Para
 | Campo | Lo que se observa | Pregunta |
 |---|---|---|
 | «XXX» de la caja (pos. 11–13) | Literal `XXX` en las 3 cajas conocidas (2 reales + ejemplo v10) | ¿Es un campo sin usar (relleno) o algo que alguna vez cambia? (A1) |
-| Sufijo de la caja (pos. 24–25) | `11` en las 3 cajas | ¿Constante, dígito de control, o marmoleo/«11» como en el paquete? (A2) |
+| Sufijo de la caja (pos. 24–25) | `11` en las 3 cajas | **Resuelto 06-nov-2026 (Juan Carlos): es el BMS** (marmoleo 0–12) de la caja. |
 | Sufijo del primal (pos. 24–25) | `10` en los 2 primales (real + ejemplo v10) | ¿Constante o dígito de control? (A2) |
 | `F1` + `11` final del paquete | El cliente dice F1/FB = contenido racial y 11 = marmoleo | Confirmar si el F1 de un producto FB es un error de impresión de CIISA (A16) |
 | N.º de deshuese 24 / 31 / 07 | Según el cliente es la **posición** del animal en el deshuese del día. El mismo número en dos fechas no es el mismo animal | Las 4 etiquetas son de fechas distintas (2023–2025), así que no se pueden cruzar con la tabla posición → arete del 21/09/26 |
@@ -94,3 +94,13 @@ En cambio, la caja y el primal sí llevan la fecha del deshuese en el lote. Para
 - **Traslado de inventario en custodia n.º 1824** (24-04-2026): 107 EQTB Tempisque → **08 Paquetería-Materia prima**, «CORTES FINOS LOTE 35 / RES 5094», 5 líneas visibles (22140, 22219, 22224, 22228, 40141; 33.72 kg). El pie dice 20.00 unidades / 147.80 kg, que **no cuadra** con las 5 líneas visibles. Probablemente la foto no muestra todas las líneas; hay que confirmarlo con el documento completo. Aparece una bodega **08** que no está en el mapeo v10 (A9), y «RES 5094» puede ser el n.º de canal que pide A12.
 - **Ajuste de salida en custodia n.º 353** (26-03-2024): 107 EQTB Tempisque. 25000 BCH WAGYU 14 CAJ 381.08 kg + 25002 TRIMMING WAGYU 9 CAJ 244.98 kg = 23 / 626.06 (cuadra). Observación: «AUTORIZA JUAN CARLOS GILLEN, PRODUCTO PARA ZAMU». Confirma el uso de Observaciones como referencia de orden (`documentos_ciisa.orden_ref`).
 - La foto `3B3F8539…` es otra toma de la caja Ribeye (no del Ajuste 353). El Ajuste es la foto `3BBCB9F4…`.
+
+## Actualización 06-nov-2026 (respuestas de Juan Carlos por WhatsApp)
+
+- **Los 2 últimos dígitos del código de caja son el BMS** (marmoleo, 0 a 12). Ejemplo de JC:
+  `2661700874xxx061125003511` = 26617 (producto) · 00874 (8.740 kg) · xxx (trazabilidad perdida) ·
+  061125 (fecha DDMMAA) · **0035 (lote de deshuese = «Num. Lote» del reporte de producción, traza al
+  arete)** · **11 = BMS**. `lib/etiquetas.js` lo devuelve como `marmoleo`; fuera de rango o no numérico
+  es una advertencia y la caja queda sin BMS.
+- El lote de 4 dígitos ya se trataba como Num. Lote → arete: JC lo confirmó, sin cambios de lógica.
+- En el **primal** las posiciones 24–25 siguen como `sufijo` crudo: no está confirmado que sean el BMS.

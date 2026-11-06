@@ -12,6 +12,7 @@
 // Todo valor del request va por `?`; los nombres de tabla/columna son fijos en el código.
 
 const router = require('express').Router();
+const { compararBmsCaja, marmoleosDe, marmoleoDeLinea } = require('../lib/bmsCaja');
 const multer = require('multer');
 const { idsNumericos, SOLO_DIGITOS } = require('../lib/params');
 const { pool } = require('../models/database');
@@ -516,17 +517,28 @@ router.get('/escaneos', envolver(async (req, res) => {
   const lote = loteOpcional(req.query.lote_cc);
   const [filas] = await pool.query(
     `SELECT e.id, e.codigo_crudo, e.copia, e.tipo, e.articulo_codigo, c.nombre AS descripcion, e.peso_kg,
-            ${fmtFecha('e.fecha_deshuese')} AS fecha_deshuese, e.lote_cc, e.box_codigo, e.fecha_ambigua,
+            ${fmtFecha('e.fecha_deshuese')} AS fecha_deshuese, e.lote_cc, e.box_codigo, e.fecha_ambigua, e.bms,
+            la.arete, la.animal_id,
             UNIX_TIMESTAMP(e.created_at) AS escaneado_ts, u.nombre AS escaneado_por
      FROM reporte_produccion_escaneos e
      LEFT JOIN catalogo_cortes c ON c.codigo = e.articulo_codigo
      LEFT JOIN usuarios u ON u.id = e.escaneado_por
+     LEFT JOIN lotes_cc_aretes la ON la.fecha_deshuese = e.fecha_deshuese AND la.lote_cc = e.lote_cc
      WHERE e.fecha_deshuese = ?${lote ? ' AND e.lote_cc = ?' : ''}
      ORDER BY e.id DESC
      LIMIT 2000`,
     lote ? [fecha, lote] : [fecha],
   );
-  res.json(filas.map(({ escaneado_ts: ts, ...f }) => ({ ...f, escaneado: horaCR(ts), peso_kg: Number(f.peso_kg), lote_cc: Number(f.lote_cc) })));
+  // BMS de cada caja contra el marmoleo del animal de su lote (una consulta para toda la lista).
+  const m = await marmoleosDe(pool, { animalIds: filas.map((f) => f.animal_id), aretes: filas.map((f) => f.arete) });
+  res.json(filas.map(({ escaneado_ts: ts, animal_id: _a, ...f }) => ({
+    ...f,
+    escaneado: horaCR(ts),
+    peso_kg: Number(f.peso_kg),
+    lote_cc: Number(f.lote_cc),
+    bms: f.bms == null ? null : Number(f.bms),
+    bms_comparacion: compararBmsCaja(f.bms, marmoleoDeLinea(m, { animal_id: _a, arete: f.arete })),
+  })));
 }));
 
 // POST /api/reporte-produccion/escaneos
@@ -551,9 +563,9 @@ router.post('/escaneos', envolver(async (req, res) => {
 
   const insertar = (copia) => pool.query(
     `INSERT INTO reporte_produccion_escaneos
-       (codigo_crudo, copia, tipo, articulo_codigo, peso_kg, fecha_deshuese, lote_cc, box_codigo, sufijo, fecha_ambigua, decodificado, escaneado_por)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [e.codigo_crudo, copia, e.tipo, e.articulo_codigo, e.peso_kg, e.fecha_deshuese, e.lote_cc, e.box_codigo, e.sufijo,
+       (codigo_crudo, copia, tipo, articulo_codigo, peso_kg, fecha_deshuese, lote_cc, box_codigo, sufijo, bms, fecha_ambigua, decodificado, escaneado_por)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [e.codigo_crudo, copia, e.tipo, e.articulo_codigo, e.peso_kg, e.fecha_deshuese, e.lote_cc, e.box_codigo, e.sufijo, e.bms,
       e.fecha_ambigua ? 1 : 0, JSON.stringify(e.decodificado), usuarioId(req)],
   );
 
@@ -590,7 +602,17 @@ router.post('/escaneos', envolver(async (req, res) => {
     'SELECT COUNT(*) AS cajas, ROUND(SUM(peso_kg), 2) AS kg FROM reporte_produccion_escaneos WHERE fecha_deshuese = ? AND lote_cc = ?',
     [e.fecha_deshuese, e.lote_cc],
   );
-  const [aretes] = await pool.query('SELECT arete FROM lotes_cc_aretes WHERE fecha_deshuese = ? AND lote_cc = ?', [e.fecha_deshuese, e.lote_cc]);
+  const [aretes] = await pool.query('SELECT arete, animal_id FROM lotes_cc_aretes WHERE fecha_deshuese = ? AND lote_cc = ?', [e.fecha_deshuese, e.lote_cc]);
+  // BMS de la caja contra el marmoleo medido del animal del lote: aviso, nunca bloquea.
+  let bmsComparacion = null;
+  if (e.bms != null && aretes.length) {
+    try {
+      const m = await marmoleosDe(pool, { animalIds: [aretes[0].animal_id], aretes: [aretes[0].arete] });
+      bmsComparacion = compararBmsCaja(e.bms, marmoleoDeLinea(m, aretes[0]));
+    } catch (err) {
+      console.error('[reporte-produccion] comparación de BMS', err.message);
+    }
+  }
   res.status(201).json({
     id: ins.insertId,
     copia,
@@ -603,6 +625,8 @@ router.post('/escaneos', envolver(async (req, res) => {
     fecha_ambigua: e.fecha_ambigua,
     escaneado: horaCR(Math.floor(Date.now() / 1000)),
     arete: aretes.length ? aretes[0].arete : null,
+    bms: e.bms,
+    bms_comparacion: bmsComparacion,
     lote: { cajas: Number(resumen.cajas), kg: Number(resumen.kg) },
   });
 }));
