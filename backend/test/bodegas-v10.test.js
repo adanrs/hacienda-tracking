@@ -21,8 +21,10 @@ test('custodia/entradas: ninguna bodega v10, ni siquiera WC-01', async () => {
 test('orden de salida: origen nunca v10 (salvo 107 → WC-01), destino solo BOD-* o WC-01, origen ≠ destino', async () => {
   assert.equal(await errorBodegasOrdenSalida(conn, { origen: 1, destino: 3 }), null);
   assert.equal(await errorBodegasOrdenSalida(conn, { origen: 1, destino: null }), null);
-  // Traslado a la tienda (JC 05/06-nov-2026): sale de la 107 hacia WC-01.
-  assert.equal(await errorBodegasOrdenSalida(conn, { origen: 2, destino: 3 }), null);
+  // 107 → WC-01 solo desde traslados-tienda (permitirTrasladoTienda), nunca en la orden genérica.
+  assert.match(await errorBodegasOrdenSalida(conn, { origen: 2, destino: 3 }), /origen 107/);
+  assert.equal(await errorBodegasOrdenSalida(conn, { origen: 2, destino: 3, permitirTrasladoTienda: true }), null);
+  assert.match(await errorBodegasOrdenSalida(conn, { origen: 2, destino: 1, permitirTrasladoTienda: true }), /origen 107/);
   assert.match(await errorBodegasOrdenSalida(conn, { origen: 2, destino: 1 }), /origen 107/);
   assert.match(await errorBodegasOrdenSalida(conn, { origen: 2, destino: null }), /origen 107/);
   assert.match(await errorBodegasOrdenSalida(conn, { origen: 3, destino: null }), /origen WC-01/);

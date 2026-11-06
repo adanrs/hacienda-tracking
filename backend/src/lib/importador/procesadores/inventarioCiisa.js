@@ -483,7 +483,7 @@ async function planificar(conn, _tabla, opciones = {}, { lectura }) {
   const [[existente]] = await conn.query(
     "SELECT id, DATE_FORMAT(fecha_carga, '%Y-%m-%d %H:%i') AS fecha_carga FROM inventario_planta_cargas WHERE contenido_sha256 = ?", [huellaContenido]);
   const [[ultima]] = await conn.query(
-    "SELECT id, DATE_FORMAT(fecha_carga, '%Y-%m-%d %H:%i') AS fecha_carga, DATE_FORMAT(fecha_inventario, '%Y-%m-%d') AS fecha_inventario FROM inventario_planta_cargas ORDER BY id DESC LIMIT 1");
+    "SELECT id, DATE_FORMAT(fecha_carga, '%Y-%m-%d %H:%i') AS fecha_carga, DATE_FORMAT(fecha_inventario, '%Y-%m-%d') AS fecha_inventario FROM inventario_planta_cargas WHERE es_prueba = 0 ORDER BY id DESC LIMIT 1"); // la carga PRUEBA del seed no entra en la comparación
   let comparacion = null;
   const validas = lineas.filter((l) => !l.errores.length);
   if (ultima && (!existente || existente.id !== ultima.id)) {

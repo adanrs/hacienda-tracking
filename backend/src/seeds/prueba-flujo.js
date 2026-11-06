@@ -290,6 +290,7 @@ async function sembrarPruebaFlujo(pool, { log = () => {} } = {}) {
     // 7. Inventario de la planta (bodega 107): una carga con las 4 cajas, por el procesador real.
     let cargaId;
     const [[cargaPrevia]] = await conn.query('SELECT id FROM inventario_planta_cargas WHERE archivo = ? ORDER BY id LIMIT 1', [ARCHIVO]);
+    // La carga PRUEBA nunca es «el último snapshot» real (models/trasladosTienda.js): se marca al final.
     if (cargaPrevia) {
       cargaId = marcar('inventario_carga', { id: cargaPrevia.id, creado: false });
     } else {
@@ -312,6 +313,7 @@ async function sembrarPruebaFlujo(pool, { log = () => {} } = {}) {
       const r = await inventarioCiisa.aplicar(conn, plan, { importacionId: null, usuarioId: null, registrar: () => {} });
       cargaId = marcar('inventario_carga', { id: r.resumen.carga_id, creado: !r.resumen.ya_cargado });
     }
+    await conn.query('UPDATE inventario_planta_cargas SET es_prueba = 1 WHERE id = ?', [cargaId]);
     const [lineas] = await conn.query(
       `SELECT id, codigo_barras, codigo, descripcion, peso, medida, lote, DATE_FORMAT(fecha_vencimiento, '%Y-%m-%d') AS fecha_vencimiento,
               bms, trazabilidad, arete, animal_id, reporte_id

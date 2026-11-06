@@ -111,10 +111,14 @@ router.put('/:id', async (req, res) => {
       await conn.rollback();
       return res.status(409).json({ error: `La orden está ${actual[0].estado} y ya no se puede modificar` });
     }
-    const origen = 'bodega_origen_id' in req.body ? req.body.bodega_origen_id : actual[0].bodega_origen_id;
-    const destino = 'bodega_destino_id' in req.body ? req.body.bodega_destino_id : actual[0].bodega_destino_id;
-    const errBodegas = await errorBodegasOrdenSalida(conn, { origen, destino });
-    if (errBodegas) { await conn.rollback(); return res.status(400).json({ error: errBodegas }); }
+    // Solo se revalidan las bodegas si el PUT las cambia: así un traslado 107 → WC-01 (creado en
+    // routes/traslados-tienda.js) se puede anular o anotar, pero no se puede armar uno por acá.
+    if ('bodega_origen_id' in req.body || 'bodega_destino_id' in req.body) {
+      const origen = 'bodega_origen_id' in req.body ? req.body.bodega_origen_id : actual[0].bodega_origen_id;
+      const destino = 'bodega_destino_id' in req.body ? req.body.bodega_destino_id : actual[0].bodega_destino_id;
+      const errBodegas = await errorBodegasOrdenSalida(conn, { origen, destino });
+      if (errBodegas) { await conn.rollback(); return res.status(400).json({ error: errBodegas }); }
+    }
     await conn.query(sql, params);
     await conn.commit();
     const [rows] = await pool.query(SELECT_BASE + ' WHERE o.id = ?', [req.params.id]);
@@ -192,7 +196,13 @@ router.post('/:id/despachar', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    const [result] = await pool.query('DELETE FROM ordenes_salida WHERE id = ?', [req.params.id]);
+    // Una orden despachada ya está en la consulta de la tienda, y una recibida tiene su recepción
+    // (ON DELETE CASCADE la borraría con su bitácora): se anula, no se borra.
+    const [act] = await pool.query('SELECT estado, recepcion_estado FROM ordenes_salida WHERE id = ?', [req.params.id]);
+    if (act.length && (act[0].estado === 'despachada' || act[0].recepcion_estado)) {
+      return res.status(409).json({ error: 'La orden ya se despachó o tiene recepción: no se puede borrar' });
+    }
+    const [result] = await pool.query("DELETE FROM ordenes_salida WHERE id = ? AND estado <> 'despachada' AND recepcion_estado IS NULL", [req.params.id]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Orden no encontrada' });
     res.json({ message: 'Orden eliminada' });
   } catch (err) { res.status(500).json({ error: err.message }); }

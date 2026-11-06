@@ -153,7 +153,10 @@ router.post('/', envolver(async (req, res) => {
     if (lineas.length !== ids.length) { await conn.rollback(); return res.status(404).json({ error: 'Alguna caja ya no está en el inventario cargado' }); }
     const cargas = new Set(lineas.map(l => l.carga_id));
     if (cargas.size !== 1) { await conn.rollback(); return res.status(400).json({ error: 'Las cajas tienen que ser del mismo inventario (snapshot)' }); }
-    const [[ultima]] = await conn.query('SELECT MAX(id) AS id FROM inventario_planta_cargas');
+    // El último snapshot de su clase: las cajas PRUEBA se piden del último de PRUEBA y las reales
+    // del último real (la carga del seed no tapa el inventario real).
+    const [[ultima]] = await conn.query(
+      'SELECT MAX(id) AS id FROM inventario_planta_cargas WHERE es_prueba = (SELECT es_prueba FROM inventario_planta_cargas WHERE id = ?)', [lineas[0].carga_id]);
     if (Number(ultima.id) !== Number(lineas[0].carga_id)) {
       await conn.rollback();
       return res.status(409).json({ error: 'Hay un inventario de la planta más reciente: marque las cajas en el último snapshot' });

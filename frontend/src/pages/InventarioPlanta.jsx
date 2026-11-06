@@ -290,7 +290,8 @@ function Snapshot({ recarga }) {
 
   const lineas = useMemo(() => datos?.lineas || [], [datos]);
   // Solo se piden cajas del ÚLTIMO snapshot (el backend lo exige): el de antes ya no dice qué hay.
-  const esUltimo = Boolean(datos?.carga && cargas?.length && Number(cargas[0].id) === Number(datos.carga.id));
+  // El backend dice si es el último de su clase (real o PRUEBA): la carga del seed no tapa el real.
+  const esUltimo = Boolean(datos?.carga?.es_ultima);
   const pedible = (l) => canEdit && esUltimo && l.hoja === 'general' && Boolean(l.codigo_barras) && !l.traslado_numero;
   const lineasMarcadas = lineas.filter(l => marcadas.has(l.id));
   const alternar = (id) => setMarcadas(m => { const x = new Set(m); if (x.has(id)) x.delete(id); else x.add(id); return x; });
@@ -314,7 +315,7 @@ function Snapshot({ recarga }) {
             <label htmlFor="inv-carga" className="sr-only">Snapshot</label>
             <select id="inv-carga" value={cargaId} onChange={e => setCargaId(e.target.value)}>
               <option value="">El último</option>
-              {(cargas || []).map(c => <option key={c.id} value={c.id}>n.º {c.id} · {c.fecha_inventario ? fecha(c.fecha_inventario) : c.fecha_carga} · {c.archivo || 'pegado'} · {c.lineas} líneas</option>)}
+              {(cargas || []).map(c => <option key={c.id} value={c.id}>{c.es_prueba ? 'PRUEBA · ' : ''}n.º {c.id} · {c.fecha_inventario ? fecha(c.fecha_inventario) : c.fecha_carga} · {c.archivo || 'pegado'} · {c.lineas} líneas</option>)}
             </select>
           </div>
         </div>

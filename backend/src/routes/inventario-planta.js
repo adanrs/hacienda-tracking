@@ -23,7 +23,7 @@ const envolver = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((err)
   res.status(500).json({ error: 'Error interno al consultar el inventario de la planta' });
 });
 
-const COLS_CARGA = `c.id, DATE_FORMAT(c.fecha_carga, '%Y-%m-%d %H:%i') AS fecha_carga, DATE_FORMAT(c.fecha_inventario, '%Y-%m-%d') AS fecha_inventario,
+const COLS_CARGA = `c.id, c.es_prueba, DATE_FORMAT(c.fecha_carga, '%Y-%m-%d %H:%i') AS fecha_carga, DATE_FORMAT(c.fecha_inventario, '%Y-%m-%d') AS fecha_inventario,
   c.archivo, c.resumen, c.importacion_id, u.nombre AS quien`;
 
 /** Carga pedida (?carga_id) o la última; null si no hay ninguna. 400 si el id no es numérico. */
@@ -34,7 +34,8 @@ async function cargaPedida(req) {
     const [[c]] = await pool.query(`SELECT ${COLS_CARGA} FROM inventario_planta_cargas c LEFT JOIN usuarios u ON u.id = c.quien WHERE c.id = ?`, [id]);
     return c ? { carga: c } : { error: 'Snapshot no encontrado', status: 404 };
   }
-  const [[c]] = await pool.query(`SELECT ${COLS_CARGA} FROM inventario_planta_cargas c LEFT JOIN usuarios u ON u.id = c.quien ORDER BY c.id DESC LIMIT 1`);
+  // Por omisión, el último snapshot REAL; uno de PRUEBA solo si no hay ninguno real.
+  const [[c]] = await pool.query(`SELECT ${COLS_CARGA} FROM inventario_planta_cargas c LEFT JOIN usuarios u ON u.id = c.quien ORDER BY c.es_prueba, c.id DESC LIMIT 1`);
   return { carga: c || null };
 }
 
@@ -49,6 +50,9 @@ router.get('/lineas', envolver(async (req, res) => {
   const r = await cargaPedida(req);
   if (r.error) return res.status(r.status || 400).json({ error: r.error });
   if (!r.carga) return res.json({ carga: null, lineas: [], totales: {}, filtradas: 0, truncado: false });
+  // ¿Es el último de su clase (real o PRUEBA)? Solo en ese se pueden pedir cajas (traslados-tienda.js).
+  const [[ult]] = await pool.query('SELECT MAX(id) AS id FROM inventario_planta_cargas WHERE es_prueba = ?', [r.carga.es_prueba ? 1 : 0]);
+  r.carga = { ...r.carga, es_prueba: Boolean(r.carga.es_prueba), es_ultima: Number(ult.id) === Number(r.carga.id) };
   const where = ['l.carga_id = ?'];
   const params = [r.carga.id];
   const { hoja, tarima, codigo, trazabilidad, vencidos, q } = req.query;
@@ -104,7 +108,7 @@ router.get('/comparacion', envolver(async (req, res) => {
   if (r.error) return res.status(r.status || 400).json({ error: r.error });
   if (!r.carga) return res.json({ carga: null, anterior: null, altas: [], bajas: [] });
   const [[anterior]] = await pool.query(
-    `SELECT ${COLS_CARGA} FROM inventario_planta_cargas c LEFT JOIN usuarios u ON u.id = c.quien WHERE c.id < ? ORDER BY c.id DESC LIMIT 1`, [r.carga.id]);
+    `SELECT ${COLS_CARGA} FROM inventario_planta_cargas c LEFT JOIN usuarios u ON u.id = c.quien WHERE c.id < ? AND c.es_prueba = ? ORDER BY c.id DESC LIMIT 1`, [r.carga.id, r.carga.es_prueba ? 1 : 0]);
   if (!anterior) return res.json({ carga: r.carga, anterior: null, altas: [], bajas: [] });
   const cols = 'hoja, codigo_barras, codigo, descripcion, lote, caja, tarima';
   const [act] = await pool.query(`SELECT ${cols} FROM inventario_planta_lineas WHERE carga_id = ?`, [r.carga.id]);

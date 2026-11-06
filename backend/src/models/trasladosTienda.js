@@ -47,6 +47,12 @@ async function migrarTrasladosTienda(conn) {
   await columna(conn, 'ALTER TABLE ordenes_salida_items ADD INDEX idx_osi_codigo_barras (codigo_barras)');
   await columna(conn, 'ALTER TABLE ordenes_salida_items ADD CONSTRAINT fk_osi_inv_linea FOREIGN KEY (inventario_linea_id) REFERENCES inventario_planta_lineas(id) ON DELETE SET NULL');
 
+  // Carga del inventario de la planta marcada PRUEBA (seed de flujo completo): no cuenta como «el
+  // último snapshot» real ni entra en la comparación semana a semana. Las cargas del seed que ya
+  // existan se marcan por su nombre de archivo.
+  await columna(conn, "ALTER TABLE inventario_planta_cargas ADD COLUMN es_prueba TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = snapshot de PRUEBA (no es el último real)'");
+  try { await conn.query("UPDATE inventario_planta_cargas SET es_prueba = 1 WHERE archivo = 'PRUEBA-flujo-completo.xlsx' AND es_prueba = 0"); } catch (e) { /* sin la columna */ }
+
   // La integración ahora también registra eventos en el modo «pruebas».
   await columna(conn, "ALTER TABLE integracion_eventos MODIFY COLUMN modo ENUM('sombra','encendido','pruebas') NOT NULL COMMENT 'Modo de la integración al recibirlo (sombra = solo se validó)'");
 

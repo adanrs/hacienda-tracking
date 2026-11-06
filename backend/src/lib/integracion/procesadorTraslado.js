@@ -97,17 +97,24 @@ async function aplicarTrasladoRecibido(conn, sobre, { modo }) {
       FROM ordenes_salida o LEFT JOIN bodegas bd ON bd.id = o.bodega_destino_id
       WHERE o.numero = ? FOR UPDATE`, [d.numero_orden]);
     orden = r[0] || null;
+    // En «pruebas» lo primero: una orden real no se toca, esté como esté.
+    if (modo === 'pruebas' && !(orden && orden.es_prueba)) {
+      throw new ErrorEvento(422, 'solo_pruebas', 'En modo pruebas solo se aplican recepciones de traslados marcados PRUEBA');
+    }
     if (!orden) avisos.push({ tipo: 'orden_desconocida', numero_orden: d.numero_orden });
     else {
-      if (orden.destino !== 'WC-01') avisos.push({ tipo: 'orden_no_es_traslado_tienda', numero_orden: d.numero_orden, destino: orden.destino });
-      if (orden.estado !== 'despachada') avisos.push({ tipo: 'orden_no_despachada', numero_orden: d.numero_orden, estado_actual: orden.estado });
-      if (orden.recepcion_estado) avisos.push({ tipo: 'orden_ya_recibida', numero_orden: d.numero_orden, estado_actual: orden.recepcion_estado });
+      // Una orden que no es traslado a la tienda, que no salió o que ya tiene su recepción no se
+      // toca: aplicar igual dejaría dos recepciones (o una de una orden que nunca salió) y la
+      // diferencia quedaría escondida. La tienda lo ve como error permanente y el admin decide.
+      if (orden.destino !== 'WC-01') throw new ErrorEvento(422, 'orden_no_es_traslado_tienda', `La orden ${d.numero_orden} no va a WC-01`);
+      if (orden.estado !== 'despachada') throw new ErrorEvento(409, 'orden_no_despachada', `La orden ${d.numero_orden} está ${orden.estado}`);
+      if (orden.recepcion_estado) throw new ErrorEvento(409, 'orden_ya_recibida', `La orden ${d.numero_orden} ya tiene su recepción (${orden.recepcion_estado})`);
     }
   }
   if (modo === 'pruebas' && !(orden && orden.es_prueba)) {
     throw new ErrorEvento(422, 'solo_pruebas', 'En modo pruebas solo se aplican recepciones de traslados marcados PRUEBA');
   }
-  const [esperados] = orden && orden.destino === 'WC-01'
+  const [esperados] = orden
     ? await conn.query('SELECT id, codigo_barras, peso_kg FROM ordenes_salida_items WHERE orden_id = ? AND codigo_barras IS NOT NULL ORDER BY id', [orden.id])
     : [[]];
   const r = compararRecepcion(esperados, d);
@@ -125,7 +132,7 @@ async function aplicarTrasladoRecibido(conn, sobre, { modo }) {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [ins.insertId, c.item_id, c.codigo.slice(0, 64), c.resultado, c.kg_esperado, c.kg_recibido, c.accion, c.motivo ? String(c.motivo).slice(0, 300) : null]);
   }
-  if (orden && orden.destino === 'WC-01') {
+  if (orden) {
     await conn.query('UPDATE ordenes_salida SET recepcion_estado = ?, recepcion_en = ?, recepcion_por = ? WHERE id = ?',
       [r.estado, cerrada, usuario, orden.id]);
   }

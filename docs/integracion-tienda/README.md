@@ -311,6 +311,19 @@ TEST_MYSQL_HOST=127.0.0.1 TEST_MYSQL_PORT=33061 npm test
    - Si llega la misma clave con el mismo cuerpo, se devuelve el resultado guardado.
    - Si llega la misma clave con otro cuerpo, se responde 409.
    - Si el evento se registró en sombra, se aplica al llegar en encendido.
+   - Sin cajas (no llegó ninguna) también vale, siempre que traiga las diferencias.
+   - No se aplica, y no se guarda nada, si la orden no va a WC-01 (422 `orden_no_es_traslado_tienda`),
+     si no está despachada (409 `orden_no_despachada`) o si ya tiene una recepción con otra
+     `recepcion_id` (409 `orden_ya_recibida`). En `pruebas`, una orden real da 422 `solo_pruebas`.
+   - **Cursor en `pruebas`**: `/despachos` solo devuelve órdenes PRUEBA, así que el cursor que
+     devuelve salta las reales. La tienda guarda un cursor aparte por modo
+     (`despachos_cursor_pruebas`) y al encender sigue con el real intacto.
+   - Una orden despachada o con recepción no se borra (`DELETE` → 409): se anula.
+   - 107 → WC-01 solo se arma desde `/api/traslados-tienda`; el POST/PUT genérico de órdenes de
+     salida sigue rechazando la 107 como origen. Un PUT que no cambia bodegas (anular, notas) no
+     revalida.
+   - La carga PRUEBA del seed queda con `inventario_planta_cargas.es_prueba = 1`: no es «el último
+     snapshot» real (ni en la pantalla, ni al pedir cajas, ni en la comparación del importador).
 6. Todavía no se mueve el kardex por etiqueta (`etiquetas` / `movimientos_etiqueta`): la 107 vive
    en el snapshot semanal de la planta.
 

@@ -119,7 +119,7 @@ function connFalso(estado) {
         return [params[0] === '2026-03-29' && params[1] === '39' ? [{ reporte_id: 5, fecha_produccion: '2026-03-29', num_lote: '39', lote_cc: 39, arete: 'INV107A', animal_id: 77 }] : []];
       }
       if (/WHERE contenido_sha256 = \?/.test(sql)) return [estado.cargado ? [{ id: 9, fecha_carga: '2026-11-05 10:00' }] : []];
-      if (/FROM inventario_planta_cargas ORDER BY id DESC LIMIT 1/.test(sql)) return [[]];
+      if (/FROM inventario_planta_cargas (WHERE es_prueba = 0 )?ORDER BY id DESC LIMIT 1/.test(sql)) return [[]];
       // Marmoleo medido (cámara AUS-MEAT) del animal 77 al que traza el lote 39.
       if (/FROM sacrificios s JOIN animales a/.test(sql)) return [params.includes(77) ? [{ animal_id: 77, arete: 'INV107A', marmoleo: 5 }] : []];
       throw new Error(`SQL no esperado en la prueba: ${sql.slice(0, 80)}`);

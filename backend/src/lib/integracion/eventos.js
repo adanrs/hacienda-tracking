@@ -130,7 +130,9 @@ const VALIDADORES = {
         else if (!esTexto(x.motivo, 300)) errores.push(`datos.diferencias[${i}].motivo es obligatorio con «accion» (máx. 300)`);
       }
     });
-    if (cajas.length === 0 && paquetes.length === 0) errores.push('La recepción debe traer al menos una caja');
+    // Si no llegó ninguna caja (todo faltante), la recepción igual existe: lleva las diferencias.
+    const hayDiferencias = Array.isArray(diferencias) && diferencias.length > 0;
+    if (cajas.length === 0 && paquetes.length === 0 && !hayDiferencias) errores.push('La recepción debe traer al menos una caja o una diferencia');
     // En la recepción los paquetes NO deberían existir aún en ganadería (se dan de alta al recibir).
     return { idDocumento: d.recepcion_id, piezas: paquetes, cajas, estadoEsperado: null };
   },

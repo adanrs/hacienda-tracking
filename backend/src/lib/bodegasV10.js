@@ -35,16 +35,17 @@ async function errorSiV10(conn, ids, campo = 'bodega') {
 }
 
 /**
- * Reglas de la orden de salida: el origen nunca es v10 (salvo 107 → WC-01, el traslado a la
- * tienda); el destino puede ser una BOD-* o WC-01; origen ≠ destino. Devuelve un mensaje de error o null.
+ * Reglas de la orden de salida: el origen nunca es v10; el destino puede ser una BOD-* o WC-01;
+ * origen ≠ destino. `permitirTrasladoTienda` (solo routes/traslados-tienda.js) admite 107 → WC-01:
+ * esas órdenes llevan cajas del inventario de la planta, no primales ni cajas internas. Devuelve un mensaje de error o null.
  */
-async function errorBodegasOrdenSalida(conn, { origen, destino }) {
+async function errorBodegasOrdenSalida(conn, { origen, destino, permitirTrasladoTienda = false }) {
   const vacio = (v) => v === undefined || v === null || v === '';
   if (!vacio(origen) && !vacio(destino) && Number(origen) === Number(destino)) {
     return 'La bodega de origen y la de destino no pueden ser la misma';
   }
   const v10 = await bodegasV10(conn, [origen, destino]);
-  const trasladoTienda = !vacio(origen) && !vacio(destino) && v10.get(Number(origen)) === B107 && v10.get(Number(destino)) === WC01;
+  const trasladoTienda = permitirTrasladoTienda && !vacio(origen) && !vacio(destino) && v10.get(Number(origen)) === B107 && v10.get(Number(destino)) === WC01;
   if (!vacio(origen) && v10.has(Number(origen)) && !trasladoTienda) {
     return `La bodega de origen ${v10.get(Number(origen))} es del inventario por etiqueta (v10): no se despacha por órdenes de salida`;
   }

@@ -84,6 +84,7 @@ test('MySQL real: inventario 107 → orden → despacho → recepción firmada p
   app.use(express.json());
   app.use('/api/traslados-tienda', require('../src/routes/traslados-tienda'));
   app.use('/api/ordenes-salida', require('../src/routes/ordenes-salida'));
+  app.use('/api/inventario-planta', require('../src/routes/inventario-planta'));
   const srv = app.listen(0);
   t.after(async () => { srv.close(); await pool.end(); });
   const base = `http://127.0.0.1:${srv.address().port}`;
@@ -187,6 +188,79 @@ test('MySQL real: inventario 107 → orden → despacho → recepción firmada p
   const otro = JSON.stringify({ ...sobre, datos: { ...sobre.datos, diferencias: [] } });
   assert.equal((await firmado('POST', '/api/integracion/tienda/eventos', otro)).status, 409);
 
+  // Una segunda recepción (otra recepcion_id) de la misma orden: 409, no se aplica nada.
+  const otraId = `R${Date.now()}c`;
+  const repetida = { ...sobre, clave: `traslado.recibido:${otraId}`, datos: { ...sobre.datos, recepcion_id: otraId } };
+  const rr = await firmado('POST', '/api/integracion/tienda/eventos', JSON.stringify(repetida));
+  assert.equal(rr.status, 409);
+  assert.equal(rr.json.error, 'orden_ya_recibida');
+  const [[nr]] = await pool.query('SELECT COUNT(*) AS n FROM recepciones_tienda WHERE orden_id = ?', [creada.json.id]);
+  assert.equal(nr.n, 1);
+  // Una orden despachada (o con recepción) no se borra: se anula.
+  assert.equal((await json('DELETE', `/api/ordenes-salida/${creada.json.id}`)).status, 409);
+
+  // Orden sin despachar: la recepción no se aplica (409); anularla por PUT sí se puede.
+  const [carga2] = await pool.query("INSERT INTO inventario_planta_cargas (archivo, contenido_sha256) VALUES ('test-traslado-2.xlsx', ?)", [crypto.randomBytes(32).toString('hex')]);
+  const [l2] = await pool.query("INSERT INTO inventario_planta_lineas (carga_id, hoja, codigo_barras, codigo, peso) VALUES (?, 'general', ?, '26617', 7.77)", [carga2.insertId, CAJA_X]);
+  const pendiente = await json('POST', '/api/traslados-tienda', { linea_ids: [l2.insertId], solicitante: 'Michelle' });
+  assert.equal(pendiente.status, 201);
+  const idP = `R${Date.now()}d`;
+  const sobreNoDesp = { ...sobre, clave: `traslado.recibido:${idP}`, datos: { ...sobre.datos, numero_orden: pendiente.json.numero, recepcion_id: idP } };
+  const rn = await firmado('POST', '/api/integracion/tienda/eventos', JSON.stringify(sobreNoDesp));
+  assert.equal(rn.status, 409);
+  assert.equal(rn.json.error, 'orden_no_despachada');
+  assert.equal((await json('PUT', `/api/ordenes-salida/${pendiente.json.id}`, { estado: 'cancelada' })).status, 200);
+  // …pero una orden genérica no puede armarse 107 → WC-01 cambiando bodegas por PUT.
+  const [[b]] = await pool.query("SELECT (SELECT id FROM bodegas WHERE codigo = '107') AS b107, (SELECT id FROM bodegas WHERE codigo = 'BOD-DSP') AS dsp");
+  const generica = await json('POST', '/api/ordenes-salida', { fecha: '2026-11-06', bodega_origen_id: b.dsp });
+  assert.equal(generica.status, 201);
+  assert.equal((await json('PUT', `/api/ordenes-salida/${generica.json.id}`, { bodega_origen_id: b.b107, bodega_destino_id: (await pool.query("SELECT id FROM bodegas WHERE codigo = 'WC-01'"))[0][0].id })).status, 400);
+  await pool.query('DELETE FROM ordenes_salida WHERE id = ?', [generica.json.id]);
+
+  // Una carga PRUEBA (seed) no se vuelve «el último snapshot» real ni entra en la comparación.
+  const [carga3] = await pool.query("INSERT INTO inventario_planta_cargas (archivo, contenido_sha256, es_prueba) VALUES ('PRUEBA-test.xlsx', ?, 1)", [crypto.randomBytes(32).toString('hex')]);
+  const [l3] = await pool.query("INSERT INTO inventario_planta_lineas (carga_id, hoja, codigo_barras, codigo, peso) VALUES (?, 'general', ?, '26617', 9.9)", [carga3.insertId, CAJA_C]);
+  const vista = await json('GET', '/api/inventario-planta/lineas');
+  assert.equal(vista.json.carga.id, carga2.insertId);
+  assert.equal(vista.json.carga.es_ultima, true);
+  const vistaP = await json('GET', `/api/inventario-planta/lineas?carga_id=${carga3.insertId}`);
+  assert.deepEqual([vistaP.json.carga.es_prueba, vistaP.json.carga.es_ultima], [true, true]);
+  const comp = await json('GET', '/api/inventario-planta/comparacion');
+  assert.notEqual(comp.json.anterior && comp.json.anterior.id, carga3.insertId);
+  // Desde la carga real se sigue pidiendo (es la última real) y desde la PRUEBA también.
+  const [l2b] = await pool.query("INSERT INTO inventario_planta_lineas (carga_id, hoja, codigo_barras, codigo, peso) VALUES (?, 'general', ?, '26617', 5.5)", [carga2.insertId, CAJA_A]);
+  const real2 = await json('POST', '/api/traslados-tienda', { linea_ids: [l2b.insertId], solicitante: 'JC' });
+  assert.equal(real2.status, 201, JSON.stringify(real2.json));
+  const prueba = await json('POST', '/api/traslados-tienda', { linea_ids: [l3.insertId], solicitante: 'Carolina', es_prueba: true });
+  assert.equal(prueba.status, 201, JSON.stringify(prueba.json));
+
+  // Cursor: OS-A real despachada a las 10:00, OS-B PRUEBA a las 11:00. En modo pruebas la tienda
+  // ve solo OS-B; si siguiera con ESE cursor al encender, perdería OS-A. Con el cursor real
+  // intacto (sincronizar.ts guarda uno aparte por modo) OS-A llega al encender.
+  assert.equal((await json('POST', `/api/ordenes-salida/${real2.json.id}/despachar`)).status, 200);
+  assert.equal((await json('POST', `/api/ordenes-salida/${prueba.json.id}/despachar`)).status, 200);
+  await pool.query('UPDATE ordenes_salida SET despachada_en = NOW(3) - INTERVAL 2 HOUR WHERE id = ?', [real2.json.id]);
+  await pool.query('UPDATE ordenes_salida SET despachada_en = NOW(3) - INTERVAL 1 HOUR WHERE id = ?', [prueba.json.id]);
+  const todos = async (cursorIni) => {
+    let c = cursorIni;
+    const vistos = [];
+    for (let i = 0; i < 50; i++) {
+      const r = await firmado('GET', `/api/integracion/tienda/despachos?limite=200${c ? `&cursor=${c}` : ''}`);
+      assert.equal(r.status, 200);
+      vistos.push(...r.json.despachos.map(d => d.numero));
+      c = r.json.siguiente_cursor;
+      if (!r.json.hay_mas) break;
+    }
+    return { vistos, cursor: c };
+  };
+  process.env.INTEGRACION_TIENDA_MODO = 'pruebas';
+  const enPruebas = await todos('');
+  assert.ok(enPruebas.vistos.includes(prueba.json.numero));
+  assert.ok(!enPruebas.vistos.includes(real2.json.numero));
+  process.env.INTEGRACION_TIENDA_MODO = 'encendido';
+  assert.ok(!(await todos(enPruebas.cursor)).vistos.includes(real2.json.numero), 'con el cursor de pruebas, OS-A se perdería');
+  assert.ok((await todos('')).vistos.includes(real2.json.numero), 'con el cursor real intacto, OS-A llega al encender');
+
   // Modo pruebas: una orden real (no PRUEBA) no se aplica.
   process.env.INTEGRACION_TIENDA_MODO = 'pruebas';
   const otraRecepcion = `R${Date.now()}b`;
@@ -205,6 +279,6 @@ test('MySQL real: inventario 107 → orden → despacho → recepción firmada p
 
   // Limpieza: la orden (cascada a ítems y recepción) y el snapshot de la prueba.
   await pool.query('DELETE FROM integracion_eventos WHERE clave = ?', [sobre.clave]);
-  await pool.query('DELETE FROM ordenes_salida WHERE id = ?', [creada.json.id]);
-  await pool.query('DELETE FROM inventario_planta_cargas WHERE id = ?', [carga.insertId]);
+  await pool.query('DELETE FROM ordenes_salida WHERE id IN (?)', [[creada.json.id, pendiente.json.id, real2.json.id, prueba.json.id]]);
+  await pool.query('DELETE FROM inventario_planta_cargas WHERE id IN (?)', [[carga.insertId, carga2.insertId, carga3.insertId]]);
 });
