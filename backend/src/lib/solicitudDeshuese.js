@@ -41,7 +41,8 @@ const MEDIAS_DEFECTO = 2;
  */
 const FILTRO_CORTES = { series: ['ARREO'], incluirSinSerie: true, tipos: ['primal', 'otro'] };
 
-const ESTADOS = ['borrador', 'enviada', 'deshuesada'];
+// con_reporte: todas sus canales tienen reporte de producción (lo pone la importación del reporte).
+const ESTADOS = ['borrador', 'enviada', 'deshuesada', 'con_reporte'];
 const MEDIAS_VALIDAS = [0, 1, 2];
 
 // Topes de tamaño: un día de sacrificio son decenas de canales y unas 30 filas de cortes.

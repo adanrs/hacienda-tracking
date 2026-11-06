@@ -17,6 +17,7 @@ const { idsNumericos, SOLO_DIGITOS } = require('../lib/params');
 const { pool } = require('../models/database');
 const rp = require('../lib/reporteProduccion');
 const excel = require('../lib/reporteProduccionExcel');
+const { vencimientoDe } = require('../lib/vencimiento');
 
 idsNumericos(router);
 
@@ -242,6 +243,57 @@ router.get('/plantilla', envolver(async (req, res) => {
   res.setHeader('Content-Disposition', 'attachment; filename="plantilla-reporte-produccion-ciisa.xlsx"');
   await libro.xlsx.write(res);
   res.end();
+}));
+
+// GET /api/reporte-produccion/por-animal?desde=&hasta=  → un renglón por reporte (= un animal), con su
+// arete, rendimiento sobre el peso canal, PDF y estado de trazabilidad; más el % con trazabilidad por día
+// (tanda). Es la vista principal de la pantalla «Reporte de producción».
+router.get('/por-animal', envolver(async (req, res) => {
+  const hasta = req.query.hasta ? fechaObligatoria(req.query.hasta, 'hasta') : '9999-12-31';
+  const desde = req.query.desde ? fechaObligatoria(req.query.desde, 'desde') : '1900-01-01';
+  const [filas] = await pool.query(
+    `SELECT r.id, ${fmtFecha('r.fecha_produccion')} AS fecha_produccion, r.lote_cc, r.num_lote, r.tipo_produccion, r.origen,
+            r.archivo_nombre, r.pdf_url, r.pie_kilos, r.pie_cajas, r.importacion_id,
+            l.arete, l.animal_id, a.numero_trazabilidad, s.id AS sacrificio_id, s.numero_canal,
+            ${fmtFecha('s.fecha_dia')} AS fecha_sacrificio, COALESCE(s.peso_canal_frio, s.peso_canal_caliente) AS peso_canal,
+            (SELECT SUM(x.peso_kg) FROM reporte_produccion_lineas x WHERE x.reporte_id = r.id) AS kilos,
+            (SELECT SUM(x.cajas) FROM reporte_produccion_lineas x WHERE x.reporte_id = r.id) AS cajas,
+            (SELECT COUNT(*) FROM reporte_produccion_lineas x WHERE x.reporte_id = r.id AND x.articulo_codigo = '99') AS lineas_pendientes
+     FROM reporte_produccion r
+     LEFT JOIN lotes_cc_aretes l ON l.fecha_deshuese = r.fecha_produccion AND l.lote_cc = r.lote_cc
+     LEFT JOIN animales a ON a.id = l.animal_id
+     LEFT JOIN sacrificios s ON s.animal_id = l.animal_id
+     WHERE r.fecha_produccion BETWEEN ? AND ?
+     ORDER BY r.fecha_produccion DESC, r.lote_cc
+     LIMIT 500`, [desde, hasta]);
+  const reportes = filas.map((f) => {
+    const kilos = f.kilos == null ? 0 : Number(f.kilos);
+    const canal = f.peso_canal == null ? null : Number(f.peso_canal);
+    return {
+      ...f, kilos, cajas: f.cajas == null ? 0 : Number(f.cajas), peso_canal: canal,
+      pie_kilos: f.pie_kilos == null ? null : Number(f.pie_kilos), lineas_pendientes: Number(f.lineas_pendientes),
+      rendimiento: canal ? Math.round((kilos / canal) * 10000) / 100 : null,
+      trazabilidad: f.animal_id ? 'con_arete' : 'sin_trazabilidad',
+      vencimiento: vencimientoDe(f.fecha_produccion),
+    };
+  });
+  const porDia = new Map();
+  for (const r of reportes) {
+    const d = porDia.get(r.fecha_produccion) || { fecha: r.fecha_produccion, total: 0, con_arete: 0 };
+    d.total++; if (r.animal_id) d.con_arete++;
+    porDia.set(r.fecha_produccion, d);
+  }
+  const tandas = [...porDia.values()].map((d) => ({ ...d, pct: Math.round((d.con_arete / d.total) * 1000) / 10 }));
+  res.json({ reportes, tandas });
+}));
+
+// GET /api/reporte-produccion/ciisa/:id/lineas → detalle desplegable de un reporte
+router.get('/ciisa/:id/lineas', envolver(async (req, res) => {
+  const [filas] = await pool.query(
+    `SELECT l.linea, l.articulo_codigo, l.codigo_informado, l.descripcion, l.peso_kg, l.cajas, c.nombre AS nombre_catalogo, c.tipo
+     FROM reporte_produccion_lineas l LEFT JOIN catalogo_cortes c ON c.codigo = l.articulo_codigo
+     WHERE l.reporte_id = ? ORDER BY l.linea`, [req.params.id]);
+  res.json(filas.map((f) => ({ ...f, peso_kg: Number(f.peso_kg) })));
 }));
 
 // GET /api/reporte-produccion/dias?desde=&hasta=  → días con datos (para el calendario de la pantalla)

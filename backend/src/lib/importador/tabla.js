@@ -4,7 +4,7 @@
 // errores de lectura por celda. No decide nada de negocio (eso es del procesador).
 
 const {
-  normalizarEncabezado, normalizarArete, normalizarIE, parsearNumero, parsearFecha,
+  normalizarEncabezado, normalizarArete, normalizarIE, parsearNumero, parsearFecha, parsearFechaHora,
   ordenFechaColumna, vacio,
 } = require('./texto');
 
@@ -103,6 +103,11 @@ function tiparValor(col, crudo, ctx) {
       if (col.tipo === 'entero' && !Number.isInteger(n)) return { valor: null, error: `«${crudo}» debe ser un número entero` };
       return { valor: n };
     }
+    case 'fechahora': {
+      const f = parsearFechaHora(crudo, ctx.ordenes[col.clave]);
+      if (f && typeof f === 'object') return { valor: null, error: f.error };
+      return { valor: f };
+    }
     case 'fecha': {
       const f = parsearFecha(crudo, ctx.ordenes[col.clave]);
       if (f && typeof f === 'object') return { valor: null, error: f.error };
@@ -138,6 +143,12 @@ function leerTabla(filas, formato, { comaDecimal = false, textosExtra = [] } = {
   }
 
   const columnas = formato.columnas.filter(c => c.clave in mapa);
+  // Columnas que el formato no conoce pero se quieren conservar (la cámara de marmoleo puede
+  // traer más columnas a la derecha): se guardan por su encabezado original en `extras`.
+  const desconocidas = formato.guardarDesconocidas && !enc.posicional
+    ? (filas[enc.indice] || []).map((t, idx) => ({ idx, titulo: vacio(t) ? '' : String(t).replace(/\s+/g, ' ').trim() }))
+      .filter(c => c.titulo && !Object.values(mapa).includes(c.idx))
+    : [];
   const obligatorias = formato.columnas.filter(c => c.obligatoria && c.clave in mapa);
 
   const candidatas = [];
@@ -154,17 +165,19 @@ function leerTabla(filas, formato, { comaDecimal = false, textosExtra = [] } = {
       const otros = columnas.filter(c => !c.obligatoria && !vacio(crudos[c.clave])).length;
       if (otros < 3) continue;
     }
-    candidatas.push({ fila: i + 1, crudos });
+    const extras = {};
+    for (const c of desconocidas) if (!vacio(fila[c.idx])) extras[c.titulo] = fila[c.idx] instanceof Date ? fila[c.idx].toISOString() : fila[c.idx];
+    candidatas.push({ fila: i + 1, crudos, extras });
   }
 
   // El orden día/mes se decide por columna con todos sus valores (ver ordenFechaColumna).
   const ordenes = {};
-  for (const col of columnas.filter(c => c.tipo === 'fecha')) {
+  for (const col of columnas.filter(c => c.tipo === 'fecha' || c.tipo === 'fechahora')) {
     ordenes[col.clave] = ordenFechaColumna(candidatas.map(c => c.crudos[col.clave]), formato.ordenFechas || 'dmy');
   }
   const ctx = { comaDecimal, ordenes };
 
-  const salida = candidatas.map(({ fila, crudos }) => {
+  const salida = candidatas.map(({ fila, crudos, extras }) => {
     const valores = {};
     const errores = [];
     for (const col of columnas) {
@@ -172,7 +185,7 @@ function leerTabla(filas, formato, { comaDecimal = false, textosExtra = [] } = {
       valores[col.clave] = r.valor;
       if (r.error) errores.push(`${col.clave}: ${r.error}`);
     }
-    return { fila, valores, errores, crudos };
+    return { fila, valores, errores, crudos, extras };
   });
 
   return {

@@ -82,6 +82,7 @@ const FORMATOS = {
       { clave: 'dientes', encabezados: ['dientes', 'denticion'], tipo: 'entero' },
       { clave: 'grasa', encabezados: ['grasa'], tipo: 'entero' },
       { clave: 'golpe', encabezados: ['golpe', 'golpes'], tipo: 'texto' },
+      { clave: 'condicion_corporal', encabezados: ['condicion corporal', 'cond corporal', 'condicion'], tipo: 'texto' },
     ],
     // Pegado como texto plano sin encabezado reconocible (Gmail lo parte en varias líneas):
     // una fila de datos con exactamente estas columnas, en este orden, se acepta igual.
@@ -92,27 +93,95 @@ const FORMATOS = {
     ],
   },
 
-  // PRÓXIMO (no implementado): inventario por tarimas que manda CIISA («INV WAGYU SEMANA 41.xlsx»,
-  // hojas INV GENERAL / MADURACION / TORTAS WAGYU). El lector ya detecta su encabezado; falta el
-  // procesador que concilie contra etiquetas/primales/cajas. `procesador: null` lo deja fuera
-  // de la pantalla y de la API hasta que exista.
-  'inventario-ciisa': {
-    nombre: 'Inventario por tarimas CIISA',
-    descripcion: 'Pendiente: conciliación del inventario semanal de CIISA',
-    procesador: null,
-    extensiones: ['xlsx'],
-    minimoColumnas: 4,
+  // Medición de marmoleo de la cámara de canales (página web del proveedor: no exporta Excel,
+  // se selecciona la tabla y se pega). Lo único que se registra es DMs (AUSMEAT) por animal; el
+  // resto de columnas (DMp, NFI-2, DMa, DMs, DMs MSA, DMc y cualquier otra a la derecha) se
+  // guarda como dato extra. «Body no.» = número de sacrificio (canal) + espacio + arete.
+  'marmoleo-camara': {
+    nombre: 'Marmoleo · cámara de canales',
+    descripcion: 'Tabla de la cámara (Taken at, Body no., DMs AUSMEAT…) pegada desde la página o exportada',
+    procesador: 'marmoleoCamara',
+    extensiones: ['csv', 'txt', 'xlsx', 'html', 'htm'],
+    minimoColumnas: 2,
+    ordenFechas: 'dmy',
+    guardarDesconocidas: true,
+    columnas: [
+      { clave: 'taken_at', encabezados: ['taken at', 'fecha', 'fecha hora'], tipo: 'fechahora' },
+      { clave: 'body', encabezados: ['body no', 'body', 'body n'], tipo: 'texto', obligatoria: true },
+      { clave: 'barcode', encabezados: ['barcode no', 'barcode', 'barcode n'], tipo: 'texto' },
+      { clave: 'ausmeat', encabezados: ['dms ausmeat', 'dms aus meat', 'ausmeat', 'marmoleo ausmeat', 'marmoleo aus meat'], tipo: 'texto', obligatoria: true },
+      { clave: 'dmp', encabezados: ['dmp %', 'dmp'], tipo: 'numero' },
+      { clave: 'nfi2', encabezados: ['nfi 2', 'nfi2'], tipo: 'numero' },
+      { clave: 'dma', encabezados: ['dma cm2', 'dma'], tipo: 'numero' },
+      { clave: 'dms', encabezados: ['dms'], tipo: 'numero' },
+      { clave: 'dms_msa', encabezados: ['dms msa'], tipo: 'numero' },
+      { clave: 'dmc', encabezados: ['dmc'], tipo: 'numero' },
+    ],
+    metadatos: [],
+  },
+
+  // Reporte Diario de Producción de CIISA por animal: varios PDF a la vez (cada PDF = un lote = un
+  // animal) y/o el texto pegado, más la lista lote → arete del correo en opciones.mapa. No es una
+  // tabla con encabezado: modo «documentos» (el motor entrega el texto de cada archivo al procesador).
+  'reporte-produccion-ciisa': {
+    nombre: 'Reporte de producción CIISA (PDF por animal)',
+    descripcion: 'Uno o varios PDF «REPORTE DIARIO DE PRODUCCION» más la lista lote → arete del correo',
+    procesador: 'reporteProduccionCiisa',
+    modo: 'documentos',
+    extensiones: ['pdf', 'txt'],
+    columnas: [],
+    metadatos: [],
+  },
+
+  // Listado completo del catálogo de cortes (Excel de la planta o pegado): código, descripción y,
+  // si vienen, tipo, unidad y activo. Compara contra la base: nuevos / cambian / sin cambios.
+  'catalogo-cortes': {
+    nombre: 'Catálogo de cortes (listado completo)',
+    descripcion: 'Código de 5 dígitos y descripción; tipo, unidad y activo opcionales',
+    procesador: 'catalogoCortes',
+    extensiones: ['xlsx', 'csv', 'txt', 'html', 'htm'],
+    minimoColumnas: 2,
     ordenFechas: 'dmy',
     columnas: [
-      { clave: 'tarima', encabezados: ['tarima'], tipo: 'texto' },
-      { clave: 'codigo_barras', encabezados: ['codigo barras', 'cod barra'], tipo: 'texto' },
-      { clave: 'codigo', encabezados: ['codigo'], tipo: 'texto' },
-      { clave: 'descripcion', encabezados: ['descripcion'], tipo: 'texto' },
-      { clave: 'peso', encabezados: ['peso'], tipo: 'numero' },
-      { clave: 'lote', encabezados: ['lote'], tipo: 'texto' },
-      { clave: 'caja', encabezados: ['caja'], tipo: 'texto' },
-      { clave: 'fecha_vencimiento', encabezados: ['fecha vencimiento', 'fecha de vencimiento fresco'], tipo: 'fecha' },
+      { clave: 'codigo', encabezados: ['codigo', 'cod', 'articulo', 'codigo articulo', 'sku'], tipo: 'texto', obligatoria: true },
+      { clave: 'nombre', encabezados: ['descripcion', 'nombre', 'corte', 'nombre del corte', 'producto'], tipo: 'texto', obligatoria: true },
+      { clave: 'tipo', encabezados: ['tipo', 'clase', 'categoria'], tipo: 'texto' },
+      { clave: 'unidad', encabezados: ['unidad', 'um', 'unidad de medida'], tipo: 'texto' },
+      { clave: 'activo', encabezados: ['activo', 'estado'], tipo: 'texto' },
     ],
+    // Pegado sin encabezado: «22229  CH-CHUCK RES».
+    posicional: ['codigo', 'nombre'],
+    metadatos: [],
+  },
+
+  // Solicitud de deshuese histórica en el Excel de la planta («Solicitud_de_Deshuese_y_Porcionado.xlsx»,
+  // hojas «Deshuese ddmmaa»). El procesador lee el libro crudo: ver docs/importadores/solicitud-deshuese.md.
+  'solicitud-deshuese-excel': {
+    nombre: 'Solicitud de deshuese (Excel de la planta)',
+    descripcion: 'Hojas «Deshuese ddmmaa» del libro de solicitudes: canales por columna y cortes por fila',
+    procesador: 'solicitudDeshueseExcel',
+    modo: 'documentos',
+    leerCrudo: true,
+    maxMB: 40,
+    extensiones: ['xlsx'],
+    columnas: [],
+    metadatos: [],
+  },
+
+  // Inventario semanal por tarimas que manda CIISA («INV WAGYU SEMANA 41.xlsx», bodega 107 /
+  // paquetería). Se leen SOLO las hojas «INV GENERAL» y «MADURACION» (la única visibilidad que tiene
+  // el dueño de custodia/maduración); «TARIMA n» y «TORTAS WAGYU» son vistas parciales y se ignoran.
+  // El libro se lee crudo (varias hojas con encabezados distintos): ver procesadores/inventarioCiisa.js.
+  // Cada carga es un snapshot (tablas inventario_planta_*); en el código de caja «xxx» = sin trazabilidad.
+  'inventario-ciisa': {
+    nombre: 'Inventario semanal de la planta CIISA',
+    descripcion: 'Hojas «INV GENERAL» y «MADURACION» del Excel «INV WAGYU SEMANA nn», o la tabla pegada',
+    procesador: 'inventarioCiisa',
+    modo: 'documentos',
+    leerCrudo: true,
+    maxMB: 10,
+    extensiones: ['xlsx'],
+    columnas: [],
     metadatos: [],
   },
   // PRÓXIMO (no implementado): lectura por foto (OCR). La vía de entrada sería otra (imagen →

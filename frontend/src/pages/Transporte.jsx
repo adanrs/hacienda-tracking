@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Edit, Truck } from 'lucide-react';
+import { Plus, Edit, Truck, ListChecks } from 'lucide-react';
+import TransporteLote from '../components/seleccion/TransporteLote';
 import { api } from '../services/api';
 import { aviso } from '../components/ui/avisos';
 import { formatDate } from '../components/DateFormat';
@@ -13,6 +14,7 @@ export default function Transporte() {
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [form, setForm] = useState({});
+  const [lote, setLote] = useState(false); // selección múltiple
 
   const load = () => {
     api.getTransportes().then(setTransportes).catch(aviso.errorCarga());
@@ -53,9 +55,11 @@ export default function Transporte() {
         <h2>Transporte</h2>
         <div className="rp-acciones">
           <Link to="/guias-transporte" className="btn btn-secondary"><Truck size={16} aria-hidden="true" /> Guías de transporte</Link>
-          <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nuevo Transporte</button>
+          <button className="btn btn-secondary" onClick={openNew}><Plus size={16} /> Uno solo</button>
+          <button className="btn btn-primary" onClick={() => setLote(true)}><ListChecks size={16} aria-hidden="true" /> Varios animales</button>
         </div>
       </div>
+      {lote && <TransporteLote onCerrar={() => setLote(false)} onListo={() => { setLote(false); load(); }} />}
 
       <div className="card">
         <div className="table-container">

@@ -74,7 +74,9 @@ function etiquetaDeSticker(s) {
     formato: esCiisa ? 'ciisa_paquete' : 'interno',
     ...(esCiisa ? {
       codigo_articulo: dec.campos.codigoProducto,
+      // null cuando la planta puso «xxx»/«000000» (sin trazabilidad); ver docs/integracion-tienda.
       arete: dec.campos.arete,
+      trazabilidad: dec.campos.trazabilidad || null,
       kg_etiqueta: dec.campos.pesoKg,
       cruce: dec.campos.genetica || null,
       bms: dec.campos.marmoleo ?? null,

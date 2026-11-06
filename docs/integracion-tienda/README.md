@@ -98,7 +98,7 @@ encendido tiene que aplicarse (y no devolver el resultado de la sombra).
       "tipo": "caja", "codigo": "CJ-…", "descripcion": "NEW YORK", "cantidad": 1, "kg": 10.5,
       "etiquetas": [
         { "codigo": "34GKAE266322309243300416F101", "copia": 1, "kg": 0.416, "formato": "ciisa_paquete",
-          "codigo_articulo": "26632", "arete": "34GKAE", "kg_etiqueta": 0.416, "cruce": "F1", "bms": 1 },
+          "codigo_articulo": "26632", "arete": "34GKAE", "trazabilidad": "con_arete", "kg_etiqueta": 0.416, "cruce": "F1", "bms": 1 },
         { "codigo": "STK-0001", "copia": 1, "kg": 0.9, "formato": "interno" }
       ]
     }]
@@ -107,6 +107,12 @@ encendido tiene que aplicarse (y no devolver el resultado de la sombra).
   "hay_mas": false
 }
 ```
+
+**Paquetes sin trazabilidad.** Cuando la planta no sabe de qué animal viene el producto, rellena el arete
+del código de barras con «xxx» (cualquier combinación de mayúsculas) o con ceros («000000», típico de las
+hamburguesas). En ese caso la etiqueta llega con `"arete": null` y `"trazabilidad": "sin_trazabilidad"`
+(nunca con el texto literal «XXXXXX»); con arete, `"trazabilidad": "con_arete"`. La tienda debe aceptar
+`arete` nulo.
 
 - Las `etiquetas` de una caja son sus stickers. `formato: ciisa_paquete` significa que el código
   se decodifica como etiqueta CIISA de 28 sin errores, y en ese caso se agregan los campos

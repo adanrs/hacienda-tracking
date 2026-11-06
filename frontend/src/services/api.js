@@ -84,12 +84,16 @@ const qs = (params = {}) => {
 // Importador masivo (planificar → vista previa → aplicar). Con archivo va como multipart con
 // «opciones» y «huella» en JSON; con texto pegado va como JSON. El servidor no guarda nada al
 // planificar: aplicar repite el plan y exige la huella de la vista previa que vio el usuario.
-async function importacion(paso, formato, { archivo, pegado, opciones = {}, huella } = {}) {
+// `archivos` (varios) es para los formatos de documentos: varios PDF del reporte de producción a la vez,
+// con el texto pegado opcional en la misma tanda.
+async function importacion(paso, formato, { archivo, archivos, pegado, opciones = {}, huella } = {}) {
   const ruta = `/importaciones/${encodeURIComponent(formato)}/${paso}`;
-  if (!archivo) return request(ruta, { method: 'POST', body: JSON.stringify({ pegado, opciones, huella }) });
+  if (!archivo && !(archivos && archivos.length)) return request(ruta, { method: 'POST', body: JSON.stringify({ pegado, opciones, huella }) });
   const token = getToken();
   const fd = new FormData();
-  fd.append('archivo', archivo);
+  if (archivo) fd.append('archivo', archivo);
+  for (const a of archivos || []) fd.append('archivos', a);
+  if (pegado && archivos && archivos.length) fd.append('pegado', JSON.stringify(pegado));
   fd.append('opciones', JSON.stringify(opciones));
   if (huella) fd.append('huella', huella);
   let res;
@@ -103,7 +107,25 @@ async function importacion(paso, formato, { archivo, pegado, opciones = {}, huel
   return datos;
 }
 
+// Abre un archivo subido (PDF) con la sesión: /uploads exige token, así que no sirve un <a href>.
+async function abrirArchivo(url) {
+  const token = getToken();
+  const ventana = window.open('', '_blank');
+  try {
+    const res = await fetch(`${API_BASE}${url}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!res.ok) throw new Error(res.status === 404 ? 'El archivo ya no está en el servidor' : `Error del servidor (${res.status})`);
+    const blob = await res.blob();
+    const objeto = URL.createObjectURL(blob);
+    if (ventana) ventana.location.href = objeto; else window.open(objeto, '_blank');
+    setTimeout(() => URL.revokeObjectURL(objeto), 60000);
+  } catch (e) {
+    if (ventana) ventana.close();
+    throw e;
+  }
+}
+
 export const api = {
+  abrirArchivo,
   // Auth
   login: (username, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
   getMe: () => request('/auth/me'),
@@ -332,6 +354,21 @@ export const api = {
 
   // Importador masivo y guías de transporte
   planificarImportacion: (formato, entrada) => importacion('planificar', formato, entrada),
+  // Lectura por foto / PDF escaneado: encola y luego se consulta el estado.
+  getVisionEstado: () => request('/importaciones/vision/estado'),
+  transcribirFoto: (formato, foto) => subir(`/importaciones/${encodeURIComponent(formato)}/transcribir`, 'foto', foto),
+  getTranscripcion: (id) => request(`/importaciones/transcripciones/${id}`),
+  // Reporte de producción por animal (pantalla fusionada)
+  getReportesPorAnimal: (params = {}) => request(`/reporte-produccion/por-animal${qs(params)}`),
+  getLineasReporte: (id) => request(`/reporte-produccion/ciisa/${id}/lineas`),
+  // Catálogo: pendientes de codificar y bitácora
+  getPendientesCodificar: () => request('/catalogo-cortes/pendientes'),
+  reasignarPendiente: (data) => request('/catalogo-cortes/pendientes/reasignar', { method: 'POST', body: JSON.stringify(data) }),
+  getBitacoraCorte: (id) => request(`/catalogo-cortes/${id}/bitacora`),
+  // Selección múltiple
+  crearTransporteLote: (data) => request('/transporte/lote', { method: 'POST', body: JSON.stringify(data) }),
+  getPropuestaSacrificio: (fecha) => request(`/sacrificio/propuesta${qs({ fecha })}`),
+  crearSacrificioLote: (data) => request('/sacrificio/lote', { method: 'POST', body: JSON.stringify(data) }),
   aplicarImportacion: (formato, entrada) => importacion('aplicar', formato, entrada),
   getImportaciones: (params = {}) => request(`/importaciones${qs(params)}`),
   getImportacion: (id) => request(`/importaciones/${id}`),
@@ -339,4 +376,11 @@ export const api = {
   getGuiaTransporte: (id) => request(`/guias-transporte/${id}`),
   updateGuiaTransporte: (id, data) => request(`/guias-transporte/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   getPendientesSacrificio: (fecha) => request(`/guias-transporte/pendientes-sacrificio${qs({ fecha })}`),
+  getMarmoleoFechas: () => request('/marmoleo/fechas'),
+  getMarmoleo: (fecha) => request(`/marmoleo${qs({ fecha })}`),
+  guardarMarmoleo: (data) => request('/marmoleo', { method: 'PUT', body: JSON.stringify(data) }),
+  // Inventario semanal de la planta (snapshots; se cargan con el importador «inventario-ciisa»)
+  getInventarioPlantaCargas: () => request('/inventario-planta/cargas'),
+  getInventarioPlantaLineas: (params = {}) => request(`/inventario-planta/lineas${qs(params)}`),
+  getInventarioPlantaComparacion: (params = {}) => request(`/inventario-planta/comparacion${qs(params)}`),
 };

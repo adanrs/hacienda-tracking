@@ -23,7 +23,11 @@ app.use('/api/integracion/tienda', require('./routes/integracion-tienda'));
 const protegidaImport = [authMiddleware, soloLecturaViewer];
 app.use('/api/importaciones', protegidaImport, express.json({ limit: '3mb' }), require('./routes/importaciones'));
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// PDFs del deshuese y del reporte de producción: solo con sesión. También bajo /api/uploads, que es
+// la URL que usa el frontend (VITE_API_URL apunta a /api del backend; el nginx del frontend no sirve /uploads).
+const archivosSubidos = express.static(path.join(__dirname, '../uploads'));
+app.use('/uploads', authMiddleware, archivosSubidos);
+app.use('/api/uploads', authMiddleware, archivosSubidos);
 
 // Public routes
 app.use('/api/auth', require('./routes/auth'));
@@ -64,6 +68,7 @@ app.use('/api/dashboard', protegida, require('./routes/dashboard'));
 app.use('/api/transporte', protegida, require('./routes/transporte'));
 app.use('/api/guias-transporte', protegida, require('./routes/guias-transporte'));
 app.use('/api/sacrificio', protegida, require('./routes/sacrificio'));
+app.use('/api/marmoleo', protegida, require('./routes/marmoleo'));
 app.use('/api/cortes', protegida, require('./routes/cortes'));
 app.use('/api/catalogo-cortes', protegida, require('./routes/catalogo-cortes'));
 app.use('/api/config-planta', protegida, require('./routes/config-planta'));
@@ -83,6 +88,8 @@ app.use('/api/alertas-bms', protegida, require('./routes/alertas-bms'));
 app.use('/api/temperaturas-bodega', protegida, require('./routes/temperaturas-bodega'));
 app.use('/api/reporte-produccion', protegida, require('./routes/reporte-produccion'));
 app.use('/api/solicitudes-deshuese', protegida, require('./routes/solicitudes-deshuese'));
+// Snapshots del inventario semanal de la planta (solo lectura; se cargan con el importador).
+app.use('/api/inventario-planta', protegida, require('./routes/inventario-planta'));
 // Etiquetas solo expone POST /decodificar, que es cálculo puro (no escribe en la base):
 // el viewer lo puede usar para consultar una etiqueta escaneada.
 app.use('/api/etiquetas', authMiddleware, require('./routes/etiquetas'));

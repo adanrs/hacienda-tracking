@@ -147,9 +147,31 @@ function distanciaEdicion(a, b, tope = Infinity) {
   return previa[b.length];
 }
 
+/**
+ * Fecha y hora → 'AAAA-MM-DD HH:MM:SS' (la cámara de canales: «2026-08-20 03:37:54»).
+ * Sin hora devuelve la fecha a las 00:00:00. Null si viene vacía; { error } si no se puede leer.
+ */
+function parsearFechaHora(v, orden = 'dmy') {
+  if (v == null || v === '') return null;
+  if (v instanceof Date) {
+    if (Number.isNaN(v.getTime())) return { error: 'fecha inválida' };
+    return v.toISOString().slice(0, 19).replace('T', ' ');
+  }
+  const s = String(v).trim();
+  const m = s.match(/^(.+?)[ T](\d{1,2}):(\d{2})(?::(\d{2}))?\s*([ap]\.?\s*m\.?)?$/i);
+  const fecha = parsearFecha(m ? m[1] : s, orden);
+  if (fecha == null || typeof fecha === 'object') return fecha;
+  if (!m) return `${fecha} 00:00:00`;
+  let h = Number(m[2]);
+  if (m[5] && /p/i.test(m[5]) && h < 12) h += 12;
+  if (m[5] && /a/i.test(m[5]) && h === 12) h = 0;
+  if (h > 23 || Number(m[3]) > 59 || Number(m[4] || 0) > 59) return { error: `«${s}» no es una hora válida` };
+  return `${fecha} ${pad(h)}:${m[3]}:${m[4] || '00'}`;
+}
+
 const vacio = (v) => v == null || (typeof v === 'string' && v.trim() === '');
 
 module.exports = {
   normalizarEncabezado, normalizarArete, normalizarIE, parsearNumero, parsearFecha,
-  ordenFechaColumna, fechaDesdeSerialExcel, distanciaEdicion, vacio,
+  ordenFechaColumna, fechaDesdeSerialExcel, parsearFechaHora, distanciaEdicion, vacio,
 };

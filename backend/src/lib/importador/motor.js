@@ -65,9 +65,63 @@ async function leerEntrada(entrada, def) {
   throw new ErrorImportacion(400, 'Adjunte un archivo o pegue la tabla');
 }
 
+/**
+ * Formatos de «documentos» (def.modo === 'documentos'): cada archivo es un documento entero (p. ej.
+ * un PDF de CIISA = un animal) y no una tabla con encabezado. Se aceptan VARIOS archivos a la vez
+ * más el texto pegado; el procesador recibe [{ nombre, texto, buffer, ext }] y arma su plan. La
+ * huella del contenido cubre todos los archivos en orden, así que aplicar exige exactamente la
+ * misma tanda que se vio en la vista previa.
+ */
+const MAX_DOCUMENTOS = 40;
+async function leerDocumentos(entrada, def) {
+  const archivos = [...(entrada.archivos || []), ...(entrada.archivo ? [entrada.archivo] : [])];
+  if (archivos.length > MAX_DOCUMENTOS) throw new ErrorImportacion(400, `Máximo ${MAX_DOCUMENTOS} archivos por tanda`);
+  const documentos = [];
+  const hash = crypto.createHash('sha256');
+  for (const a of archivos) {
+    const ext = (String(a.nombre).match(/\.([a-z0-9]+)$/i) || [])[1]?.toLowerCase();
+    if (!def.extensiones.includes(ext)) throw new ErrorImportacion(400, `«${a.nombre}»: este formato acepta ${def.extensiones.map(e => `.${e}`).join(', ')}`);
+    let texto = null;
+    if (!def.leerCrudo) {
+      try {
+        const r = await leerArchivo(a.buffer, a.nombre);
+        texto = r.texto != null ? r.texto : r.hojas.map(h => h.filas.map(f => f.join('\t')).join('\n')).join('\n');
+      } catch (e) {
+        // Un PDF escaneado no frena la tanda: queda marcado para la lectura por foto (visión).
+        if (e instanceof ErrorArchivo && e.codigo === 'sin_texto') { texto = ''; } else if (e instanceof ErrorArchivo) throw new ErrorImportacion(400, `«${a.nombre}»: ${e.message}`);
+        else throw e;
+      }
+    }
+    documentos.push({ nombre: a.nombre, ext, texto, buffer: a.buffer, requiereVision: texto === '' });
+    hash.update(sha256(a.buffer)).update(String(a.nombre));
+  }
+  const pegado = entrada.pegado ? String(entrada.pegado.texto || '') : '';
+  if (pegado.trim()) {
+    documentos.push({ nombre: null, ext: null, texto: pegado, buffer: null, pegado: true });
+    hash.update('pegado').update(pegado);
+  }
+  if (!documentos.length) throw new ErrorImportacion(400, 'Adjunte uno o más archivos, o pegue el texto');
+  return {
+    documentos, origen: archivos.length ? 'archivo' : 'pegado',
+    archivo_nombre: archivos.length ? archivos.map(a => a.nombre).join(', ').slice(0, 255) : null,
+    sha: hash.digest('hex'),
+  };
+}
+
 /** Plan sin escribir nada. `conn` puede ser el pool o una conexión con transacción abierta. */
 async function planificar(conn, formatoId, entrada, opciones = {}) {
   const { def, proc } = definicion(formatoId);
+  if (def.modo === 'documentos') {
+    const lectura = await leerDocumentos(entrada, def);
+    const plan = await proc.planificar(conn, null, opciones, { def, lectura });
+    const completo = { formato: formatoId, archivo_nombre: lectura.archivo_nombre, origen: lectura.origen, hoja: null, encabezado: null, metadatos: {}, ...plan };
+    completo.resumen = resumir(completo.filas, completo.resumen);
+    completo.huella = sha256(JSON.stringify(completo));
+    completo.contenido_sha256 = lectura.sha;
+    // Los buffers no van a la vista previa (ni a la huella); el procesador los usa al aplicar.
+    Object.defineProperty(completo, '_documentos', { value: lectura.documentos, enumerable: false });
+    return completo;
+  }
   const lectura = await leerEntrada(entrada, def);
   const tabla = leerHojas(lectura.hojas, def, { textosExtra: lectura.textos });
   if (!tabla.encabezado) {
@@ -152,9 +206,23 @@ async function aplicar(pool, formatoId, entrada, opciones, { usuarioId, huella }
     const resumenFinal = { ...plan.resumen, aplicado: resultado.resumen || {} };
     await conn.query('UPDATE importaciones SET resumen = ? WHERE id = ?', [JSON.stringify(resumenFinal), importacionId]);
     await conn.commit();
+    if (typeof proc.despuesDeCommit === 'function') {
+      try { await proc.despuesDeCommit(pool, resultado); } catch (err) { console.error('[importador] despuesDeCommit', err.message); }
+    }
     return { importacion_id: importacionId, resumen: resumenFinal, resultado };
   } catch (e) {
     try { await conn.rollback(); } catch (_) { /* sin transacción abierta */ }
+    // Dos aplicar concurrentes sobre los mismos datos (p. ej. el mismo animal): la llave única o el
+    // deadlock de MySQL frenan al que pierde y el rollback deja todo limpio. Para el usuario no es un
+    // error interno sino un choque: 409 para que vuelva a ver la vista previa y reintente.
+    if (e && ['ER_LOCK_DEADLOCK', 'ER_LOCK_WAIT_TIMEOUT'].includes(e.code)) {
+      throw new ErrorImportacion(409, 'Otra importación está aplicando sobre los mismos datos: reintente');
+    }
+    // Llave duplicada: NO es un choque pasajero (reintentar daría lo mismo): el archivo trae dos
+    // filas que la base considera la misma, o alguien registró el dato entre la vista previa y aquí.
+    if (e && e.code === 'ER_DUP_ENTRY') {
+      throw new ErrorImportacion(409, 'Hay un registro repetido (el archivo trae dos filas que son el mismo dato, o ya se registró por otra vía). No se aplicó nada: revise la vista previa.', { detalle_mysql: String(e.sqlMessage || '').slice(0, 200) });
+    }
     throw e;
   } finally {
     if (candado) { try { await conn.query('SELECT RELEASE_LOCK(?)', [NOMBRE_CANDADO]); } catch (_) { /* la conexión se cae y MySQL lo suelta */ } }

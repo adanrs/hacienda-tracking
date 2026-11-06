@@ -13,7 +13,7 @@
  */
 
 const { decodificar } = require('./etiquetas');
-const { CATALOGO_POR_CODIGO } = require('../data/catalogo-ciisa');
+const catalogoCortes = require('./catalogoCortes');
 
 // El pie de CIISA usa este factor: 319.82 kg × 2.20462 = 705.08 lb (verificado con la foto).
 const LIBRAS_POR_KG = 2.20462;
@@ -180,7 +180,7 @@ function validarReporte(body) {
     const unidadCruda = String(l.unidad == null || l.unidad === '' ? 'KGS' : l.unidad).trim().toUpperCase();
     const unidad = UNIDADES[unidadCruda];
     if (!unidad) { errores.push(`Fila ${n} (${articulo}): unidad «${unidadCruda.slice(0, 10)}» no soportada; el reporte de CIISA viene en KGS`); return; }
-    const catalogo = CATALOGO_POR_CODIGO[articulo];
+    const catalogo = catalogoCortes.buscar(articulo);
     if (!catalogo) advertencias.push(`El artículo ${articulo} no está en el catálogo CIISA de la app`);
     lineas.push({
       linea: lineas.length + 1,
@@ -535,7 +535,7 @@ function conciliar(ciisa = [], escaneado = [], tolerancia = TOLERANCIA_KG) {
   const hayCiisa = ciisa.length > 0;
   const hayEscaneo = escaneado.length > 0;
   const filas = [...mapa.values()].sort((a, b) => a.articulo.localeCompare(b.articulo)).map(f => {
-    if (!f.descripcion && CATALOGO_POR_CODIGO[f.articulo]) f.descripcion = CATALOGO_POR_CODIGO[f.articulo].nombre;
+    if (!f.descripcion && catalogoCortes.buscar(f.articulo)) f.descripcion = catalogoCortes.buscar(f.articulo).nombre;
     let estado;
     let difKg = null;
     let difCajas = null;

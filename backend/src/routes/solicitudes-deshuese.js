@@ -22,6 +22,7 @@ const { idsNumericos } = require('../lib/params');
 const { pool } = require('../models/database');
 const sd = require('../lib/solicitudDeshuese');
 const { construirLibroSolicitud } = require('../lib/solicitudDeshueseExcel');
+const { llenarPlantilla } = require('../lib/solicitudDeshuesePlantilla');
 
 idsNumericos(router);
 
@@ -102,8 +103,8 @@ async function canalesDelDia(db, fecha, solicitudId = null) {
   // otra_*: la canal ya está en OTRA solicitud (un sacrificio solo va en una: uk_sc_sacrificio).
   // Pasa cuando se corrige la fecha de un sacrificio que ya se había pedido en otro día.
   const [filas] = await db.query(
-    `SELECT s.id AS sacrificio_id, s.animal_id, a.numero_trazabilidad AS arete, a.sexo, a.nombre AS animal_nombre,
-            s.peso_vivo, s.peso_canal_caliente, s.peso_canal_frio, s.numero_canal, s.resultado_inspeccion,
+    `SELECT s.id AS sacrificio_id, s.animal_id, a.numero_trazabilidad AS arete, a.sexo, a.nombre AS animal_nombre, a.padre_numero,
+            s.peso_vivo, s.peso_canal_caliente, s.peso_canal_frio, s.numero_canal, s.resultado_inspeccion, s.marmoleo,
             (SELECT t.peso_pie_finca FROM transporte t
               WHERE t.animal_id = s.animal_id AND t.peso_pie_finca IS NOT NULL
               ORDER BY t.fecha_salida DESC, t.id DESC LIMIT 1) AS peso_pie_finca,
@@ -124,12 +125,15 @@ async function canalesDelDia(db, fecha, solicitudId = null) {
       arete: f.arete,
       sexo: f.sexo,
       animal_nombre: f.animal_nombre,
+      padre_numero: f.padre_numero || null,
       peso_pie_finca: f.peso_pie_finca === null ? null : Number(f.peso_pie_finca),
       peso_vivo: f.peso_vivo === null ? null : Number(f.peso_vivo),
       peso_canal: canal.kg,
       peso_canal_origen: canal.origen,
       numero_canal: f.numero_canal,
       resultado_inspeccion: f.resultado_inspeccion,
+      // Marmoleo AUS-MEAT medido en la cámara: la solicitud avisa (no bloquea) si falta.
+      marmoleo: f.marmoleo === null || f.marmoleo === undefined ? null : Number(f.marmoleo),
       peso_deshuese_est: sd.pesoDeshueseEstimado(canal.kg),
       en_otra_solicitud: f.otra_id ? { id: f.otra_id, numero: Number(f.otra_numero), fecha_sacrificio: f.otra_fecha, estado: f.otra_estado } : null,
     };
@@ -205,7 +209,7 @@ async function armarModelo(db, fecha, encabezado) {
     }
 
     const [lineas] = await db.query(
-      `SELECT l.corte_codigo, l.medias, l.observacion, sc.sacrificio_id, c.nombre, c.namp
+      `SELECT l.corte_codigo, l.corte_informado, l.medias, l.observacion, sc.sacrificio_id, c.nombre, c.namp
        FROM solicitud_lineas l
        JOIN solicitud_canales sc ON sc.id = l.solicitud_canal_id
        LEFT JOIN catalogo_cortes c ON c.codigo = l.corte_codigo
@@ -215,10 +219,17 @@ async function armarModelo(db, fecha, encabezado) {
     );
     const porCorte = new Map();
     for (const l of lineas) {
-      if (!porCorte.has(l.corte_codigo)) {
-        porCorte.set(l.corte_codigo, { codigo: l.corte_codigo, nombre: l.nombre, namp: l.namp || null, observacion: null, medias: {}, nuevo: false });
+      // Las filas en 99 (pendiente de codificar, de solicitudes históricas) se distinguen por el
+      // nombre que traía la hoja: varias pueden convivir en la misma solicitud.
+      const llave = `${l.corte_codigo}|${l.corte_informado || ''}`;
+      if (!porCorte.has(llave)) {
+        porCorte.set(llave, {
+          codigo: l.corte_codigo, corte_informado: l.corte_informado || null,
+          nombre: l.corte_informado ? `${l.nombre || 'Pendiente'}: ${l.corte_informado}` : l.nombre,
+          namp: l.namp || null, observacion: null, medias: {}, nuevo: false,
+        });
       }
-      const fila = porCorte.get(l.corte_codigo);
+      const fila = porCorte.get(llave);
       fila.medias[l.sacrificio_id] = Number(l.medias);
       // La observación es por corte; se guarda repetida en cada celda de la fila (ver PUT).
       if (!fila.observacion && l.observacion) fila.observacion = l.observacion;
@@ -226,7 +237,7 @@ async function armarModelo(db, fecha, encabezado) {
     cortes = [...porCorte.values()];
     if (editable) {
       for (const c of await cortesDelCatalogo(db)) {
-        if (!porCorte.has(c.codigo)) cortes.push({ ...c, observacion: null, medias: {}, nuevo: true });
+        if (!porCorte.has(`${c.codigo}|`)) cortes.push({ ...c, observacion: null, medias: {}, nuevo: true });
       }
       for (const fila of cortes) {
         for (const canal of canales) {
@@ -303,7 +314,8 @@ router.get('/:id/excel', envolver(async (req, res) => {
   const enc = await encabezadoPorId(pool, req.params.id);
   const modelo = await armarModelo(pool, enc.fecha_sacrificio, enc);
   if (!modelo.canales.length) throw new ErrorHttp(400, 'La solicitud no tiene canales');
-  const libro = construirLibroSolicitud(modelo);
+  // Por omisión, la plantilla real de la planta; `?formato=simple` deja el Excel armado de cero.
+  const libro = req.query.formato === 'simple' ? construirLibroSolicitud(modelo) : await llenarPlantilla(modelo);
   const nombre = `solicitud-deshuese-${enc.numero}-${enc.fecha_sacrificio}.xlsx`;
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="${nombre}"`);
