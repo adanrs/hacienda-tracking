@@ -55,7 +55,11 @@ async function leerEntrada(entrada, def) {
     }
   }
   if (entrada.pegado && (entrada.pegado.html || entrada.pegado.texto)) {
-    const r = leerPegado(entrada.pegado);
+    let r;
+    try { r = leerPegado(entrada.pegado); } catch (e) {
+      if (e instanceof ErrorArchivo) throw new ErrorImportacion(400, e.message);
+      throw e;
+    }
     return { ...r, origen: 'pegado', archivo_nombre: null, sha: sha256(String(entrada.pegado.html || '') + '\u0000' + String(entrada.pegado.texto || '')) };
   }
   throw new ErrorImportacion(400, 'Adjunte un archivo o pegue la tabla');

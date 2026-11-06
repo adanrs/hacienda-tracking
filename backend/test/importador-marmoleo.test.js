@@ -123,3 +123,14 @@ test('MySQL real: marmoleo se liga solo con canal + arete; si coincide uno, hay 
   const plan3 = await motor.planificar(pool, 'marmoleo-camara', { pegado: { texto: pegado } }, opciones);
   assert.equal(plan3.resumen.sin_cambios, 6);
 });
+
+test('PUT /api/marmoleo: la fecha se valida completa (400, no 500)', () => {
+  const { fechaHoraValida } = require('../src/routes/marmoleo');
+  assert.equal(fechaHoraValida('2026-08-20'), true);
+  assert.equal(fechaHoraValida('2026-08-20 03:37'), true);
+  assert.equal(fechaHoraValida('2026-08-20 03:37:54'), true);
+  assert.equal(fechaHoraValida('2026-08-20xyz'), false);
+  assert.equal(fechaHoraValida('2026-13-45'), false);
+  assert.equal(fechaHoraValida('2026-02-30'), false);
+  assert.equal(fechaHoraValida('2026-08-20 24:00'), false);
+});

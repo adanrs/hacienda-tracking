@@ -41,13 +41,52 @@ const limpiarCelda = (s) => decodificarEntidades(s).replace(/[ \t\r\f\v ]+/g, '
  * Tablas de un HTML (incluidas tablas anidadas, típicas de los correos de Outlook: cada tabla
  * guarda solo sus propias filas). No es un parser HTML completo: basta para tablas de datos.
  */
+// Tope del HTML que se analiza. Un correo con la tabla de sacrificio pesa unos KB; más que esto
+// es un archivo armado para gastar CPU.
+const MAX_HTML = 500 * 1024;
+
+/**
+ * Quita comentarios y bloques <script>/<style>/<head> con indexOf (lineal). Las regex perezosas
+ * equivalentes (/<!--[\s\S]*?-->/) son cuadráticas con muchos «<!--» sin cerrar.
+ */
+function quitarBloques(html) {
+  const bajo = html.toLowerCase();
+  let salida = '';
+  let i = 0;
+  while (i < html.length) {
+    const lt = html.indexOf('<', i);
+    if (lt < 0) { salida += html.slice(i); break; }
+    salida += html.slice(i, lt);
+    let cierre = null;
+    if (bajo.startsWith('<!--', lt)) cierre = '-->';
+    else {
+      const m = /^<(script|style|head)\b/.exec(bajo.slice(lt, lt + 8));
+      if (m) cierre = `</${m[1]}`;
+    }
+    if (!cierre) { salida += '<'; i = lt + 1; continue; }
+    const fin = bajo.indexOf(cierre, lt + 1);
+    if (fin < 0) break; // bloque sin cerrar: lo que sigue no es contenido visible
+    if (cierre === '-->') { i = fin + 3; continue; }
+    const gt = bajo.indexOf('>', fin);
+    i = gt < 0 ? html.length : gt + 1;
+  }
+  return salida;
+}
+
+function htmlAcotado(html) {
+  const s = String(html || '');
+  if (s.length > MAX_HTML) throw new ErrorArchivo('El contenido HTML es demasiado grande (más de 500 KB): pegue solo la tabla');
+  return s;
+}
+
 function tablasDesdeHtml(html) {
-  const limpio = String(html || '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<(script|style|head)\b[\s\S]*?<\/\1\s*>/gi, '');
+  const limpio = quitarBloques(htmlAcotado(html));
   const tablas = [];
   const pila = [];
-  const re = /<\s*(\/?)\s*(table|tr|td|th|br|p|div)\b[^>]*>|([^<]+)|<[^>]*>/gi;
+  let filasTotales = 0;
+  // `[^<>]*` no cruza otro «<»: con miles de «<» sin cerrar cada intento corta en el siguiente
+  // (lineal); `[^>]*` recorría hasta el final cada vez (cuadrático). Un «<» suelto es texto.
+  const re = /<\s*(\/?)\s*(table|tr|td|th|br|p|div)\b[^<>]*>|<[^<>]*>|([^<]+|<)/gi;
   let m;
   while ((m = re.exec(limpio))) {
     const [, cierre, etiqueta, texto] = m;
@@ -68,7 +107,10 @@ function tablasDesdeHtml(html) {
       continue;
     } else if (tag === 'tr') {
       cerrarCelda(actual); cerrarFila(actual);
-      if (!cierre) actual.fila = [];
+      if (!cierre) {
+        actual.fila = [];
+        if (++filasTotales > MAX_FILAS_HOJA) throw new ErrorArchivo(`La tabla tiene más de ${MAX_FILAS_HOJA} filas`);
+      }
     } else if (tag === 'td' || tag === 'th') {
       cerrarCelda(actual);
       if (!cierre) { if (!actual.fila) actual.fila = []; actual.celda = ''; }
@@ -85,11 +127,10 @@ function cerrarFila(t) { if (t.fila && t.fila.some(c => c !== '')) t.filas.push(
 
 /** Texto visible de un HTML (para buscar el asunto o la fecha fuera de las tablas). */
 function textoDesdeHtml(html) {
-  return decodificarEntidades(String(html || '')
-    .replace(/<(script|style|head)\b[\s\S]*?<\/\1\s*>/gi, '')
+  return decodificarEntidades(quitarBloques(htmlAcotado(html))
     .replace(/<br\s*\/?>|<\/(p|div|tr|h\d)>/gi, '\n')
     .replace(/<\/t[dh]>/gi, '\t')
-    .replace(/<[^>]+>/g, ''));
+    .replace(/<[^<>]*>/g, ''));
 }
 
 /**
@@ -98,6 +139,8 @@ function textoDesdeHtml(html) {
  */
 function filasDesdeTexto(texto) {
   const lineas = String(texto || '').replace(/^﻿/, '').split(/\r?\n/);
+  // Mismo tope que una hoja de Excel: un pegado o CSV con más filas es un error (o un abuso).
+  if (lineas.length > MAX_FILAS_HOJA) throw new ErrorArchivo(`El texto tiene ${lineas.length} líneas; el máximo es ${MAX_FILAS_HOJA}`);
   const conTabs = lineas.some(l => l.includes('\t'));
   if (!conTabs && lineas.some(l => /[;,]/.test(l) && !/\s{2,}/.test(l)) && lineas.filter(l => l.includes(';')).length > 1) {
     return { filas: parsearCsv(texto).filas, comaDecimal: true };
@@ -162,8 +205,11 @@ function leerMsg(buffer) {
   const asunto = datos.subject || datos.normalizedSubject || null;
   const extras = asunto ? [asunto] : [];
   let html = datos.bodyHtml || (datos.html ? Buffer.from(datos.html).toString('utf8') : null);
-  if (!html && datos.compressedRtf) {
-    // Outlook suele guardar el cuerpo HTML solo como RTF comprimido con el HTML «encapsulado».
+  // Outlook suele guardar el cuerpo HTML solo como RTF comprimido con el HTML «encapsulado».
+  // decompressRTF reserva el tamaño que declara el encabezado sin validarlo: un .msg armado con un
+  // RawSize enorme tumba el proceso (sin excepción atrapable). Si el encabezado no es coherente o
+  // promete más de 5 MB, el RTF se ignora y se sigue con el texto plano.
+  if (!html && datos.compressedRtf && rtfComprimidoSeguro(datos.compressedRtf)) {
     try {
       const { decompressRTF } = require('@kenjiuno/decompressrtf');
       const { deEncapsulateSync } = require('rtf-stream-parser');
@@ -186,6 +232,16 @@ async function leerPdf(buffer) {
   // PDF escaneado (sin capa de texto): no es un error del usuario, va por la lectura por foto (visión).
   if (texto.replace(/\s+/g, '').length < 20) throw Object.assign(new ErrorArchivo('El PDF no trae texto (parece una imagen escaneada): use «Leer por foto» para transcribirlo'), { codigo: 'sin_texto' });
   return { ...desdeTexto(texto), texto };
+}
+
+const MAX_RTF = 5 * 1024 * 1024;
+/** Encabezado del RTF comprimido: CompSize (bytes tras ese campo) y RawSize (descomprimido). */
+function rtfComprimidoSeguro(rtf) {
+  if (!rtf || rtf.length < 16) return false;
+  const b = Buffer.from(rtf.buffer ? new Uint8Array(rtf.buffer, rtf.byteOffset, rtf.byteLength) : rtf);
+  const compSize = b.readInt32LE(0);
+  const rawSize = b.readInt32LE(4);
+  return compSize >= 12 && compSize + 4 <= b.length && rawSize >= 0 && rawSize <= MAX_RTF;
 }
 
 /** Extensión en minúsculas de un nombre de archivo. */
@@ -212,6 +268,7 @@ async function leerArchivo(buffer, nombre) {
     case 'txt': {
       const texto = decodificarTexto(buffer);
       if (ext === 'csv') {
+        if (texto.split('\n').length > MAX_FILAS_HOJA) throw new ErrorArchivo(`El archivo tiene más de ${MAX_FILAS_HOJA} filas`);
         const { filas, separador } = parsearCsv(texto);
         return { hojas: [{ nombre: 'CSV', filas, comaDecimal: separador === ';' }], textos: [] };
       }
@@ -237,4 +294,5 @@ function leerPegado({ html, texto } = {}) {
 
 module.exports = {
   leerArchivo, leerPegado, tablasDesdeHtml, textoDesdeHtml, filasDesdeTexto, extension, ErrorArchivo,
+  rtfComprimidoSeguro, MAX_HTML,
 };

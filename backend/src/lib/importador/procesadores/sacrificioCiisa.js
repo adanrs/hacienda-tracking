@@ -231,12 +231,25 @@ async function aplicar(conn, plan, { importacionId, registrar }) {
     const d = it.datos;
     const valores = [d.peso_vivo, d.peso_canal_caliente, d.rendimiento_canal, d.musculo, d.denticion, d.grasa, d.golpe,
       d.numero_canal ? d.numero_canal.toUpperCase() : null, d.guia_id, d.rendimiento_informado, importacionId];
-    if (it.sacrificio_id) {
+    // Un sacrificio por animal (uk_animal): si entre la vista previa y aquí alguien lo registró a
+    // mano, se actualiza ese en vez de chocar con el UNIQUE. FOR UPDATE lo bloquea hasta el commit.
+    let sacrificioId = it.sacrificio_id;
+    if (!sacrificioId) {
+      const [ya] = await conn.query('SELECT id FROM sacrificios WHERE animal_id = ? FOR UPDATE', [d.animal_id]);
+      if (ya.length) sacrificioId = ya[0].id;
+    }
+    if (sacrificioId) {
+      // Lo que el correo no trae (NULL) no pisa lo digitado a mano, y si el día es el mismo se
+      // conserva la hora que ya tenía el registro.
       await conn.query(
-        `UPDATE sacrificios SET fecha = ?, peso_vivo = ?, peso_canal_caliente = ?, rendimiento_canal = COALESCE(IF(peso_canal_frio IS NULL, ?, rendimiento_canal), rendimiento_canal),
-           musculo = ?, denticion = ?, grasa = ?, golpe = ?, numero_canal = ?, guia_id = ?, rendimiento_informado = ?, importacion_id = ?
-         WHERE id = ?`, [`${d.fecha} 00:00:00`, ...valores, it.sacrificio_id]);
-      registrar(it.fila, 'sacrificio', it.sacrificio_id, 'actualizado', { canal: d.numero_canal, arete: it.arete, cambios: it.cambios });
+        `UPDATE sacrificios SET fecha = IF(DATE(fecha) = ?, fecha, ?),
+           peso_vivo = COALESCE(?, peso_vivo), peso_canal_caliente = COALESCE(?, peso_canal_caliente),
+           rendimiento_canal = IF(peso_canal_frio IS NULL, COALESCE(?, rendimiento_canal), rendimiento_canal),
+           musculo = COALESCE(?, musculo), denticion = COALESCE(?, denticion), grasa = COALESCE(?, grasa), golpe = COALESCE(?, golpe),
+           numero_canal = COALESCE(?, numero_canal), guia_id = COALESCE(?, guia_id), rendimiento_informado = COALESCE(?, rendimiento_informado),
+           importacion_id = ?
+         WHERE id = ?`, [d.fecha, `${d.fecha} 00:00:00`, ...valores, sacrificioId]);
+      registrar(it.fila, 'sacrificio', sacrificioId, 'actualizado', { canal: d.numero_canal, arete: it.arete, cambios: it.cambios });
       res.sacrificios_actualizados++;
     } else {
       const [r] = await conn.query(

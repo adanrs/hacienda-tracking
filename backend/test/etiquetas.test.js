@@ -6,6 +6,7 @@ const {
 const { CATALOGO_CIISA, CATALOGO_POR_CODIGO } = require('../src/data/catalogo-ciisa');
 
 const codigos = (r) => r.errores.map((e) => e.codigo);
+const avisos = (r) => r.advertencias.map((e) => e.codigo);
 
 // Ejemplos reales del documento v10 (§4.2 D)
 const PAQUETE = '0103-M266322309243300416F101';
@@ -70,19 +71,22 @@ test('paquete con fecha imposible (día 32 y mes 13)', () => {
 
 test('genética cruzada: código F1 en etiqueta FB (caso Denver 26632, §11.3)', () => {
   const r = decodificar('0103-M266322309243300416FB01');
-  assert.ok(codigos(r).includes('genetica_cruzada'));
+  assert.ok(avisos(r).includes('genetica_cruzada'));
+  assert.ok(!codigos(r).includes('genetica_cruzada')); // advertencia, no error (etiqueta real 0PG087)
 });
 
 test('genética cruzada: código FB en etiqueta F1', () => {
   const r = decodificar('0103-M263412309243300416F101');
   assert.equal(r.campos.serie, 'FB');
-  assert.ok(codigos(r).includes('genetica_cruzada'));
+  assert.ok(avisos(r).includes('genetica_cruzada'));
+  assert.ok(!codigos(r).includes('genetica_cruzada')); // advertencia, no error (etiqueta real 0PG087)
 });
 
 test('genética cruzada con FB fuera de serie (26680 Osobuco FB)', () => {
   const r = decodificar('0103-M266802309243300416F101');
   assert.equal(r.campos.serie, 'FB');
-  assert.ok(codigos(r).includes('genetica_cruzada'));
+  assert.ok(avisos(r).includes('genetica_cruzada'));
+  assert.ok(!codigos(r).includes('genetica_cruzada')); // advertencia, no error (etiqueta real 0PG087)
 });
 
 test('genética inválida', () => {
@@ -259,8 +263,9 @@ test('real · paquete «FB NEW YORK STEAK» (foto 3BB734AB…)', () => {
   assert.equal(r.campos.genetica, 'F1');
   assert.equal(r.campos.marmoleo, 11);
   // Hallazgo real: el título y el código 26338 son FB, pero el campo racial del código dice F1.
-  // Es justo el cruce que la validación de §11.3 debe atajar.
-  assert.deepEqual(codigos(r), ['genetica_cruzada']);
+  // La etiqueta es legítima (CIISA la imprimió así): se avisa, no se rechaza.
+  assert.deepEqual(codigos(r), []);
+  assert.ok(avisos(r).includes('genetica_cruzada'));
   assert.ok(r.advertencias.some((a) => a.codigo === 'arete_con_relleno'));
 });
 
