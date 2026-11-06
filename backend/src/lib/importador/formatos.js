@@ -168,32 +168,20 @@ const FORMATOS = {
     metadatos: [],
   },
 
-  // PRÓXIMO (no implementado): inventario por tarimas que manda CIISA («INV WAGYU SEMANA 41.xlsx»;
-  // la pestaña a importar es «INV GENERAL», además vienen MADURACION / TORTAS WAGYU). Su FECHA
-  // VENCIMIENTO se resuelve con lib/vencimiento.js → resolverVencimiento (se respeta la del archivo y se
-  // avisa si no es producción + 12 meses). En el código de caja, «xxx» = sin trazabilidad.
-  // La hoja MADURACION es la ÚNICA visibilidad que el dueño tiene hoy de custodia/maduración; sus
-  // columnas reales: TARIMA, CODIGO, DESCRIPCION, LOTE, CAJA, PESO, FECHA DE VENCIMIENTO FRESCO,
-  // ESTATUS. El importador (siguiente PR) debe leer INV GENERAL y MADURACION. El lector ya detecta su encabezado; falta el
-  // procesador que concilie contra etiquetas/primales/cajas. `procesador: null` lo deja fuera
-  // de la pantalla y de la API hasta que exista.
+  // Inventario semanal por tarimas que manda CIISA («INV WAGYU SEMANA 41.xlsx», bodega 107 /
+  // paquetería). Se leen SOLO las hojas «INV GENERAL» y «MADURACION» (la única visibilidad que tiene
+  // el dueño de custodia/maduración); «TARIMA n» y «TORTAS WAGYU» son vistas parciales y se ignoran.
+  // El libro se lee crudo (varias hojas con encabezados distintos): ver procesadores/inventarioCiisa.js.
+  // Cada carga es un snapshot (tablas inventario_planta_*); en el código de caja «xxx» = sin trazabilidad.
   'inventario-ciisa': {
-    nombre: 'Inventario por tarimas CIISA',
-    descripcion: 'Pendiente: conciliación del inventario semanal de CIISA',
-    procesador: null,
+    nombre: 'Inventario semanal de la planta CIISA',
+    descripcion: 'Hojas «INV GENERAL» y «MADURACION» del Excel «INV WAGYU SEMANA nn», o la tabla pegada',
+    procesador: 'inventarioCiisa',
+    modo: 'documentos',
+    leerCrudo: true,
+    maxMB: 10,
     extensiones: ['xlsx'],
-    minimoColumnas: 4,
-    ordenFechas: 'dmy',
-    columnas: [
-      { clave: 'tarima', encabezados: ['tarima'], tipo: 'texto' },
-      { clave: 'codigo_barras', encabezados: ['codigo barras', 'cod barra'], tipo: 'texto' },
-      { clave: 'codigo', encabezados: ['codigo'], tipo: 'texto' },
-      { clave: 'descripcion', encabezados: ['descripcion'], tipo: 'texto' },
-      { clave: 'peso', encabezados: ['peso'], tipo: 'numero' },
-      { clave: 'lote', encabezados: ['lote'], tipo: 'texto' },
-      { clave: 'caja', encabezados: ['caja'], tipo: 'texto' },
-      { clave: 'fecha_vencimiento', encabezados: ['fecha vencimiento', 'fecha de vencimiento fresco'], tipo: 'fecha' },
-    ],
+    columnas: [],
     metadatos: [],
   },
   // PRÓXIMO (no implementado): lectura por foto (OCR). La vía de entrada sería otra (imagen →

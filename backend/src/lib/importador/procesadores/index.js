@@ -6,4 +6,5 @@ module.exports = {
   reporteProduccionCiisa: require('./reporteProduccionCiisa'),
   catalogoCortes: require('./catalogoCortes'),
   solicitudDeshueseExcel: require('./solicitudDeshueseExcel'),
+  inventarioCiisa: require('./inventarioCiisa'),
 };
