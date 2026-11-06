@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Beef as Cow, MapPin, Baby, Calendar, AlertTriangle, Clock, Package, FileOutput, FileInput, RotateCcw, Utensils } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { api } from '../services/api';
 import { formatDate } from '../components/DateFormat';
 import { Cargando, EstadoError } from '../components/ui/Estados';
 
-const COLORS = ['#1d4f91', '#c2410c', '#0f766e', '#7c3aed', '#a16207', '#be185d', '#475569'];
+// Colores de gráficos alineados con los tokens de index.css (Recharts necesita valores, no var()).
+const MARCA = '#b8184a';
+const TINTA = '#474745';
+const EJE = { texto: '#5f5f5c', linea: '#8e8e89', grilla: '#ececea', cursor: 'rgba(22, 22, 22, 0.05)' };
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
@@ -28,6 +31,7 @@ export default function Dashboard() {
   if (error || !data) return <EstadoError titulo="No se pudo cargar el resumen" mensaje={error} onReintentar={cargar} />;
 
   const { resumen, porSexo, porRaza, porPotrero, pesajesRecientes, eventosProximos, gestacionesActivas, topGDP, maduracionAlertas = [] } = data;
+  const razasOrdenadas = [...(porRaza || [])].sort((a, b) => b.total - a.total);
   const olvidados = maduracionAlertas.filter(m => m.nivel === 'olvidado');
   const vencidos = maduracionAlertas.filter(m => m.nivel === 'vencido');
   const urgentes = maduracionAlertas.filter(m => m.nivel === 'urgente');
@@ -162,24 +166,27 @@ export default function Dashboard() {
         <div className="card">
           <div className="card-header"><h3>Animales por Potrero</h3></div>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={porPotrero}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="nombre" fontSize={12} />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="total" fill="#1d4f91" radius={[4, 4, 0, 0]} />
+            <BarChart data={porPotrero} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+              <CartesianGrid vertical={false} stroke={EJE.grilla} />
+              <XAxis dataKey="nombre" fontSize={12} tick={{ fill: EJE.texto }} tickLine={false} axisLine={{ stroke: EJE.linea }} />
+              <YAxis allowDecimals={false} fontSize={12} tick={{ fill: EJE.texto }} tickLine={false} axisLine={false} />
+              <Tooltip cursor={{ fill: EJE.cursor }} />
+              <Bar dataKey="total" name="Animales" fill={MARCA} radius={[3, 3, 0, 0]} maxBarSize={56} />
             </BarChart>
           </ResponsiveContainer>
         </div>
         <div className="card">
           <div className="card-header"><h3>Distribución por raza</h3></div>
           <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie data={porRaza} dataKey="total" nameKey="raza" cx="50%" cy="50%" outerRadius={90} label={({ raza, total }) => `${raza} (${total})`}>
-                {porRaza.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-              </Pie>
-              <Tooltip />
-            </PieChart>
+            {/* Barras horizontales ordenadas en vez de torta: con 7 razas la torta obliga a
+                comparar ángulos y colores; aquí se lee el largo y el número. */}
+            <BarChart data={razasOrdenadas} layout="vertical" margin={{ top: 0, right: 32, left: 8, bottom: 0 }}>
+              <XAxis type="number" hide allowDecimals={false} />
+              <YAxis type="category" dataKey="raza" width={96} fontSize={13} tick={{ fill: EJE.texto }} tickLine={false} axisLine={false} />
+              <Tooltip cursor={{ fill: EJE.cursor }} />
+              <Bar dataKey="total" name="Animales" fill={TINTA} radius={[0, 3, 3, 0]} maxBarSize={22}
+                label={{ position: 'right', fill: EJE.texto, fontSize: 12 }} />
+            </BarChart>
           </ResponsiveContainer>
         </div>
       </div>

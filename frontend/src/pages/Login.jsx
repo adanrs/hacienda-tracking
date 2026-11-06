@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
-import { Lock, User } from 'lucide-react';
+import { Beef, CircleAlert, Lock, User } from 'lucide-react';
 
 export default function Login() {
   const { login, user } = useAuth();
@@ -27,50 +27,45 @@ export default function Login() {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'linear-gradient(160deg, var(--nav-bg) 0%, #24364f 100%)', padding: 16
-    }}>
-      <div style={{
-        background: '#fff', borderRadius: 16, padding: 40, width: '100%', maxWidth: 400,
-        boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ fontSize: 48, marginBottom: 8 }}>&#x1F404;</div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text)' }}>Hacienda Tempisque</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: 4 }}>Sistema de trazabilidad de ganado</p>
+    <main className="login-pagina">
+      <div className="login-tarjeta">
+        <div className="login-marca">
+          <Beef size={40} strokeWidth={1.75} aria-hidden="true" />
+          <div>
+            <h1>Hacienda Tempisque</h1>
+            <p>Sistema de trazabilidad de ganado</p>
+          </div>
         </div>
 
         {error && (
-          <div role="alert" style={{
-            background: 'var(--error-suave)', color: 'var(--error-fuerte)', padding: '10px 14px', borderRadius: 8,
-            fontSize: '0.85rem', marginBottom: 16, textAlign: 'center'
-          }}>
-            {error}
+          <div role="alert" className="login-error">
+            <CircleAlert size={18} aria-hidden="true" />
+            <span>{error}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="login-usuario">Usuario</label>
-            <div style={{ position: 'relative' }}>
-              <User size={16} style={{ position: 'absolute', left: 10, top: 10, color: '#9ca3af' }} />
+            <div className="campo-con-icono">
+              <User size={18} aria-hidden="true" />
               <input
                 value={form.username}
                 onChange={e => setForm({ ...form, username: e.target.value })}
                 id="login-usuario"
                 autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
                 placeholder="Ingrese su usuario"
                 required
                 autoFocus
-                style={{ paddingLeft: 34 }}
               />
             </div>
           </div>
           <div className="form-group">
             <label htmlFor="login-clave">Contraseña</label>
-            <div style={{ position: 'relative' }}>
-              <Lock size={16} style={{ position: 'absolute', left: 10, top: 10, color: '#9ca3af' }} />
+            <div className="campo-con-icono">
+              <Lock size={18} aria-hidden="true" />
               <input
                 type="password"
                 value={form.password}
@@ -79,20 +74,19 @@ export default function Login() {
                 autoComplete="current-password"
                 placeholder="Ingrese su contraseña"
                 required
-                style={{ paddingLeft: 34 }}
               />
             </div>
           </div>
           <button
             type="submit"
-            className="btn btn-primary"
+            className="btn btn-primary login-enviar"
             disabled={loading}
-            style={{ width: '100%', padding: '12px', justifyContent: 'center', fontSize: '1rem', marginTop: 8 }}
+            aria-busy={loading || undefined}
           >
             {loading ? 'Ingresando…' : 'Iniciar sesión'}
           </button>
         </form>
       </div>
-    </div>
+    </main>
   );
 }

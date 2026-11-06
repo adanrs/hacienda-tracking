@@ -212,7 +212,14 @@ function AppLayout() {
       </aside>
 
       <main className="main-content" id="contenido" tabIndex={-1} ref={refMain}>
-        {etapa && etapa !== 'Inicio' && <p className="migas">{etapa} › {pagina}</p>}
+        {etapa && etapa !== 'Inicio' && (
+          <nav className="migas" aria-label="Ubicación">
+            <ol>
+              <li>{etapa}</li>
+              <li aria-current="page">{pagina}</li>
+            </ol>
+          </nav>
+        )}
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/animales" element={<Animales />} />

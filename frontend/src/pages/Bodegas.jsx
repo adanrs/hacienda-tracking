@@ -68,7 +68,7 @@ export default function Bodegas() {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, textAlign: 'center' }}>
               <div>
-                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#2563eb' }}>{b.temperatura_c !== null && b.temperatura_c !== undefined ? `${parseFloat(b.temperatura_c).toFixed(1)}°C` : '-'}</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{b.temperatura_c !== null && b.temperatura_c !== undefined ? `${parseFloat(b.temperatura_c).toFixed(1)}°C` : '-'}</div>
                 <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Temperatura</div>
               </div>
               <div>
