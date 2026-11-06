@@ -72,11 +72,11 @@ async function llamarProveedor({ buffer, mime, formato }) {
 }
 
 /** Encola una transcripción y devuelve su id (el resultado se consulta con estado(id)). */
-function encolar({ buffer, mime, formato, nombre }) {
+function encolar({ buffer, mime, formato, nombre, usuarioId }) {
   if (!disponible()) { const e = new Error('Lectura por foto no disponible (falta configurar el servicio de visión)'); e.status = 503; throw e; }
   limpiarViejos();
   const id = siguienteId++;
-  const trabajo = { id, formato, nombre, estado: 'en_cola', creado: Date.now(), resultado: null, error: null };
+  const trabajo = { id, formato, nombre, usuarioId: usuarioId || null, estado: 'en_cola', creado: Date.now(), resultado: null, error: null };
   trabajos.set(id, trabajo);
   cola = cola.then(async () => {
     trabajo.estado = 'transcribiendo';
@@ -87,9 +87,11 @@ function encolar({ buffer, mime, formato, nombre }) {
   return id;
 }
 
-function estado(id) {
+/** Estado de una transcripción: solo para quien la pidió o un admin (el texto puede ser sensible). */
+function estado(id, usuario = {}) {
   const t = trabajos.get(Number(id));
   if (!t) return null;
+  if (usuario.rol !== 'admin' && t.usuarioId !== (usuario.id || null)) return null;
   return { id: t.id, formato: t.formato, nombre: t.nombre, estado: t.estado, resultado: t.resultado, error: t.error };
 }
 

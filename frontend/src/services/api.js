@@ -107,7 +107,25 @@ async function importacion(paso, formato, { archivo, archivos, pegado, opciones 
   return datos;
 }
 
+// Abre un archivo subido (PDF) con la sesión: /uploads exige token, así que no sirve un <a href>.
+async function abrirArchivo(url) {
+  const token = getToken();
+  const ventana = window.open('', '_blank');
+  try {
+    const res = await fetch(`${API_BASE}${url}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!res.ok) throw new Error(res.status === 404 ? 'El archivo ya no está en el servidor' : `Error del servidor (${res.status})`);
+    const blob = await res.blob();
+    const objeto = URL.createObjectURL(blob);
+    if (ventana) ventana.location.href = objeto; else window.open(objeto, '_blank');
+    setTimeout(() => URL.revokeObjectURL(objeto), 60000);
+  } catch (e) {
+    if (ventana) ventana.close();
+    throw e;
+  }
+}
+
 export const api = {
+  abrirArchivo,
   // Auth
   login: (username, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
   getMe: () => request('/auth/me'),

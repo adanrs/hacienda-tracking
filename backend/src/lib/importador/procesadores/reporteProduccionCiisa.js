@@ -90,6 +90,7 @@ async function planificar(conn, _tabla, opciones = {}, { lectura }) {
   const correcciones = mapaOpcion(opciones.correcciones);
   const sinAnimal = mapaOpcion(opciones.sin_animal);
   const pendientes = mapaOpcion(opciones.pendientes);
+  const reemplazarArete = mapaOpcion(opciones.reemplazar_arete);
   const { mapa, repetidos } = leerMapaLotes(opciones.mapa || '');
   const errores_generales = [];
   if (repetidos.length) errores_generales.push(`La lista lote → arete trae el lote ${repetidos.join(', ')} con dos aretes distintos.`);
@@ -112,6 +113,14 @@ async function planificar(conn, _tabla, opciones = {}, { lectura }) {
   const cat = await catalogo(conn, codigos);
   const claves = reportes.filter((r) => r.fecha && r.lote_cc).map((r) => ({ fecha: r.fecha, lote_cc: r.lote_cc }));
   const yaCargados = await existentes(conn, claves);
+  // Aretes ya cargados (a mano en «Aretes por posición» o por otra importación) para las mismas
+  // fecha + lote: aplicar los pisaría con ON DUPLICATE, así que un cambio se confirma explícitamente.
+  let mapeosPrevios = [];
+  if (claves.length) {
+    [mapeosPrevios] = await conn.query(
+      `SELECT ${fmtFechaSql('fecha_deshuese', 'fecha')}, lote_cc, arete FROM lotes_cc_aretes WHERE ${claves.map(() => '(fecha_deshuese = ? AND lote_cc = ?)').join(' OR ')}`,
+      claves.flatMap((c) => [c.fecha, c.lote_cc]));
+  }
 
   const filas = [];
   const discrepancias = [];
@@ -236,6 +245,20 @@ async function planificar(conn, _tabla, opciones = {}, { lectura }) {
           f.avisos.push(`Rendimiento ${f.rendimiento} % del peso canal: muy bajo, ¿falta producto o es otro animal?`);
         }
       } else f.avisos.push('El sacrificio no tiene peso canal: no se calcula el rendimiento');
+    }
+
+    // Arete ya cargado para este lote y fecha.
+    const mapeo = mapeosPrevios.find((m) => m.fecha === r.fecha && Number(m.lote_cc) === Number(r.lote_cc));
+    if (mapeo && f.arete && claveArete(mapeo.arete) !== claveArete(f.arete)) {
+      f.cambio_arete = { antes: mapeo.arete, despues: f.arete };
+      if (reemplazarArete[r.num_lote]) {
+        f.avisos.push(`Se reemplaza el arete ${mapeo.arete} que ya estaba cargado para este lote por ${f.arete} (confirmado)`);
+        discrepancias.push(`Lote ${r.num_lote} del ${fechaTexto(r.fecha)}: estaba cargado con ${mapeo.arete} y se cambió a ${f.arete}.`);
+      } else {
+        f.errores.push(`Este lote ya tenía el arete ${mapeo.arete} cargado; la lista dice ${f.arete}. Confirme el reemplazo para continuar`);
+      }
+    } else if (mapeo && !f.arete) {
+      f.avisos.push(`Ya hay un arete cargado a mano para este lote (${mapeo.arete}): el reporte quedará ligado a ese animal`);
     }
 
     // Ya cargado antes.

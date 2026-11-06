@@ -92,8 +92,11 @@ async function aplicar(conn, plan, { importacionId, usuarioId, registrar }) {
       res.actualizados++;
     }
   }
-  await catalogoCortes.recargar(conn);
   return { resumen: res };
 }
 
-module.exports = { planificar, aplicar };
+// El caché del decodificador se recarga DESPUÉS del commit: dentro de la transacción leería datos
+// que todavía pueden revertirse (y otra conexión del pool no los vería).
+async function despuesDeCommit(pool) { await catalogoCortes.recargar(pool); }
+
+module.exports = { planificar, aplicar, despuesDeCommit };

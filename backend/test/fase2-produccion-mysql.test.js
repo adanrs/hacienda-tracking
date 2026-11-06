@@ -152,12 +152,31 @@ test('MySQL real: fase 2 (reporte de producción, catálogo, trazabilidad, lotes
   let rec = await recuperarPorReporte(pool, caja);
   assert.equal(rec.estado, 'recuperada');
   assert.equal(rec.arete, 'F2X001');
-  // Ambiguo: la otra lectura de la fecha (MMDDAA = 11/06/25) también tiene un lote 35 con arete.
+  // La otra lectura de la fecha (MMDDAA = 11/06/25) NO se usa: la caja es DDMMAA fija.
   await pool.query("INSERT INTO reporte_produccion (fecha_produccion, lote_cc, num_lote, origen) VALUES ('2025-06-11', 35, '35', 'manual')");
   await pool.query("INSERT INTO lotes_cc_aretes (fecha_deshuese, lote_cc, arete, animal_id) VALUES ('2025-06-11', 35, 'F2X002', ?)", [ids.F2X002]);
   rec = await recuperarPorReporte(pool, caja);
+  assert.equal(rec.estado, 'recuperada');
+  assert.equal(rec.arete, 'F2X001');
+  // Se compara SOLO el Num. Lote: un reporte con Lote CC 35 pero Num. Lote 9 no calza.
+  await pool.query("INSERT INTO reporte_produccion (fecha_produccion, lote_cc, num_lote, origen) VALUES ('2025-11-06', 9, '35', 'manual')");
+  await pool.query("INSERT INTO lotes_cc_aretes (fecha_deshuese, lote_cc, arete, animal_id) VALUES ('2025-11-06', 9, 'F2X003', ?)", [ids.F2X003]);
+  // Ambiguo: dos reportes del 06/11/25 con Num. Lote 35 → nunca se liga solo, con la lista de candidatos.
+  rec = await recuperarPorReporte(pool, caja);
   assert.equal(rec.estado, 'sin_trazabilidad');
   assert.match(rec.motivo, /Ambiguo/);
+  assert.deepEqual(rec.candidatos.map((c) => c.arete).sort(), ['F2X001', 'F2X003']);
+
+  // 7b. Un arete ya cargado para el lote no se pisa sin confirmar.
+  await pool.query("UPDATE lotes_cc_aretes SET arete = 'F2X009', animal_id = NULL WHERE fecha_deshuese = '2026-10-19' AND lote_cc = 2");
+  await pool.query("DELETE FROM reporte_produccion WHERE fecha_produccion = '2026-10-19' AND lote_cc = 2");
+  const soloL2 = { archivos: [pdf('reporte-produccion-lote-02.pdf')] };
+  plan = await motor.planificar(pool, 'reporte-produccion-ciisa', soloL2, { mapa: MAPA });
+  assert.equal(plan.filas[0].accion, 'error');
+  assert.deepEqual(plan.filas[0].cambio_arete, { antes: 'F2X009', despues: 'F2A225' });
+  plan = await motor.planificar(pool, 'reporte-produccion-ciisa', soloL2, { mapa: MAPA, reemplazar_arete: { 2: true } });
+  assert.equal(plan.filas[0].accion, 'nuevo');
+  assert.ok(plan.discrepancias.some((d) => /estaba cargado con F2X009/.test(d)));
 
   // 8. Excel para la planta con 7 canales: dos hojas, fórmulas intactas.
   const { llenarPlantilla } = require('../src/lib/solicitudDeshuesePlantilla');
@@ -166,4 +185,25 @@ test('MySQL real: fase 2 (reporte de producción, catálogo, trazabilidad, lotes
   assert.deepEqual(libro.worksheets.map((w) => w.name), ['Deshuese 151026', 'Deshuese 151026 (2)']);
   assert.equal(libro.worksheets[1].getCell('G3').value, 'F2X006');
   assert.equal(libro.worksheets[1].getCell('G11').value.formula, 'G8*84%');
+
+  // 9. Solicitud histórica con la plantilla real: 22101 viene dos veces (Lomito y Lomito cabeza) y
+  // no debe chocar con la llave única (antes salía un ER_DUP_ENTRY disfrazado de «reintente»).
+  await pool.query('DELETE FROM solicitudes_deshuese WHERE fecha_sacrificio = ?', [FECHA_SACR]);
+  const [sacsReal] = await pool.query("SELECT s.id, s.numero_canal, a.numero_trazabilidad FROM sacrificios s JOIN animales a ON a.id = s.animal_id WHERE a.numero_trazabilidad IN ('F2X001','F2X002') ORDER BY a.numero_trazabilidad");
+  const canalesReal = sacsReal.map((s) => ({ sacrificio_id: s.id, arete: s.numero_trazabilidad, sexo: 'macho', numero_canal: s.numero_canal, peso_canal: 380 }));
+  const medias = (v) => Object.fromEntries(canalesReal.map((c) => [c.sacrificio_id, v]));
+  const libroReal = await llenarPlantilla({ fecha_sacrificio: FECHA_SACR, canales: canalesReal, cortes: [
+    { codigo: '22101', medias: medias(2) }, { codigo: '21231', medias: medias(2) }, { codigo: '22428', medias: medias(0) },
+  ] });
+  const buf = Buffer.from(await libroReal.xlsx.writeBuffer());
+  const entradaReal = { archivos: [{ buffer: buf, nombre: 'solicitud-real.xlsx' }] };
+  const ph = await motor.planificar(pool, 'solicitud-deshuese-excel', entradaReal, {});
+  assert.equal(ph.filas.length, 1);
+  assert.equal(ph.filas[0].accion, 'nuevo', ph.filas[0].errores.join(' | '));
+  assert.equal(ph.filas[0].canales_ligadas, 2);
+  assert.match(ph.filas[0].avisos.join(' '), /22101/);
+  const rh = await motor.aplicar(pool, 'solicitud-deshuese-excel', entradaReal, {}, { usuarioId, huella: ph.huella });
+  assert.equal(rh.resultado.resumen.solicitudes, 1);
+  const [lom] = await pool.query("SELECT DISTINCT corte_informado FROM solicitud_lineas WHERE solicitud_id = (SELECT id FROM solicitudes_deshuese WHERE fecha_sacrificio = ?) AND corte_codigo = '22101' ORDER BY corte_informado", [FECHA_SACR]);
+  assert.deepEqual(lom.map((x) => x.corte_informado), ['Lomito', 'Lomito (Cabeza)']);
 });

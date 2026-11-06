@@ -77,7 +77,7 @@ export default function PorAnimal({ irA }) {
                     <td className="num">{kg(r.peso_canal)}</td>
                     <td className="num">{r.rendimiento == null ? '—' : <span style={r.rendimiento > 90 ? { color: 'var(--alerta)', fontWeight: 700 } : {}} title={r.rendimiento > 90 ? 'Más del 90 % del peso canal: ¿lote con varios animales?' : undefined}>{kg(r.rendimiento)}</span>}</td>
                     <td>{fecha(r.vencimiento)}</td>
-                    <td>{r.pdf_url ? <a href={r.pdf_url} target="_blank" rel="noreferrer" aria-label={`PDF del lote ${r.num_lote || r.lote_cc}`}><FileText size={16} aria-hidden="true" /></a> : '—'}</td>
+                    <td>{r.pdf_url ? <button type="button" className="btn-icon" aria-label={`Abrir el PDF del lote ${r.num_lote || r.lote_cc}`} onClick={() => api.abrirArchivo(r.pdf_url).catch(e => aviso.error(e.message))}><FileText size={16} aria-hidden="true" /></button> : '—'}</td>
                   </tr>
                   {abiertos[r.id] && (
                     <tr>

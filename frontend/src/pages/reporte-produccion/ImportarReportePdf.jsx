@@ -33,13 +33,14 @@ export default function ImportarReportePdf({ canEdit, onAplicado }) {
   const [correcciones, setCorrecciones] = useState({});
   const [sinAnimal, setSinAnimal] = useState({});
   const [pendientes, setPendientes] = useState({});
+  const [reemplazos, setReemplazos] = useState({});
   const [borradores, setBorradores] = useState({});
   const [alta, setAlta] = useState(null);
   const [reporteFinal, setReporteFinal] = useState(null);
   const imp = useImportacion('reporte-produccion-ciisa');
   const { plan } = imp;
 
-  const opciones = (extra = {}) => ({ mapa, correcciones, sin_animal: sinAnimal, pendientes, ...extra });
+  const opciones = (extra = {}) => ({ mapa, correcciones, sin_animal: sinAnimal, pendientes, reemplazar_arete: reemplazos, ...extra });
   const entrada = (a = archivos, t = texto) => ({ archivos: a, pegado: t.trim() ? { texto: t } : undefined });
 
   const revisar = (extra = {}, a = archivos, t = texto) => {
@@ -69,6 +70,14 @@ export default function ImportarReportePdf({ canEdit, onAplicado }) {
     const sa = { ...sinAnimal, [f.num_lote]: true };
     setSinAnimal(sa);
     imp.replanificar({ sin_animal: sa });
+  };
+  // El lote ya tenía otro arete cargado (a mano o por otra importación): reemplazarlo se confirma.
+  const confirmarReemplazo = async (f) => {
+    const ok = await confirmar({ titulo: `¿Reemplazar el arete del lote ${f.num_lote}?`, mensaje: `Estaba cargado ${f.cambio_arete.antes}; quedará ${f.cambio_arete.despues}. El cambio va al reporte de discrepancias.`, textoConfirmar: 'Reemplazar' });
+    if (!ok) return;
+    const n = { ...reemplazos, [f.num_lote]: true };
+    setReemplazos(n);
+    imp.replanificar({ reemplazar_arete: n });
   };
   const marcarPendiente = (codigo) => {
     const p = { ...pendientes, [codigo]: true };
@@ -114,6 +123,14 @@ export default function ImportarReportePdf({ canEdit, onAplicado }) {
                 onChange={e => setBorradores(b => ({ ...b, [f.fila]: e.target.value.toUpperCase() }))} />
               <button type="button" className="btn btn-secondary btn-sm" disabled={imp.cargando} onClick={() => confirmarArete(f)}>Confirmar</button>
               <button type="button" className="btn btn-secondary btn-sm" disabled={imp.cargando} onClick={() => importarSinAnimal(f)}>Sin animal</button>
+            </span>
+          );
+        }
+        if (f.cambio_arete && !reemplazos[f.num_lote] && canEdit) {
+          return (
+            <span className="imp-correccion">
+              <s title="Arete que ya estaba cargado">{f.cambio_arete.antes}</s>{' → '}<strong>{f.cambio_arete.despues}</strong>
+              <button type="button" className="btn btn-secondary btn-sm" disabled={imp.cargando} onClick={() => confirmarReemplazo(f)}>Reemplazar</button>
             </span>
           );
         }

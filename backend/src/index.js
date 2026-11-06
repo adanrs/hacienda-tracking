@@ -23,7 +23,11 @@ app.use('/api/integracion/tienda', require('./routes/integracion-tienda'));
 const protegidaImport = [authMiddleware, soloLecturaViewer];
 app.use('/api/importaciones', protegidaImport, express.json({ limit: '3mb' }), require('./routes/importaciones'));
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// PDFs del deshuese y del reporte de producción: solo con sesión. También bajo /api/uploads, que es
+// la URL que usa el frontend (VITE_API_URL apunta a /api del backend; el nginx del frontend no sirve /uploads).
+const archivosSubidos = express.static(path.join(__dirname, '../uploads'));
+app.use('/uploads', authMiddleware, archivosSubidos);
+app.use('/api/uploads', authMiddleware, archivosSubidos);
 
 // Public routes
 app.use('/api/auth', require('./routes/auth'));

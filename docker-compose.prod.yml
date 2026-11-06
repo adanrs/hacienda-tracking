@@ -22,6 +22,9 @@ services:
       - KIWI_VISION_TOKEN=${KIWI_VISION_TOKEN:-}
     command: ["npm", "start"]
     restart: always
+    # PDFs del deshuese y del reporte de producción: volumen nombrado para que no se pierdan en cada redeploy.
+    volumes:
+      - hacienda_uploads:/app/uploads
 
   frontend:
     build:
@@ -35,3 +38,6 @@ services:
     depends_on:
       - backend
     restart: always
+
+volumes:
+  hacienda_uploads:

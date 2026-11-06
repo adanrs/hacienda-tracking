@@ -184,6 +184,20 @@ async function planificar(conn, _tabla, opciones = {}, { lectura }) {
       if (!c.codigo || !enCatalogo.has(c.codigo)) { c.pendiente = true; pend.push(c.codigo ? `${c.codigo} ${c.nombre}` : c.nombre); }
     }
     if (pend.length) f.avisos.push(`Cortes sin código o fuera del catálogo, van como 99 «pendiente de codificar»: ${pend.join('; ')}`);
+    // Llave de cada fila en solicitud_lineas = (canal, código, corte_informado). La plantilla repite
+    // códigos (22101 = «Lomito» y «Lomito (Cabeza)»): esas filas se distinguen por su NOMBRE en
+    // corte_informado; si aun así dos filas quedan iguales, se les agrega la fila de la hoja.
+    const usadas = new Set();
+    const repetidos = new Set(f.cortes.filter((c, i) => c.codigo && !c.pendiente && f.cortes.findIndex((x) => x.codigo === c.codigo && !x.pendiente) !== i).map((c) => c.codigo));
+    for (const c of f.cortes) {
+      c.codigo_final = c.pendiente ? CODIGO_PENDIENTE : c.codigo;
+      let inf = c.pendiente ? (c.codigo ? `${c.codigo} ${c.nombre}` : c.nombre) : (repetidos.has(c.codigo) ? c.nombre || `fila ${c.fila}` : '');
+      inf = String(inf).slice(0, 110);
+      if (usadas.has(`${c.codigo_final}|${inf}`)) inf = `${inf} (fila ${c.fila})`.slice(0, 120);
+      usadas.add(`${c.codigo_final}|${inf}`);
+      c.informado = inf;
+    }
+    if (repetidos.size) f.avisos.push(`Código(s) repetidos en la hoja: ${[...repetidos].join(', ')}; se guardan como filas distintas por su nombre`);
     if (f.errores.length) f.accion = 'error';
   }
   return { filas, errores_generales: [] };
@@ -212,8 +226,7 @@ async function aplicar(conn, plan, { importacionId, usuarioId, registrar }) {
       for (const c of ligadas) {
         const m = corte.medias[c.columna];
         if (m === undefined) continue;
-        lineas.push([sid, corte.pendiente ? CODIGO_PENDIENTE : corte.codigo,
-          corte.pendiente ? (corte.codigo ? `${corte.codigo} ${corte.nombre}` : corte.nombre).slice(0, 120) : '',
+        lineas.push([sid, corte.codigo_final, corte.informado,
           idCanal.get(c.columna), m, corte.observacion, i + 1]);
       }
     });

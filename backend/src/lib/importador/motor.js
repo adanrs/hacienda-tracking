@@ -206,14 +206,22 @@ async function aplicar(pool, formatoId, entrada, opciones, { usuarioId, huella }
     const resumenFinal = { ...plan.resumen, aplicado: resultado.resumen || {} };
     await conn.query('UPDATE importaciones SET resumen = ? WHERE id = ?', [JSON.stringify(resumenFinal), importacionId]);
     await conn.commit();
+    if (typeof proc.despuesDeCommit === 'function') {
+      try { await proc.despuesDeCommit(pool, resultado); } catch (err) { console.error('[importador] despuesDeCommit', err.message); }
+    }
     return { importacion_id: importacionId, resumen: resumenFinal, resultado };
   } catch (e) {
     try { await conn.rollback(); } catch (_) { /* sin transacción abierta */ }
     // Dos aplicar concurrentes sobre los mismos datos (p. ej. el mismo animal): la llave única o el
     // deadlock de MySQL frenan al que pierde y el rollback deja todo limpio. Para el usuario no es un
     // error interno sino un choque: 409 para que vuelva a ver la vista previa y reintente.
-    if (e && ['ER_LOCK_DEADLOCK', 'ER_DUP_ENTRY', 'ER_LOCK_WAIT_TIMEOUT'].includes(e.code)) {
+    if (e && ['ER_LOCK_DEADLOCK', 'ER_LOCK_WAIT_TIMEOUT'].includes(e.code)) {
       throw new ErrorImportacion(409, 'Otra importación está aplicando sobre los mismos datos: reintente');
+    }
+    // Llave duplicada: NO es un choque pasajero (reintentar daría lo mismo): el archivo trae dos
+    // filas que la base considera la misma, o alguien registró el dato entre la vista previa y aquí.
+    if (e && e.code === 'ER_DUP_ENTRY') {
+      throw new ErrorImportacion(409, 'Hay un registro repetido (el archivo trae dos filas que son el mismo dato, o ya se registró por otra vía). No se aplicó nada: revise la vista previa.', { detalle_mysql: String(e.sqlMessage || '').slice(0, 200) });
     }
     throw e;
   } finally {

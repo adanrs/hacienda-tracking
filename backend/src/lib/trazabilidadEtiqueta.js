@@ -6,8 +6,12 @@
 // (lista lote → arete del correo, validada contra la guía). Entonces:
 //   fecha + lote de la etiqueta → UN reporte de producción cargado con arete confirmado → arete.
 // Reglas:
-//   - la fecha puede leerse DDMMAA o MMDDAA (día ≤ 12): se prueban las dos lecturas y se exige UNA
-//     sola coincidencia en total; dos o ninguna → «sin trazabilidad»;
+//   - la fecha se lee SOLO con el formato de la etiqueta (caja DDMMAA, primal MMDDAA: etiquetas.js).
+//     Nunca se prueba la otra lectura para ligar: si se necesitara (formato dudoso), con dos lecturas
+//     válidas y distintas NO se auto-liga;
+//   - el lote de 4 dígitos se compara SOLO con el «Num. Lote» del reporte (no con el Lote CC: cuando
+//     difieren daría coincidencias falsas);
+//   - más de un reporte que calce → «sin trazabilidad» con la lista de candidatos;
 //   - la recuperación es automática pero visible: estado «recuperada», con el reporte que la
 //     respalda, y una advertencia para que quede auditada en la vista previa;
 //   - NUNCA se cruza contra sacrificios.numero_canal: el n.º de canal se pierde al pasar a deshuese.
@@ -31,9 +35,10 @@ function puenteDe(lectura) {
   if (!lectura || !lectura.campos) return null;
   const c = lectura.campos;
   if (!Number.isInteger(c.loteDeshuese) || c.loteDeshuese <= 0) return null;
-  if (lectura.tipo === 'caja' && c.loteLegible) return { fechas: lecturasFecha(c.loteLegible.slice(0, 6), 'DDMMAA'), lote: c.loteDeshuese };
-  if (lectura.tipo === 'primal' && c.loteLegible) return { fechas: lecturasFecha(c.loteLegible.slice(0, 6), 'MMDDAA'), lote: c.loteDeshuese };
-  return null;
+  // La fecha ya interpretada por el decodificador con el formato fijo de cada etiqueta.
+  const fechaEtiqueta = lectura.tipo === 'caja' ? c.fecha : lectura.tipo === 'primal' ? c.fechaEmpaque : null;
+  if (!fechaEtiqueta) return null;
+  return { fechas: [fechaEtiqueta], lote: c.loteDeshuese };
 }
 
 /**
@@ -44,8 +49,8 @@ function puenteDe(lectura) {
 async function recuperarPorReporte(db, lectura) {
   const p = puenteDe(lectura);
   if (!p || !p.fechas.length) return { estado: 'sin_trazabilidad', motivo: 'La etiqueta no trae fecha y lote de deshuese legibles', candidatos: [] };
-  const condiciones = p.fechas.map(() => '(rp.fecha_produccion = ? AND (rp.lote_cc = ? OR rp.num_lote = ?))').join(' OR ');
-  const params = p.fechas.flatMap((f) => [f, p.lote, String(p.lote)]);
+  const condiciones = p.fechas.map(() => '(rp.fecha_produccion = ? AND rp.num_lote = ?)').join(' OR ');
+  const params = p.fechas.flatMap((f) => [f, String(p.lote)]);
   const [filas] = await db.query(
     `SELECT rp.id AS reporte_id, DATE_FORMAT(rp.fecha_produccion, '%Y-%m-%d') AS fecha_produccion, rp.num_lote, rp.lote_cc,
             l.arete, l.animal_id
