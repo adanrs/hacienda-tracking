@@ -120,6 +120,8 @@ function connFalso(estado) {
       }
       if (/WHERE contenido_sha256 = \?/.test(sql)) return [estado.cargado ? [{ id: 9, fecha_carga: '2026-11-05 10:00' }] : []];
       if (/FROM inventario_planta_cargas ORDER BY id DESC LIMIT 1/.test(sql)) return [[]];
+      // Marmoleo medido (cámara AUS-MEAT) del animal 77 al que traza el lote 39.
+      if (/FROM sacrificios s JOIN animales a/.test(sql)) return [params.includes(77) ? [{ animal_id: 77, arete: 'INV107A', marmoleo: 5 }] : []];
       throw new Error(`SQL no esperado en la prueba: ${sql.slice(0, 80)}`);
     },
   };
@@ -145,6 +147,10 @@ test('plan (conn falso): ambos libros completos con advertencias, sin errores', 
   assert.ok(rec.length > 0);
   assert.ok(rec.every((f) => f.lote === '2903260039' && f.arete === 'INV107A' && f.animal_id === 77));
   assert.ok(rec[0].avisos.some((a) => /Trazabilidad recuperada/.test(a)));
+  // BMS de la caja (2 últimos dígitos, «…003911» → 11) guardado en la línea y comparado con el
+  // marmoleo del animal: AUS-MEAT 5 contra BMS 11 no es comparable sin tabla de conversión (sin aviso).
+  assert.ok(rec.every((f) => f.bms === 11 && f.bms_animal === 5 && f.bms_estado === 'no_comparable'));
+  assert.ok(!rec[0].avisos.some((a) => /BMS/.test(a)));
   assert.equal(plan41.totales.general.trazabilidad.recuperada, rec.length);
   assert.equal(plan41.totales.maduracion.piezas, 399);
   // El nombre del archivo no cambia la huella del contenido.

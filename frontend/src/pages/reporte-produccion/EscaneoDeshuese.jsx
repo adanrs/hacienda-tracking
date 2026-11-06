@@ -39,7 +39,8 @@ export default function EscaneoDeshuese({ fecha, setFecha, canEdit }) {
       ok: true,
       titulo: `${r.descripcion || r.articulo_codigo} · ${fmtKg(r.peso_kg)} kg`,
       detalle: `${r.tipo === 'caja' ? 'Caja' : 'Primal'} del lote CC ${lote2(r.lote_cc)}${r.arete ? ` (arete ${r.arete})` : ''} · deshuese ${fechaCorta(r.fecha_deshuese)} · `
-        + `en este lote van ${r.lote.cajas} cajas, ${fmtKg(r.lote.kg)} kg${r.fecha_ambigua ? ' · Revise la fecha: el día es ≤ 12' : ''}`,
+        + `en este lote van ${r.lote.cajas} cajas, ${fmtKg(r.lote.kg)} kg${r.fecha_ambigua ? ' · Revise la fecha: el día es ≤ 12' : ''}`
+        + `${r.bms != null ? ` · BMS ${r.bms}` : ''}${r.bms_comparacion?.estado === 'no_cuadra' ? ` · Ojo: ${r.bms_comparacion.aviso}` : ''}`,
     };
   };
 
@@ -156,7 +157,7 @@ export default function EscaneoDeshuese({ fecha, setFecha, canEdit }) {
         <div className="table-container">
           <table>
             <thead>
-              <tr><th>Hora</th><th>Lote CC</th><th>Artículo</th><th>Descripción</th><th className="num">Kg</th><th>Tipo</th><th>Escaneó</th>{canEdit && <th><span className="sr-only">Quitar</span></th>}</tr>
+              <tr><th>Hora</th><th>Lote CC</th><th>Artículo</th><th>Descripción</th><th className="num">Kg</th><th>Tipo</th><th className="num">BMS</th><th>Escaneó</th>{canEdit && <th><span className="sr-only">Quitar</span></th>}</tr>
             </thead>
             <tbody>
               {!cargando && !error && lecturas.map(l => (
@@ -167,12 +168,16 @@ export default function EscaneoDeshuese({ fecha, setFecha, canEdit }) {
                   <td>{l.descripcion || '—'}{l.copia > 1 ? ` (caja repetida ${l.copia})` : ''}</td>
                   <td className="num">{fmtKg(l.peso_kg)}</td>
                   <td>{l.tipo === 'caja' ? 'Caja' : 'Primal'}</td>
+                  <td className="num" title={l.bms_comparacion?.aviso || undefined}>
+                    {l.bms ?? '—'}
+                    {l.bms_comparacion?.estado === 'no_cuadra' && <> <span className="badge badge-orange">≠ animal {l.bms_comparacion.marmoleo_animal}</span></>}
+                  </td>
                   <td>{l.escaneado_por || '—'}</td>
                   {canEdit && <td><button type="button" className="btn-icon" aria-label={`Quitar lectura ${l.articulo_codigo} ${fmtKg(l.peso_kg)} kg`} onClick={() => quitar(l)}><Trash2 size={16} aria-hidden="true" /></button></td>}
                 </tr>
               ))}
               <FilaEstado
-                columnas={canEdit ? 8 : 7}
+                columnas={canEdit ? 9 : 8}
                 cargando={cargando}
                 error={error}
                 onReintentar={cargar}

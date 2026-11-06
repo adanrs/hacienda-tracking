@@ -23,6 +23,10 @@ const MAPEO_BAJAS = {
 
 const TIPOS_DIFERENCIA = ['caja_faltante', 'caja_no_solicitada', 'paquete_no_coincide', 'peso_no_cuadra',
   'sin_producto', 'etiqueta_duplicada', 'formato_invalido'];
+// Qué hizo la tienda con una diferencia al recibir (Juan Carlos, 06-nov-2026): si el peso no cuadra
+// o los productos no coinciden se DEVUELVE en el mismo transporte o se AVISA a la planta. Opcional
+// en el evento (los de antes no lo traen); si viene, el motivo es obligatorio.
+const ACCIONES_DIFERENCIA = ['devolver_mismo_transporte', 'avisar_planta'];
 
 const esObjeto = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const esTexto = (v, max = MAX_TEXTO) => typeof v === 'string' && v.trim().length > 0 && v.length <= max;
@@ -118,6 +122,10 @@ const VALIDADORES = {
     if (!Array.isArray(diferencias)) errores.push('datos.diferencias debe ser una lista');
     else diferencias.forEach((x, i) => {
       if (!esObjeto(x) || !TIPOS_DIFERENCIA.includes(x.tipo)) errores.push(`datos.diferencias[${i}].tipo debe ser uno de: ${TIPOS_DIFERENCIA.join(', ')}`);
+      if (esObjeto(x) && x.accion !== undefined) {
+        if (!ACCIONES_DIFERENCIA.includes(x.accion)) errores.push(`datos.diferencias[${i}].accion debe ser una de: ${ACCIONES_DIFERENCIA.join(', ')}`);
+        else if (!esTexto(x.motivo, 300)) errores.push(`datos.diferencias[${i}].motivo es obligatorio con «accion» (máx. 300)`);
+      }
     });
     if (cajas.length === 0 && paquetes.length === 0) errores.push('La recepción debe traer al menos una caja');
     // En la recepción los paquetes NO deberían existir aún en ganadería (se dan de alta al recibir).
@@ -168,4 +176,4 @@ function validarSobre(sobre) {
   return { ok: errores.length === 0, errores, avisos, tipo: sobre.tipo, info };
 }
 
-module.exports = { validarSobre, MAPEO_BAJAS, VERSION_CONTRATO, TIPOS_SOPORTADOS, TIPOS_FUTUROS, MAX_PIEZAS };
+module.exports = { validarSobre, ACCIONES_DIFERENCIA, MAPEO_BAJAS, VERSION_CONTRATO, TIPOS_SOPORTADOS, TIPOS_FUTUROS, MAX_PIEZAS };

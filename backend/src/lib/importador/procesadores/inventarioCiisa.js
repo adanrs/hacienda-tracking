@@ -28,6 +28,9 @@
 //       sin_trazabilidad  no se llega a un animal (con «xxx» va con advertencia; NUNCA se toma el
 //                         «xxx» como arete);
 //       na                sin código de barras ni lote legible («SIN CODIGO DE BARRAS»);
+//   - BMS: los 2 últimos dígitos del código (caja o bolsa) son el BMS 0–12 (Juan Carlos, 06-nov-2026);
+//     se guarda en `bms` y, si la línea trazó a un animal con marmoleo medido (cámara AUS-MEAT), se
+//     compara: si no cuadra es un aviso, no un error (lib/bmsCaja.js);
 //   - código fuera del catálogo de cortes → advertencia (la pantalla ofrece el alta rápida);
 //   - peso vacío, no numérico o ≤ 0 → error: esa línea no entra al snapshot.
 // Totales por hoja: piezas (líneas), kg (solo medida Kilos o sin medida: «Caja» y «UND» son conteos),
@@ -37,6 +40,7 @@ const crypto = require('crypto');
 const ExcelJS = require('exceljs');
 const { decodificar, esSinTrazabilidad, interpretarFecha } = require('../../etiquetas');
 const { recuperarPorReporte } = require('../../trazabilidadEtiqueta');
+const { compararBmsCaja, marmoleosDe, marmoleoDeLinea } = require('../../bmsCaja');
 const { parsearFecha } = require('../texto');
 const { marcas, fechaTexto } = require('../comun');
 
@@ -290,6 +294,8 @@ function evaluarEtiqueta(l) {
   }
   const avisos = [];
   for (const e of d.errores || []) avisos.push(`Código de barras: ${e.mensaje}`);
+  // BMS ilegible en la caja (pos. 24–25): advertencia del decodificador, la línea queda sin BMS.
+  for (const e of d.advertencias || []) if (e.codigo === 'marmoleo_invalido') avisos.push(`Código de barras: ${e.mensaje}`);
   const c = d.campos || {};
   if (d.tipo === 'desconocida') return { decodificado: compacto(d), puente: null, sinArete: false, motivo: 'Código de barras ilegible', avisos };
   if (c.codigoProducto && l.codigo && c.codigoProducto !== l.codigo) avisos.push(`El código de barras dice producto ${c.codigoProducto} y la columna Código ${l.codigo}`);
@@ -452,6 +458,24 @@ async function planificar(conn, _tabla, opciones = {}, { lectura }) {
     }
   }
 
+  // 3b. BMS (2 últimos dígitos del código, Juan Carlos 06-nov-2026) y comparación con el marmoleo
+  //     medido del animal al que trazó la línea. Si no cuadra es un aviso: la línea igual entra.
+  for (const l of lineas) {
+    const dec = l.decodificado;
+    l.bms = dec && (dec.tipo === 'caja' || dec.tipo === 'paquete') && dec.marmoleo != null ? dec.marmoleo : null;
+  }
+  const conBms = lineas.filter((l) => l.bms != null && (l.animal_id != null || l.arete));
+  if (conBms.length) {
+    const m = await marmoleosDe(conn, { animalIds: conBms.map((l) => l.animal_id), aretes: conBms.map((l) => l.arete) });
+    for (const l of conBms) {
+      const comp = compararBmsCaja(l.bms, marmoleoDeLinea(m, l));
+      if (!comp) continue;
+      l.bms_animal = comp.marmoleo_animal;
+      l.bms_estado = comp.estado;
+      if (comp.estado === 'no_cuadra') l.avisos.push(`BMS ${l.bms} de la etiqueta distinto del marmoleo medido del animal ${l.arete || ''} (AUS-MEAT ${comp.marmoleo_animal})`.replace('  ', ' '));
+    }
+  }
+
   // 4. Snapshot ya cargado (mismo contenido) y comparación contra el último.
   const huellaContenido = sha256(JSON.stringify(lineas.map((l) => [l.hoja, l.fila_hoja, l.tarima, l.linea, l.codigo_barras,
     l.codigo, l.descripcion, l.caja, l.peso, l.medida, l.lote, l.fecha_vencimiento, l.vencido_archivo, l.despacho,
@@ -517,12 +541,12 @@ async function aplicar(conn, plan, { importacionId, usuarioId, registrar }) {
   const cargaId = ins.insertId;
   const filas = validas.map((f) => [cargaId, f.hoja, f.fila_hoja, f.tarima, f.linea, f.codigo_barras, f.codigo, f.descripcion, f.caja,
     f.peso, f.medida, f.lote, f.fecha_vencimiento, f.vencido ? 1 : 0, f.despacho, f.fecha_despacho, f.pedido_por, f.orden, f.estatus,
-    f.decodificado ? JSON.stringify(f.decodificado) : null, f.trazabilidad, f.arete, f.animal_id, f.reporte_id]);
+    f.decodificado ? JSON.stringify(f.decodificado) : null, f.bms ?? null, f.trazabilidad, f.arete, f.animal_id, f.reporte_id]);
   for (let i = 0; i < filas.length; i += 500) {
     await conn.query(
       `INSERT INTO inventario_planta_lineas (carga_id, hoja, fila, tarima, linea, codigo_barras, codigo, descripcion, caja,
          peso, medida, lote, fecha_vencimiento, vencido, despacho, fecha_despacho, pedido_por, orden, estatus,
-         decodificado, trazabilidad, arete, animal_id, reporte_id) VALUES ?`, [filas.slice(i, i + 500)]);
+         decodificado, bms, trazabilidad, arete, animal_id, reporte_id) VALUES ?`, [filas.slice(i, i + 500)]);
   }
   registrar(null, 'inventario_planta_carga', cargaId, 'creado', { lineas: filas.length, fecha_inventario: plan.fecha_inventario ? fechaTexto(plan.fecha_inventario) : null });
   return { resumen: { carga_id: cargaId, lineas: filas.length } };

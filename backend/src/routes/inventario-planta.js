@@ -10,6 +10,7 @@
 // línea expone su id estable dentro del snapshot. Todo valor del request va por `?`.
 
 const router = require('express').Router();
+const { compararBmsCaja, marmoleosDe, marmoleoDeLinea } = require('../lib/bmsCaja');
 const { pool } = require('../models/database');
 const { totalesDe, agrupar, diferencia } = require('../lib/importador/procesadores/inventarioCiisa');
 
@@ -71,12 +72,18 @@ router.get('/lineas', envolver(async (req, res) => {
     `SELECT l.id, l.hoja, l.fila, l.tarima, l.linea, l.codigo_barras, l.codigo, l.descripcion, l.caja, l.peso, l.medida, l.lote,
             DATE_FORMAT(l.fecha_vencimiento, '%Y-%m-%d') AS fecha_vencimiento, l.vencido, l.despacho,
             DATE_FORMAT(l.fecha_despacho, '%Y-%m-%d') AS fecha_despacho, l.pedido_por, l.orden, l.estatus,
-            l.trazabilidad, l.arete, l.animal_id, l.reporte_id
+            l.trazabilidad, l.arete, l.animal_id, l.reporte_id, l.bms
      FROM inventario_planta_lineas l WHERE ${where.join(' AND ')}
      ORDER BY l.hoja, CAST(l.tarima AS UNSIGNED), l.tarima, l.fila LIMIT ${MAX_LINEAS + 1}`, params);
   const truncado = lineas.length > MAX_LINEAS;
   if (truncado) lineas.pop();
-  const salida = lineas.map((l) => ({ ...l, peso: l.peso == null ? null : Number(l.peso), vencido: Boolean(l.vencido) }));
+  // BMS de cada caja contra el marmoleo medido del animal (aviso, ver lib/bmsCaja.js).
+  const m = await marmoleosDe(pool, { animalIds: lineas.filter((l) => l.bms != null).map((l) => l.animal_id), aretes: lineas.filter((l) => l.bms != null).map((l) => l.arete) });
+  const salida = lineas.map((l) => {
+    const comp = compararBmsCaja(l.bms, marmoleoDeLinea(m, l));
+    return { ...l, peso: l.peso == null ? null : Number(l.peso), vencido: Boolean(l.vencido), bms: l.bms == null ? null : Number(l.bms),
+      bms_animal: comp ? comp.marmoleo_animal : null, bms_estado: comp ? comp.estado : null, bms_aviso: comp ? comp.aviso : null };
+  });
   // Tarimas y códigos del snapshot completo, para los filtros de la pantalla.
   const [tarimas] = await pool.query('SELECT DISTINCT tarima FROM inventario_planta_lineas WHERE carga_id = ? AND tarima IS NOT NULL', [r.carga.id]);
   res.json({

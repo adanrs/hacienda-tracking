@@ -844,6 +844,19 @@ async function initDB() {
     // Snapshots del inventario semanal de la planta CIISA: ver models/inventarioPlanta.js.
     await migrarInventarioPlanta(conn);
 
+    // BMS de la caja (Juan Carlos, 06-nov-2026): los 2 últimos dígitos del código de caja son el
+    // BMS (0–12). Las cajas escaneadas antes lo tienen guardado crudo en `sufijo`: se copia una sola
+    // vez (solo donde `bms` está vacío y el sufijo es un BMS válido; correrlo de nuevo no cambia
+    // nada). En el primal `sufijo` sigue siendo crudo: no está confirmado que sea el BMS.
+    try { await conn.query("ALTER TABLE reporte_produccion_escaneos ADD COLUMN bms TINYINT UNSIGNED NULL COMMENT 'BMS de la caja (pos. 24–25 del código, 0–12)' AFTER sufijo"); } catch (e) {}
+    try {
+      await conn.query(
+        `UPDATE reporte_produccion_escaneos SET bms = CAST(sufijo AS UNSIGNED)
+          WHERE bms IS NULL AND tipo = 'caja' AND sufijo REGEXP '^[0-9]{2}$' AND CAST(sufijo AS UNSIGNED) <= 12`);
+    } catch (e) {
+      console.error(`[initDB bms escaneos] ${e.code || 'ERROR'}: ${e.message}`);
+    }
+
     console.log('Database tables initialized');
   } finally {
     conn.release();
