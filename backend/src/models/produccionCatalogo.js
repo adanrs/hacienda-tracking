@@ -96,6 +96,9 @@ async function migrarProduccionCatalogo(conn) {
   await ignorar(`CREATE UNIQUE INDEX uk_sl_canal_corte_inf ON solicitud_lineas (solicitud_canal_id, corte_codigo, corte_informado)`, SIN_REPORTE);
   await ignorar(`ALTER TABLE solicitud_lineas DROP INDEX uk_sl_canal_corte`, null, ['ER_CANT_DROP_FIELD_OR_KEY']);
 
+  // Condición corporal (opcional, 1–9): pedido del dueño 05-nov; podría pertenecer a la guía (duda abierta).
+  await ignorar(`ALTER TABLE sacrificios ADD COLUMN condicion_corporal DECIMAL(3,1) NULL COMMENT 'Condición corporal 1–9 (opcional)'`);
+
   await ignorar(`ALTER TABLE solicitudes_deshuese MODIFY COLUMN estado ENUM('borrador','enviada','deshuesada','con_reporte') NOT NULL DEFAULT 'borrador'`, SIN_REPORTE);
   await ignorar(`ALTER TABLE solicitudes_deshuese ADD COLUMN importacion_id INT NULL COMMENT 'Importación de una solicitud histórica (Excel de la planta)'`);
 }

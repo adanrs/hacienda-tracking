@@ -38,11 +38,18 @@ const LOTE_03 = {
   pie: { libras: '349.43', kilos: '158.50', cajas: '6' },
 };
 
+// Cada dato es un texto suelto en su posición (como un generador de reportes). pdfkit (solo de
+// desarrollo) arma un PDF válido; las coordenadas van de arriba hacia abajo.
 function pdfDe(rep) {
-  const items = [];
-  const t = (x, y, s, size = 9) => items.push({ x, y, s, size });
+  const PDFDocument = require('pdfkit');
+  const doc = new PDFDocument({ size: [800, 842], margin: 0, compress: false, info: { Producer: 'fixture', CreationDate: new Date(Date.UTC(2026, 10, 5)) } });
+  const partes = [];
+  doc.on('data', (b) => partes.push(b));
+  const fin = new Promise((ok) => doc.on('end', () => ok(Buffer.concat(partes))));
+  doc.font('Courier');
+  const t = (x, y, s, size = 9) => doc.fontSize(size).text(s, x, 842 - y, { lineBreak: false });
   t(80, 800, 'REPORTE DIARIO DE PRODUCCION', 14);
-  t(10, 775, 'Fecha de Produccion:'); t(260, 778, rep.fecha);
+  t(10, 775, 'Fecha de Produccion:'); t(260, 775, rep.fecha);
   t(15, 740, 'Num. Lote'); t(120, 740, rep.numLote); t(215, 740, 'Tipo Produccion:'); t(380, 740, rep.tipo);
   t(17, 728, 'Lote CC'); t(120, 728, rep.loteCC);
   t(10, 712, 'Articulo'); t(520, 712, 'Peso'); t(585, 712, 'Unidad'); t(700, 712, 'Cajas');
@@ -54,30 +61,17 @@ function pdfDe(rep) {
   y -= 30;
   t(10, y, 'Total de Cajas por el Lote #'); t(245, y, rep.numLote); t(305, y, 'Libras'); t(375, y, rep.pie.libras);
   t(485, y, 'Kilos'); t(600, y, rep.pie.kilos); t(700, y, rep.pie.cajas);
-
-  const esc = (s) => s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
-  const contenido = items.map((i) => `BT /F1 ${i.size} Tf ${i.x} ${i.y} Td (${esc(i.s)}) Tj ET`).join('\n');
-  const objetos = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 800 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
-    `<< /Length ${Buffer.byteLength(contenido)} >>\nstream\n${contenido}\nendstream`,
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>',
-  ];
-  let pdf = '%PDF-1.4\n';
-  const offsets = [];
-  objetos.forEach((o, i) => { offsets.push(Buffer.byteLength(pdf)); pdf += `${i + 1} 0 obj\n${o}\nendobj\n`; });
-  const xref = Buffer.byteLength(pdf);
-  pdf += `xref\n0 ${objetos.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}`;
-  pdf += `trailer\n<< /Size ${objetos.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-  return Buffer.from(pdf, 'latin1');
+  doc.end();
+  return fin;
 }
 
 if (require.main === module) {
   const dir = path.join(__dirname, '..', 'test', 'fixtures');
-  fs.writeFileSync(path.join(dir, 'reporte-produccion-lote-02.pdf'), pdfDe(LOTE_02));
-  fs.writeFileSync(path.join(dir, 'reporte-produccion-lote-03.pdf'), pdfDe(LOTE_03));
-  console.log('PDFs de prueba escritos en', dir);
+  (async () => {
+    fs.writeFileSync(path.join(dir, 'reporte-produccion-lote-02.pdf'), await pdfDe(LOTE_02));
+    fs.writeFileSync(path.join(dir, 'reporte-produccion-lote-03.pdf'), await pdfDe(LOTE_03));
+    console.log('PDFs de prueba escritos en', dir);
+  })();
 }
 
 module.exports = { pdfDe, LOTE_02, LOTE_03 };

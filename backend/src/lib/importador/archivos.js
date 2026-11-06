@@ -227,7 +227,11 @@ function leerMsg(buffer) {
 async function leerPdf(buffer) {
   const pdf = require('pdf-parse');
   let r;
-  try { r = await pdf(buffer); } catch (_) { throw new ErrorArchivo('No se pudo leer el PDF'); }
+  // El pdf.js por omisión de pdf-parse (1.10) falla con algunos PDF válidos («bad XRef entry», p. ej.
+  // los de pocas páginas sin texto de un escáner): se reintenta con el pdf.js 2.0 que trae el paquete.
+  try { r = await pdf(buffer); } catch (_) {
+    try { r = await pdf(buffer, { version: 'v2.0.550' }); } catch (__) { throw new ErrorArchivo('No se pudo leer el PDF'); }
+  }
   const texto = String(r.text || '');
   // PDF escaneado (sin capa de texto): no es un error del usuario, va por la lectura por foto (visión).
   if (texto.replace(/\s+/g, '').length < 20) throw Object.assign(new ErrorArchivo('El PDF no trae texto (parece una imagen escaneada): use «Leer por foto» para transcribirlo'), { codigo: 'sin_texto' });

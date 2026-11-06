@@ -209,6 +209,12 @@ async function aplicar(pool, formatoId, entrada, opciones, { usuarioId, huella }
     return { importacion_id: importacionId, resumen: resumenFinal, resultado };
   } catch (e) {
     try { await conn.rollback(); } catch (_) { /* sin transacción abierta */ }
+    // Dos aplicar concurrentes sobre los mismos datos (p. ej. el mismo animal): la llave única o el
+    // deadlock de MySQL frenan al que pierde y el rollback deja todo limpio. Para el usuario no es un
+    // error interno sino un choque: 409 para que vuelva a ver la vista previa y reintente.
+    if (e && ['ER_LOCK_DEADLOCK', 'ER_DUP_ENTRY', 'ER_LOCK_WAIT_TIMEOUT'].includes(e.code)) {
+      throw new ErrorImportacion(409, 'Otra importación está aplicando sobre los mismos datos: reintente');
+    }
     throw e;
   } finally {
     if (candado) { try { await conn.query('SELECT RELEASE_LOCK(?)', [NOMBRE_CANDADO]); } catch (_) { /* la conexión se cae y MySQL lo suelta */ } }
