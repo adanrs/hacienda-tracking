@@ -1,9 +1,20 @@
-# Sistema de diseño — Trazabilidad Wagyu
+# Sistema de diseño — Trazabilidad Hacienda Tempisque
 
 Herramienta de trabajo diaria: se usa en escritorio, en tablet en planta (a veces con guantes y
 prisa) y en celular en finca. Por eso manda la **claridad y la densidad bien manejada** por encima
-de la decoración. La identidad es la de Wagyu Cross, sobria: negro y blanco, con carmesí como
+de la decoración. La identidad es la de **Hacienda Tempisque**, sobria: negro y blanco, con carmesí como
 único acento.
+
+## Marca
+
+- La app de ganadería se llama **Hacienda Tempisque** (decisión del 06-nov-2026): login, menú,
+  pestaña del navegador, encabezados impresos y textos que genera la app.
+- **Wagyu Cross** es solo la marca comercial de la tienda (demo.wagyucross.com). Su nombre aparece
+  en la app únicamente cuando se habla de la tienda como destino o en datos de negocio (bodega
+  WC-01, empresa propietaria `WAGYU_CROSS`, productos Wagyu), nunca como identidad de la app.
+- Logo: todavía no hay logo de Hacienda Tempisque. Mientras tanto se usa el wordmark tipográfico
+  «Hacienda Tempisque» con el ícono `Beef` de lucide (login y menú). Cuando llegue el logo, va en
+  `public/` y reemplaza al ícono en `Login.jsx` y en el encabezado del menú de `App.jsx`.
 
 Todo vive en `src/index.css`. Las pantallas usan clases (`.btn`, `.card`, `.badge-green`…) y
 tokens (`var(--text)`); **no se escriben colores sueltos en las páginas**. Si hace falta un valor
@@ -29,7 +40,7 @@ nuevo, primero se agrega como token aquí y en `:root`.
 
 | Token | Valor | Uso |
 | --- | --- | --- |
-| `--marca` | `#b8184a` | Carmesí Wagyu Cross. Menú/pestaña activos, enlaces, foco, dato principal de gráficos. 6.3:1 sobre blanco. |
+| `--marca` | `#b8184a` | Carmesí de la marca. Menú/pestaña activos, enlaces, foco, dato principal de gráficos. 6.3:1 sobre blanco. |
 | `--marca-hover` / `--marca-suave` | `#94123b` / `#fbe9ef` | Hover del acento; selección de texto. |
 | `--acento` | `#161616` | Acción primaria (`.btn-primary`), avatar. Se llama «acento» por compatibilidad: lo usan muchas pantallas. |
 | `--bg` | `#f3f3f1` | Fondo de la app (gris neutro, no crema). |
