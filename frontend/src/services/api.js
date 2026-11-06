@@ -379,4 +379,8 @@ export const api = {
   getMarmoleoFechas: () => request('/marmoleo/fechas'),
   getMarmoleo: (fecha) => request(`/marmoleo${qs({ fecha })}`),
   guardarMarmoleo: (data) => request('/marmoleo', { method: 'PUT', body: JSON.stringify(data) }),
+  // Inventario semanal de la planta (snapshots; se cargan con el importador «inventario-ciisa»)
+  getInventarioPlantaCargas: () => request('/inventario-planta/cargas'),
+  getInventarioPlantaLineas: (params = {}) => request(`/inventario-planta/lineas${qs(params)}`),
+  getInventarioPlantaComparacion: (params = {}) => request(`/inventario-planta/comparacion${qs(params)}`),
 };

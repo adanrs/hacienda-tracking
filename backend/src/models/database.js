@@ -2,6 +2,7 @@ const mysql = require('mysql2/promise');
 const { migrarBaseIntegracion } = require('./nucleoV10');
 const { migrarImportaciones } = require('./importaciones');
 const { migrarProduccionCatalogo } = require('./produccionCatalogo');
+const { migrarInventarioPlanta } = require('./inventarioPlanta');
 const catalogoCortes = require('../lib/catalogoCortes');
 
 const pool = mysql.createPool({
@@ -839,6 +840,9 @@ async function initDB() {
     // ver models/produccionCatalogo.js. Después se carga el catálogo en memoria para el decodificador.
     await migrarProduccionCatalogo(conn);
     await catalogoCortes.recargar(conn);
+
+    // Snapshots del inventario semanal de la planta CIISA: ver models/inventarioPlanta.js.
+    await migrarInventarioPlanta(conn);
 
     console.log('Database tables initialized');
   } finally {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Routes, Route, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Beef, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Package, Snowflake, Clock, Boxes, FileOutput, FileInput, RotateCcw, Barcode, Utensils, BookOpen, Menu, X, FileSpreadsheet, ClipboardList, Gauge } from 'lucide-react';
+import { LayoutDashboard, Beef, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Package, Snowflake, Clock, Boxes, FileOutput, FileInput, RotateCcw, Barcode, Utensils, BookOpen, Menu, X, FileSpreadsheet, ClipboardList, Gauge, PackageSearch } from 'lucide-react';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { CowWalking } from './components/CowIcon';
 import { Avisos } from './components/ui/avisos';
@@ -34,6 +34,7 @@ import ImportarGanaderoSg from './pages/ImportarGanaderoSg';
 import ImportarSacrificio from './pages/ImportarSacrificio';
 import GuiasTransporte from './pages/GuiasTransporte';
 import Marmoleo from './pages/Marmoleo';
+import InventarioPlanta from './pages/InventarioPlanta';
 
 // Menú ordenado según el recorrido del producto: Finca → Planta → Bodega y despacho.
 const grupos = [
@@ -73,6 +74,8 @@ const grupos = [
     titulo: 'Bodega y despacho',
     items: [
       { to: '/bodegas', icon: Snowflake, label: 'Bodegas' },
+      // Snapshot semanal del Excel que manda la planta (bodega 107 / paquetería).
+      { to: '/inventario-planta', icon: PackageSearch, label: 'Inventario planta' },
       { to: '/ordenes-entrada', icon: FileInput, label: 'Órdenes de entrada' },
       { to: '/ordenes-salida', icon: FileOutput, label: 'Órdenes de salida' },
       { to: '/devoluciones', icon: RotateCcw, label: 'Devoluciones' },
@@ -249,6 +252,7 @@ function AppLayout() {
           <Route path="/paqueteria" element={<Paqueteria />} />
           <Route path="/devoluciones" element={<Devoluciones />} />
           <Route path="/bodegas" element={<Bodegas />} />
+          <Route path="/inventario-planta" element={<InventarioPlanta />} />
           <Route path="/catalogo-cortes" element={<CatalogoCortes />} />
           <Route path="/usuarios" element={<Usuarios />} />
         </Routes>
