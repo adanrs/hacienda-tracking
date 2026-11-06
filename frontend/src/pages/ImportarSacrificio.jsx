@@ -9,12 +9,15 @@ import { useAuth } from '../components/AuthContext';
 import VistaPrevia from '../components/importador/VistaPrevia';
 import ResumenPlan from '../components/importador/ResumenPlan';
 import useImportacion from '../components/importador/useImportacion';
+import LecturaFoto from '../components/importador/LecturaFoto';
 
 /*
   Sacrificio desde el correo de CIISA («Sacrificio Wagyu dd-mm-aa»). Dos entradas:
     (a) PEGAR la tabla (preferida): se lee el HTML del portapapeles (Outlook/Gmail/Excel lo ponen)
         y si no viene, el texto plano;
-    (b) SUBIR el correo .msg (Outlook) o .eml.
+    (b) SUBIR el correo .msg (Outlook) o .eml;
+    (c) CARGAR POR FOTO (celular): foto de la tabla del correo → texto en el cuadro de pegado →
+        «Leer lo pegado» → la misma vista previa (las filas dudosas van marcadas para revisar).
   La guía de transporte manda: los aretes se validan contra ella y los mal escritos se proponen
   como corrección editable. Al final queda el reporte de discrepancias para mandarle a la planta.
 */
@@ -30,6 +33,7 @@ export default function ImportarSacrificio() {
   const [guiaId, setGuiaId] = useState(params.get('guia') || '');
   const [guias, setGuias] = useState([]);
   const [correcciones, setCorrecciones] = useState({});
+  const [foto, setFoto] = useState(null); // { dudosas } si el texto salió de una foto
   const [reporteFinal, setReporteFinal] = useState(null); // el reporte sigue visible después de registrar
   const imp = useImportacion('sacrificio-ciisa');
   const { plan } = imp;
@@ -38,7 +42,7 @@ export default function ImportarSacrificio() {
   // La fecha del asunto llena el campo si el usuario no escribió otra.
   useEffect(() => { if (plan?.fecha_sacrificio && !fecha) setFecha(plan.fecha_sacrificio); }, [plan]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const opciones = (extra = {}) => ({ fecha_sacrificio: fecha || undefined, guia_id: guiaId || undefined, correcciones, ...extra });
+  const opciones = (extra = {}) => ({ fecha_sacrificio: fecha || undefined, guia_id: guiaId || undefined, correcciones, foto: foto || undefined, ...extra });
 
   const alPegar = (e) => {
     const html = e.clipboardData.getData('text/html');
@@ -46,8 +50,8 @@ export default function ImportarSacrificio() {
     if (html || texto) {
       e.preventDefault();
       setPegado({ html, texto });
-      setCorrecciones({}); setBorradores({});
-      imp.planificar({ pegado: { html, texto } }, opciones({ correcciones: {} }));
+      setCorrecciones({}); setBorradores({}); setFoto(null);
+      imp.planificar({ pegado: { html, texto } }, opciones({ correcciones: {}, foto: undefined }));
     }
   };
 
@@ -61,8 +65,8 @@ export default function ImportarSacrificio() {
     e.target.value = '';
     if (!a) return;
     if (a.size > 5 * 1024 * 1024) { aviso.error('El archivo pesa más de 5 MB'); return; }
-    setCorrecciones({}); setBorradores({});
-    await imp.planificar({ archivo: a }, opciones({ correcciones: {} }));
+    setCorrecciones({}); setBorradores({}); setFoto(null);
+    await imp.planificar({ archivo: a }, opciones({ correcciones: {}, foto: undefined }));
   };
 
   // Un arete mal escrito por la planta nunca se liga solo: el usuario confirma (o escribe) el correcto
@@ -159,10 +163,16 @@ export default function ImportarSacrificio() {
             placeholder="Pegue aquí (Ctrl+V) la tabla «Cantidad · Número de canal · Sexo · Peso pie · Peso canal · Rendimiento · Arete · Músculo · Dientes · Grasa · Golpe»"
             value={pegado.texto}
             onPaste={alPegar}
-            onChange={e => setPegado({ html: '', texto: e.target.value })}
+            onChange={e => { setPegado({ html: '', texto: e.target.value }); if (!e.target.value.trim()) setFoto(null); }}
             disabled={!canEdit}
           />
-          <Boton icono={RefreshCw} onClick={leerPegado} cargando={imp.cargando} disabled={!canEdit}>Leer lo pegado</Boton>
+          <div className="rp-acciones">
+            <Boton icono={RefreshCw} onClick={leerPegado} cargando={imp.cargando} disabled={!canEdit}>Leer lo pegado</Boton>
+            {/* Foto de la tabla del correo (una por página): el texto queda en el cuadro de arriba para
+                revisarlo y de ahí va a la misma vista previa. Nunca se registra directo. */}
+            <LecturaFoto formato="sacrificio-ciisa" deshabilitado={!canEdit}
+              onTexto={(t, dudas) => { setPegado({ html: '', texto: t }); setFoto({ dudosas: dudas }); setCorrecciones({}); setBorradores({}); }} />
+          </div>
         </div>
         <div className="card">
           <h3 className="rp-subtitulo"><Mail size={20} aria-hidden="true" /> O subir el correo</h3>

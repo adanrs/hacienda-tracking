@@ -16,6 +16,7 @@
 const { marcas, num, iguales, fmtFechaSql, fechaTexto } = require('../comun');
 const { normalizarArete, normalizarEncabezado } = require('../texto');
 const { numeroDiario } = require('../../consecutivos');
+const { esFoto } = require('../foto');
 
 // Códigos de raza de Ganadero SG que se reconocen (WAG/50-BRA/37-CEB/12). Otro código no
 // bloquea: queda como aviso para confirmarlo con el dueño y agregarlo aquí.
@@ -83,6 +84,21 @@ async function cargarAnimales(conn, numeros, ies) {
   return rows.map(r => ({ ...r, peso_actual: num(r.peso_actual), numero_norm: normalizarArete(r.numero_trazabilidad) }));
 }
 
+/**
+ * Solo con texto leído por FOTO: la I.E. del hato tiene 23 caracteres («A0020000188000001057859»:
+ * así vienen las 9 del reporte real de Ganadero SG en test/fixtures y las del reporte del 15-oct) y
+ * el modelo de visión a veces se come un cero. Probado con la foto real del reporte: leyó las CINCO
+ * I.E. con 22 caracteres, todas iguales entre sí, así que comparar contra la mayoría no alcanza.
+ * Una I.E. que no tenga 23 caracteres va con aviso para revisarla contra el papel. Con archivo o
+ * pegado no aplica: ahí el dato viene tal cual del sistema.
+ */
+const LARGO_IE_HATO = 23;
+function revisarIEFoto(filas) {
+  for (const f of filas) {
+    if (f.v.ie && f.v.ie.length !== LARGO_IE_HATO) f.avisos.push(`I.E. «${f.v.ie}» tiene ${f.v.ie.length} caracteres (las del hato tienen ${LARGO_IE_HATO}): puede estar mal leída de la foto`);
+  }
+}
+
 async function planificar(conn, tabla, opciones = {}) {
   const crearGuias = opciones.crear_guias !== false;
   const meta = tabla.metadatos || {};
@@ -103,6 +119,7 @@ async function planificar(conn, tabla, opciones = {}) {
       else vistosIE.set(f.v.ie, f.fila);
     }
   }
+  if (esFoto(opciones)) revisarIEFoto(filas);
 
   // 2. Lo que ya existe en la base, en pocas consultas.
   const numeros = [...vistosNumero.keys()];
@@ -448,4 +465,4 @@ async function aplicar(conn, plan, { importacionId, usuarioId, registrar }) {
   return { resumen: { ...res, guias: res.guias.length }, guias: res.guias };
 }
 
-module.exports = { planificar, aplicar, revisarRaza, RAZAS };
+module.exports = { planificar, aplicar, revisarRaza, revisarIEFoto, RAZAS };
