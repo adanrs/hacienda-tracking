@@ -826,3 +826,31 @@ tr.rp-fila-falta > td { background: var(--alerta-suave); }
 @media (max-width: 820px) {
   .sd-select, .sd-input-canal, .sd-input-obs, .sd-input-enviada { min-height: var(--toque-min); }
 }
+
+/* Importador masivo (components/importador, ImportarGanaderoSg, ImportarSacrificio) ---------- */
+.imp-resumen { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--esp-3); margin: var(--esp-4) 0; }
+.imp-dato { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--esp-3); background: var(--bg-card); }
+.imp-dato dt { font-size: var(--texto-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-secondary); }
+.imp-dato dd { margin: 4px 0 0; font-size: var(--texto-lg); font-weight: 700; font-variant-numeric: tabular-nums; }
+.imp-dato.imp-ok dd { color: var(--ok-fuerte); }
+.imp-dato.imp-info dd { color: var(--info); }
+.imp-dato.imp-error { border-color: #f1c0bb; background: var(--error-suave); }
+.imp-dato.imp-error dd { color: var(--error-fuerte); }
+.imp-dato.imp-alerta { background: var(--alerta-suave); }
+.imp-detalle { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--esp-3); font-size: var(--texto-sm); }
+.imp-detalle ul { margin: 4px 0 0 18px; padding: 0; }
+.imp-guias { margin: var(--esp-4) 0; }
+.imp-guias h4 { display: flex; align-items: center; gap: var(--esp-2); margin: 0 0 var(--esp-2); }
+.imp-guia { border: 1px solid var(--border); border-left: 4px solid var(--acento, #2f6b3b); border-radius: var(--radius); padding: var(--esp-3); margin-bottom: var(--esp-2); display: grid; gap: 4px; }
+.imp-pegado { width: 100%; min-height: 120px; font-family: ui-monospace, Consolas, monospace; font-size: var(--texto-sm); padding: 8px; border: 1px solid var(--border-fuerte); border-radius: var(--radius); background: var(--bg-card); color: var(--text); margin-bottom: var(--esp-3); }
+.imp-input-arete { width: 9ch; min-height: 32px; padding: 2px 6px; font: inherit; font-weight: 700; text-transform: uppercase; border: 2px solid var(--alerta-borde, #d9a400); border-radius: var(--radius); }
+.guia-encabezado { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--esp-3); margin-bottom: var(--esp-4); }
+.guia-firmas { display: none; }
+@media print {
+  .no-print, .migas, .btn, .btn-icon { display: none !important; }
+  .guia-impresion { box-shadow: none; border: 0; padding: 0; }
+  .guia-impresion table { font-size: 9pt; }
+  .guia-firmas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; margin-top: 56px; text-align: center; }
+  .guia-firmas div { border-top: 1px solid #000; padding-top: 4px; }
+}
+.imp-correccion { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }

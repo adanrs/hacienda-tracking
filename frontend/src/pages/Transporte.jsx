@@ -51,7 +51,10 @@ export default function Transporte() {
     <div>
       <div className="page-header">
         <h2>Transporte</h2>
-        <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nuevo Transporte</button>
+        <div className="rp-acciones">
+          <Link to="/guias-transporte" className="btn btn-secondary"><Truck size={16} aria-hidden="true" /> Guías de transporte</Link>
+          <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nuevo Transporte</button>
+        </div>
       </div>
 
       <div className="card">
