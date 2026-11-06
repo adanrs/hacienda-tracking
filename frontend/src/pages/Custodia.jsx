@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Send, Clock, Plus } from 'lucide-react';
 import { api } from '../services/api';
+import { soloLegacy } from '../services/bodegas';
 import { aviso } from '../components/ui/avisos';
 import Escaner from '../components/ui/Escaner';
 import { FilaEstado } from '../components/ui/Estados';
@@ -42,7 +43,8 @@ export default function Custodia() {
 
   useEffect(() => { load(); }, [filterBodega]);
   useEffect(() => {
-    api.getBodegas().then(setBodegas).catch(aviso.errorCarga('las bodegas'));
+    // Sin las bodegas v10 (12, 107, WC-01): su inventario va por etiqueta (services/bodegas.js).
+    api.getBodegas().then(bs => setBodegas(soloLegacy(bs))).catch(aviso.errorCarga('las bodegas'));
     api.getPrimales({ estado: 'en_deshuese' }).then(setPrimalesDisponibles).catch(aviso.errorCarga('los primales disponibles'));
   }, []);
 

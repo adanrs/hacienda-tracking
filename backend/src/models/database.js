@@ -1,4 +1,5 @@
 const mysql = require('mysql2/promise');
+const { migrarBaseIntegracion } = require('./nucleoV10');
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'mysql',
@@ -822,6 +823,11 @@ async function initDB() {
         FOREIGN KEY (solicitud_canal_id) REFERENCES solicitud_canales(id) ON DELETE CASCADE
       ) COMMENT='Matriz corte × canal de la solicitud de deshuese'
     `);
+
+    // ── Base de la integración con la tienda (núcleo v10, fase 1) ────────────────────────
+    // Va al final porque depende de usuarios, bodegas, animales, catalogo_cortes, primales y
+    // ordenes_salida. Definiciones completas de propuesta.sql: ver la cabecera de nucleoV10.js.
+    await migrarBaseIntegracion(conn);
 
     console.log('Database tables initialized');
   } finally {

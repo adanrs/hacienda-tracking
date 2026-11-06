@@ -15,3 +15,6 @@ dist/
 node_modules/
 Thumbs.db
 uploads/
+
+# Credenciales reales: nunca al repo (plantilla en CREDENCIALES.example.md)
+CREDENCIALES.md

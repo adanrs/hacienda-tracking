@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, Send, FileOutput, CircleX } from 'lucide-react';
 import { api } from '../services/api';
+import { soloLegacy, esBodegaV10, esWc01 } from '../services/bodegas';
 import { confirmar } from '../components/ui/confirmar';
 import { aviso } from '../components/ui/avisos';
 import Escaner from '../components/ui/Escaner';
@@ -79,9 +80,14 @@ export default function OrdenesSalida() {
     try { const r = await api.getOrdenSalida(id); setShowView(r); } catch (err) { aviso.error(err.message); }
   };
 
+  // Mientras corre un despacho el botón queda deshabilitado: un doble clic mandaba dos POST (el
+  // backend ya responde 409 al segundo, pero así el usuario no ve un error de más).
+  const [despachando, setDespachando] = useState(null);
   const despachar = async (id) => {
+    if (despachando) return;
     if (!(await confirmar({ titulo: '¿Despachar esta orden?', mensaje: 'Los ítems saldrán del inventario de la bodega.', textoConfirmar: 'Despachar' }))) return;
-    try { await api.despacharOrden(id); aviso.ok('Orden despachada'); load(); } catch (err) { aviso.error(err.message); }
+    setDespachando(id);
+    try { await api.despacharOrden(id); aviso.ok('Orden despachada'); load(); } catch (err) { aviso.error(err.message); } finally { setDespachando(null); }
   };
 
   const cancelar = async (id) => {
@@ -125,7 +131,7 @@ export default function OrdenesSalida() {
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button type="button" className="btn-icon" onClick={() => ver(o.id)} title="Ver detalle" aria-label={`Ver detalle de la orden ${o.numero || o.id}`}><FileOutput size={18} aria-hidden="true" /></button>
                       {o.estado !== 'despachada' && o.estado !== 'cancelada' && (
-                        <button type="button" className="btn-icon ok" onClick={() => despachar(o.id)} title="Despachar" aria-label={`Despachar la orden ${o.numero || o.id}`}><Send size={18} aria-hidden="true" /></button>
+                        <button type="button" className="btn-icon ok" onClick={() => despachar(o.id)} disabled={despachando !== null} aria-busy={despachando === o.id} title="Despachar" aria-label={`Despachar la orden ${o.numero || o.id}`}><Send size={18} aria-hidden="true" /></button>
                       )}
                       {o.estado !== 'despachada' && o.estado !== 'cancelada' && (
                         <button type="button" className="btn-icon peligro" onClick={() => cancelar(o.id)} title="Anular" aria-label={`Anular la orden ${o.numero || o.id}`}><CircleX size={18} aria-hidden="true" /></button>
@@ -176,7 +182,18 @@ export default function OrdenesSalida() {
                   <label htmlFor="os-bodega">Bodega de origen</label>
                   <select id="os-bodega" value={form.bodega_origen_id || ''} onChange={e => setForm({ ...form, bodega_origen_id: e.target.value })}>
                     <option value="">Seleccionar…</option>
-                    {bodegas.map(b => <option key={b.id} value={b.id}>{b.codigo} - {b.nombre}</option>)}
+                    {/* Origen: solo bodegas del flujo viejo (las v10 van por etiqueta). */}
+                    {soloLegacy(bodegas).filter(b => String(b.id) !== String(form.bodega_destino_id || '')).map(b => <option key={b.id} value={b.id}>{b.codigo} - {b.nombre}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="os-bodega-destino">Bodega de destino</label>
+                  {/* WC-01 = traslado a la tienda: al despacharse, la tienda la ve en su consulta de traslados. */}
+                  <select id="os-bodega-destino" value={form.bodega_destino_id || ''} onChange={e => setForm({ ...form, bodega_destino_id: e.target.value })}>
+                    <option value="">Sin bodega (destino externo)</option>
+                    {bodegas.filter(b => (!esBodegaV10(b) || esWc01(b)) && String(b.id) !== String(form.bodega_origen_id || '')).map(b => <option key={b.id} value={b.id}>{b.codigo} - {b.nombre}</option>)}
                   </select>
                 </div>
               </div>
@@ -250,6 +267,7 @@ export default function OrdenesSalida() {
               <div><strong>Solicitante:</strong> {showView.solicitante || '-'}</div>
               <div><strong>Destino:</strong> {showView.destino || '-'}</div>
               <div><strong>Bodega:</strong> {showView.bodega_codigo || '-'}</div>
+              <div><strong>Bodega destino:</strong> {showView.bodega_destino_codigo || '-'}</div>
             </div>
             <h4 style={{ marginBottom: 8 }}>Items</h4>
             <div className="table-container">

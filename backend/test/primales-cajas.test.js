@@ -1,3 +1,5 @@
+// auth.js ya no arranca sin JWT_SECRET (sin valor por omisión): las pruebas usan uno propio.
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'secreto-solo-para-pruebas-0123456789abcdef';
 // Candado de deshuese cerrado en primales (POST, PUT, DELETE) y estados de caja que solo
 // se fijan por su flujo propio. Express + JWT reales con pool falso que registra el SQL.
 const test = require('node:test');

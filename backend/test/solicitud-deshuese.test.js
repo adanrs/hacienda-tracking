@@ -1,3 +1,5 @@
+// auth.js ya no arranca sin JWT_SECRET (sin valor por omisión): las pruebas usan uno propio.
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'secreto-solo-para-pruebas-0123456789abcdef';
 // Solicitud de deshuese: validación pura (medias solo 0/1/2, n.º de canal), peso estimado,
 // filtro de cortes, Excel con el acomodo de la hoja, y rutas con Express + JWT reales sobre un
 // pool falso que registra el SQL (permisos del viewer, 400/409 y que todo valor vaya por `?`).

@@ -269,3 +269,25 @@ Los productos de paquetería que mezclan aretes (carne molida, chorizo) se regis
 | A14 | Número de intentos fallidos y duración del bloqueo de PIN. | WC | Política de seguridad. |
 | A15 | **Fecha del paquete ≠ fecha del deshuese** (etiqueta real 12-oct: código 23/11/24, lote legible 22/11/24). La caja lleva la fecha del deshuese y el paquete la de producción. ¿Cómo se valida «paquete corresponde a la caja» (invariante 3)? | CIISA | Comparar fecha literal puede rechazar paquetes buenos; ver `docs/etiquetas-ciisa/etiquetas-reales-2026-10-12.md` §2.2. |
 | A16 | **Paquete FB con contenido racial F1** (26338 «FB NEW YORK STEAK», código `…F111`): ¿error de impresión de CIISA o el campo no es el cruce del animal? | CIISA | Decide si `genetica_cruzada` bloquea o solo alerta. |
+
+## 11. Ajustes por la integración con la tienda (05-nov-2026)
+
+La integración con la tienda (`docs/integracion-tienda/README.md`) adelanta una parte del núcleo. `backend/src/models/nucleoV10.js` la crea con la definición completa de `propuesta.sql`, y `test/nucleo-v10-esquema.test.js` comprueba que las dos coincidan.
+
+**Implementado en la fase 1** (ya reflejado en `propuesta.sql`):
+
+- Bodegas v10: las columnas de §1.2 y las filas `12`, `107` y `WC-01`. Las `BOD-*` no se tocan y `es_legacy` se marca en el corte.
+- Tablas `consecutivos`, `formatos_etiqueta`, `etiquetas` y `movimientos_etiqueta` (con sus triggers, ver `backend/migraciones/` si falta SUPER).
+- `etiquetas.copia SMALLINT NOT NULL DEFAULT 1`, con `UNIQUE (codigo_crudo, copia)` en lugar de `UNIQUE (codigo_crudo)`. Dos paquetes pueden traer la misma etiqueta legítimamente (mismo arete, artículo, fecha, lote y gramos). Es el mismo criterio que `reporte_produccion_escaneos`, y la tienda usa la misma llave.
+- `etiquetas.tienda_pieza_id VARCHAR(64) NULL` (+ índice): el id de la pieza en la tienda, solo como referencia. Nunca se cruza por id.
+- `movimientos_etiqueta.documento_tipo` suma `integracion_tienda` (documento = `integracion_eventos.id`) y `planta` (venta del canal planta).
+- FK diferidas: `fk_etq_lote`, `fk_etq_dat_pendiente` y `fk_me_aut` se agregan solas cuando existan `lotes_deshuese`, `dat` y `log_autorizaciones`. Por eso, si después se corre `propuesta.sql` completo, `etiquetas` y `movimientos_etiqueta` ya existen y quedan como están.
+- Tabla propia de la integración (no es v10): `integracion_eventos`.
+- `ordenes_salida.bodega_destino_id` y `ordenes_salida.despachada_en`, para que la tienda consulte lo despachado hacia WC-01 mientras no existan las `ordenes_traslado`.
+
+**Pendiente para la fase 2** (todavía no aplicado):
+
+- `ordenes_traslado.bodega_origen_id` deja de ser «siempre 107»: puede ser cualquier bodega de origen.
+- `ordenes_traslado_lineas` admite una línea esperada por artículo sin caja escaneada: columnas `codigo_articulo`, `cajas_esperadas` y `kg_esperado`, y `etiqueta_caja_id` pasa a NULL.
+- `ordenes_despacho.tipo_destino` suma `integracion_tienda` y `planta`.
+- `bodegas.codigo_enlace`, si `cuenta_inventario_wc` no alcanza para la exportación a Enlace (etapa 2).

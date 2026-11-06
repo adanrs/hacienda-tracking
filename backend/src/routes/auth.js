@@ -19,6 +19,9 @@ router.post('/login', async (req, res) => {
     const user = users[0];
 
     if (!bcrypt.compareSync(password, user.password)) return res.status(401).json({ error: 'Credenciales invalidas' });
+    // Los usuarios de servicio (integracion.tienda) solo existen para firmar movimientos de la
+    // integración: nunca reciben un JWT, aunque alguien les ponga contraseña.
+    if (user.rol === 'servicio') return res.status(401).json({ error: 'Credenciales invalidas' });
 
     const token = jwt.sign({ id: user.id, username: user.username, nombre: user.nombre, rol: user.rol }, JWT_SECRET, { expiresIn: '24h' });
     res.json({ token, user: { id: user.id, username: user.username, nombre: user.nombre, email: user.email, rol: user.rol } });
@@ -77,6 +80,12 @@ router.post('/usuarios', authMiddleware, requireRole('admin'), async (req, res) 
 router.put('/usuarios/:id', authMiddleware, requireRole('admin'), async (req, res) => {
   // Columnas fijas en el código (no salen de las claves del body); password va con hash.
   const { nombre, email, rol, activo, password } = req.body;
+  // El usuario de servicio no se edita desde la app: cambiarle el rol o la contraseña lo
+  // convertiría en una cuenta con sesión, y desactivarlo apagaría la integración sin aviso.
+  try {
+    const [objetivo] = await pool.query('SELECT rol FROM usuarios WHERE id = ?', [req.params.id]);
+    if (objetivo.length && objetivo[0].rol === 'servicio') return res.status(400).json({ error: 'Los usuarios de servicio no se editan desde la app' });
+  } catch (err) { return res.status(500).json({ error: err.message }); }
   if (rol !== undefined && !ROLES.includes(rol)) return res.status(400).json({ error: `rol inválido: debe ser ${ROLES.join(', ')}` });
   if (password !== undefined && password !== '' && String(password).length < 6) {
     return res.status(400).json({ error: 'La password debe tener al menos 6 caracteres' });
@@ -98,6 +107,10 @@ router.put('/usuarios/:id', authMiddleware, requireRole('admin'), async (req, re
 router.delete('/usuarios/:id', authMiddleware, requireRole('admin'), async (req, res) => {
   if (parseInt(req.params.id) === req.user.id) return res.status(400).json({ error: 'No puedes eliminarte a ti mismo' });
   try {
+    // Borrar el usuario de servicio apagaría la integración con la tienda y dejaría huérfanos
+    // los movimientos que firmó (movimientos_etiqueta.usuario_id).
+    const [objetivo] = await pool.query('SELECT rol FROM usuarios WHERE id = ?', [req.params.id]);
+    if (objetivo.length && objetivo[0].rol === 'servicio') return res.status(400).json({ error: 'Los usuarios de servicio no se eliminan desde la app' });
     const [result] = await pool.query('DELETE FROM usuarios WHERE id = ?', [req.params.id]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
     res.json({ message: 'Usuario eliminado' });

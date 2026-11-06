@@ -3,7 +3,8 @@ const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
 const { initDB } = require('./models/database');
-const { authMiddleware, soloLecturaViewer } = require('./middleware/auth');
+const crypto = require('crypto');
+const { authMiddleware, soloLecturaViewer, JWT_SECRET } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 8001;
@@ -13,6 +14,10 @@ app.use(cors({
   credentials: true,
 }));
 app.use(morgan('dev'));
+// Integración con la tienda (servicio a servicio, HMAC, sin JWT). Va ANTES de express.json():
+// la firma se verifica sobre el cuerpo crudo y el parser global consumiría el stream.
+// Rechaza con 404 lo que llegue por Cloudflare (ver middleware/firmaServicio.js).
+app.use('/api/integracion/tienda', require('./routes/integracion-tienda'));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
@@ -27,7 +32,10 @@ app.get('/api/health', (req, res) => {
 // Seed endpoint (protected by secret, for initial setup)
 app.post('/api/seed', async (req, res) => {
   const secret = req.headers['x-seed-secret'];
-  if (secret !== (process.env.JWT_SECRET || 'dev-seed')) {
+  // Comparación en tiempo constante contra JWT_SECRET (obligatorio: auth.js no arranca sin él).
+  const a = Buffer.from(String(secret || ''));
+  const b = Buffer.from(JWT_SECRET);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
     return res.status(403).json({ error: 'Forbidden' });
   }
   try {

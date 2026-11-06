@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { pool } = require('../models/database');
+const { errorSiV10 } = require('../lib/bodegasV10');
 
 const primalSelect = `
   SELECT p.*,
@@ -29,6 +30,11 @@ router.post('/recibir', async (req, res) => {
   if (!primal_id || !bodega_destino_id) {
     return res.status(400).json({ error: 'primal_id y bodega_destino_id son requeridos' });
   }
+  try {
+    // Las bodegas v10 (12, 107, WC-01) llevan su inventario por etiqueta (lib/bodegasV10.js).
+    const errBodega = await errorSiV10(pool, [bodega_destino_id], 'bodega de destino');
+    if (errBodega) return res.status(400).json({ error: errBodega });
+  } catch (err) { return res.status(500).json({ error: err.message }); }
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
@@ -67,6 +73,10 @@ router.post('/mover', async (req, res) => {
   if (!primal_id || !bodega_destino_id || !tipo) {
     return res.status(400).json({ error: 'primal_id, bodega_destino_id y tipo son requeridos' });
   }
+  try {
+    const errBodega = await errorSiV10(pool, [bodega_destino_id], 'bodega de destino');
+    if (errBodega) return res.status(400).json({ error: errBodega });
+  } catch (err) { return res.status(500).json({ error: err.message }); }
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
