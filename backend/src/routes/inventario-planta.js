@@ -72,7 +72,10 @@ router.get('/lineas', envolver(async (req, res) => {
     `SELECT l.id, l.hoja, l.fila, l.tarima, l.linea, l.codigo_barras, l.codigo, l.descripcion, l.caja, l.peso, l.medida, l.lote,
             DATE_FORMAT(l.fecha_vencimiento, '%Y-%m-%d') AS fecha_vencimiento, l.vencido, l.despacho,
             DATE_FORMAT(l.fecha_despacho, '%Y-%m-%d') AS fecha_despacho, l.pedido_por, l.orden, l.estatus,
-            l.trazabilidad, l.arete, l.animal_id, l.reporte_id, l.bms
+            l.trazabilidad, l.arete, l.animal_id, l.reporte_id, l.bms,
+            -- Traslado vivo (no anulado) que ya pidió esta caja: la pantalla no la deja marcar otra vez.
+            (SELECT o.numero FROM ordenes_salida_items i JOIN ordenes_salida o ON o.id = i.orden_id
+              WHERE i.inventario_linea_id = l.id AND o.estado <> 'cancelada' ORDER BY o.id DESC LIMIT 1) AS traslado_numero
      FROM inventario_planta_lineas l WHERE ${where.join(' AND ')}
      ORDER BY l.hoja, CAST(l.tarima AS UNSIGNED), l.tarima, l.fila LIMIT ${MAX_LINEAS + 1}`, params);
   const truncado = lineas.length > MAX_LINEAS;

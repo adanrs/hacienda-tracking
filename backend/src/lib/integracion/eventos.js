@@ -109,6 +109,9 @@ const VALIDADORES = {
     d.cajas.forEach((c, i) => {
       if (!esObjeto(c)) return;
       if (c.kg_etiqueta !== undefined && !esNumero(c.kg_etiqueta)) errores.push(`datos.cajas[${i}].kg_etiqueta debe ser un número`);
+      // Peso que midió la tienda al recibir (opcional): cuando no cuadra con la etiqueta va además
+      // una diferencia peso_no_cuadra con su acción y motivo.
+      if (c.kg_recibido !== undefined && c.kg_recibido !== null && !(esNumero(c.kg_recibido) && c.kg_recibido >= 0)) errores.push(`datos.cajas[${i}].kg_recibido debe ser un número ≥ 0`);
       paquetes.push(...validarPiezas(c.paquetes ?? [], `datos.cajas[${i}].paquetes`, errores, { kgObligatorio: true, permitirVacia: true }));
     });
     // Un paquete repetido entre cajas distintas también es un error del evento.

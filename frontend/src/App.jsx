@@ -35,6 +35,7 @@ import ImportarSacrificio from './pages/ImportarSacrificio';
 import GuiasTransporte from './pages/GuiasTransporte';
 import Marmoleo from './pages/Marmoleo';
 import InventarioPlanta from './pages/InventarioPlanta';
+import TrasladosTienda from './pages/TrasladosTienda';
 
 // Menú ordenado según el recorrido del producto: Finca → Planta → Bodega y despacho.
 const grupos = [
@@ -76,6 +77,7 @@ const grupos = [
       { to: '/bodegas', icon: Snowflake, label: 'Bodegas' },
       // Snapshot semanal del Excel que manda la planta (bodega 107 / paquetería).
       { to: '/inventario-planta', icon: PackageSearch, label: 'Inventario planta' },
+      { to: '/traslados-tienda', icon: Truck, label: 'Traslados a la tienda' },
       { to: '/ordenes-entrada', icon: FileInput, label: 'Órdenes de entrada' },
       { to: '/ordenes-salida', icon: FileOutput, label: 'Órdenes de salida' },
       { to: '/devoluciones', icon: RotateCcw, label: 'Devoluciones' },
@@ -260,6 +262,8 @@ function AppLayout() {
           <Route path="/devoluciones" element={<Devoluciones />} />
           <Route path="/bodegas" element={<Bodegas />} />
           <Route path="/inventario-planta" element={<InventarioPlanta />} />
+          <Route path="/traslados-tienda" element={<TrasladosTienda />} />
+          <Route path="/traslados-tienda/:id" element={<TrasladosTienda />} />
           <Route path="/catalogo-cortes" element={<CatalogoCortes />} />
           <Route path="/usuarios" element={<Usuarios />} />
         </Routes>

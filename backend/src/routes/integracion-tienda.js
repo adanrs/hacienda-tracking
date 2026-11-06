@@ -4,10 +4,12 @@
 // La tienda es el único cliente: empuja eventos (POST /eventos) y consulta lo que ganadería
 // despachó hacia WC-01 (GET /despachos). Todo pasa por firmaServicio (HMAC, sin JWT).
 //
-// Fase 1 (este archivo): ningún endpoint mueve inventario. POST /eventos en modo «sombra» valida,
-// revisa las etiquetas contra lo que ganadería conoce (solo lectura), registra el evento en
-// integracion_eventos y responde. En modo «encendido» responde 503 hasta que existan los
-// procesadores (fases 2-3): así ningún evento queda «registrado» como si se hubiera aplicado.
+// POST /eventos en modo «sombra» valida, revisa las etiquetas contra lo que ganadería conoce (solo
+// lectura), registra el evento en integracion_eventos y responde.
+// Desde el 06-nov-2026 (traslados planta → tienda) hay procesador para traslado.recibido
+// (lib/integracion/procesadorTraslado.js): en «encendido» se aplica; en «pruebas» se aplica solo si
+// la orden es de PRUEBA. Los demás tipos siguen: en «encendido» 503 hasta su fase (así ningún evento
+// queda «registrado» como si se hubiera aplicado) y en «pruebas» se registran como en sombra.
 
 const express = require('express');
 const { pool } = require('../models/database');
@@ -16,6 +18,10 @@ const { crearFirmaServicio } = require('../middleware/firmaServicio');
 const { sha256hex } = require('../lib/integracion/firma');
 const { validarSobre } = require('../lib/integracion/eventos');
 const { decodificar, normalizar } = require('../lib/etiquetas');
+const { aplicarTrasladoRecibido, ErrorEvento } = require('../lib/integracion/procesadorTraslado');
+
+// Tipos con procesador: en «encendido» y «pruebas» se aplican en la misma transacción que el registro.
+const PROCESADORES = { 'traslado.recibido': aplicarTrasladoRecibido };
 
 const VERSION_CONTRATO = '1';
 const LIMITE_POR_OMISION = 50;
@@ -84,6 +90,29 @@ function etiquetaDeSticker(s) {
   };
 }
 
+/** Línea de una caja CIISA de la planta tal como la ve la tienda: código + lectura de la caja. */
+function lineaCajaCiisa(it) {
+  const codigo = normalizar(it.codigo_barras);
+  const dec = decodificar(codigo);
+  const ok = dec.tipo === 'caja' && dec.errores.length === 0;
+  const c = dec.campos || {};
+  return {
+    tipo: 'caja',
+    formato: ok ? 'ciisa_caja' : 'otro',
+    codigo,
+    copia: 1,
+    descripcion: it.item_descripcion,
+    cantidad: 1,
+    kg: it.peso_kg !== null ? Number(it.peso_kg) : (ok ? c.pesoKg : null),
+    codigo_articulo: it.codigo_articulo || (ok ? c.codigoProducto : null),
+    lote: it.lote || (ok ? c.loteTexto || null : null),
+    fecha: ok ? c.fecha || null : null,
+    bms: it.bms !== null && it.bms !== undefined ? Number(it.bms) : (ok ? c.marmoleo ?? null : null),
+    arete: it.arete || null,
+    etiquetas: [],
+  };
+}
+
 router.get('/despachos', async (req, res) => {
   let limite = LIMITE_POR_OMISION;
   if (req.query.limite !== undefined) {
@@ -103,7 +132,7 @@ router.get('/despachos', async (req, res) => {
     if (!wc.length) return res.status(503).json({ error: 'No existe la bodega WC-01' });
 
     const [ordenes] = await pool.query(`
-      SELECT o.id, o.numero, o.fecha, o.destino, o.notas, o.despachada_en,
+      SELECT o.id, o.numero, o.fecha, o.destino, o.notas, o.despachada_en, o.es_prueba,
              DATE_FORMAT(o.despachada_en, '%Y-%m-%d %H:%i:%s.%f') AS despachada_txt,
              bo.codigo AS origen_codigo, bo.nombre AS origen_nombre, bo.codigo_ciisa AS origen_codigo_ciisa
       FROM ordenes_salida o
@@ -112,6 +141,7 @@ router.get('/despachos', async (req, res) => {
         AND o.bodega_destino_id = ?
         AND o.despachada_en IS NOT NULL
         AND o.despachada_en <= NOW(3) - INTERVAL ${ASENTAMIENTO_SEGUNDOS} SECOND
+        ${req.integracion.modo === 'pruebas' ? 'AND o.es_prueba = 1' : ''}
         AND (o.despachada_en > (CAST(? AS DATETIME(6)) - INTERVAL ? SECOND)
              OR (o.despachada_en = (CAST(? AS DATETIME(6)) - INTERVAL ? SECOND) AND o.id > ?))
       ORDER BY o.despachada_en, o.id
@@ -127,6 +157,7 @@ router.get('/despachos', async (req, res) => {
     if (ids.length) {
       [items] = await pool.query(`
         SELECT i.id, i.orden_id, i.caja_id, i.primal_id, i.cantidad, i.peso_kg,
+               i.codigo_barras, i.codigo_articulo, i.descripcion AS item_descripcion, i.lote, i.bms, i.arete,
                c.codigo AS caja_codigo, c.tipo_corte AS caja_tipo_corte, c.peso_total_kg AS caja_peso_kg,
                pr.codigo AS primal_codigo, pr.tipo_primal, pr.peso_kg AS primal_peso_kg
         FROM ordenes_salida_items i
@@ -154,6 +185,12 @@ router.get('/despachos', async (req, res) => {
     const itemsPorOrden = new Map();
     for (const it of items) {
       if (!itemsPorOrden.has(it.orden_id)) itemsPorOrden.set(it.orden_id, []);
+      if (it.codigo_barras) {
+        // Caja del inventario de la planta (traslado 107 → WC-01, routes/traslados-tienda.js): la
+        // tienda la recibe por su código CIISA de 25, sin abrirla (JC, 06-nov-2026).
+        itemsPorOrden.get(it.orden_id).push(lineaCajaCiisa(it));
+        continue;
+      }
       const esCaja = Boolean(it.caja_id);
       itemsPorOrden.get(it.orden_id).push({
         tipo: esCaja ? 'caja' : 'primal',
@@ -169,6 +206,7 @@ router.get('/despachos', async (req, res) => {
     const despachos = pagina.map(o => ({
       numero: o.numero,
       estado: 'en_transito',
+      prueba: Boolean(o.es_prueba),
       origen: { codigo: o.origen_codigo, nombre: o.origen_nombre, codigo_ciisa: o.origen_codigo_ciisa },
       destino: { codigo: 'WC-01', texto: o.destino },
       fecha: o.fecha,
@@ -236,10 +274,10 @@ async function revisarPiezas(tipo, info) {
 }
 
 async function eventoGuardado(clave) {
-  const [r] = await pool.query('SELECT hash_cuerpo, resultado FROM integracion_eventos WHERE clave = ? LIMIT 1', [clave]);
+  const [r] = await pool.query('SELECT hash_cuerpo, resultado, estado FROM integracion_eventos WHERE clave = ? LIMIT 1', [clave]);
   if (!r.length) return null;
   const resultado = typeof r[0].resultado === 'string' ? JSON.parse(r[0].resultado) : r[0].resultado;
-  return { hash: r[0].hash_cuerpo, resultado };
+  return { hash: r[0].hash_cuerpo, resultado, estado: r[0].estado || 'registrado' };
 }
 
 function responderGuardado(res, guardado, hash, clave) {
@@ -266,36 +304,62 @@ router.post('/eventos', async (req, res) => {
   }
 
   const { modo } = req.integracion;
-  if (modo !== 'sombra') {
-    // encendido sin procesadores: 503 (también para claves ya vistas en sombra) para que la
-    // tienda reintente cuando existan, en vez de dar por aplicado algo que solo se validó.
+  const procesador = modo === 'sombra' ? null : PROCESADORES[v.tipo] || null;
+  if (modo === 'encendido' && !procesador) {
+    // encendido sin procesador para este tipo: 503 (también para claves ya vistas en sombra) para
+    // que la tienda reintente cuando exista, en vez de dar por aplicado algo que solo se validó.
     return res.status(503).json({ error: 'procesadores_no_disponibles', modo,
-      detalle: 'Esta versión solo admite el modo sombra para eventos' });
+      detalle: `Todavía no se aplican eventos ${v.tipo}: use el modo sombra` });
   }
 
   const hash = sha256hex(cuerpo);
   const conn = await pool.getConnection();
   try {
     // Reenvío del mismo evento (lo normal tras un timeout de la tienda): resultado guardado, sin
-    // volver a revisar ni a escribir nada.
+    // volver a revisar ni a escribir nada. Excepción: un evento que en su momento solo se registró
+    // (sombra) y ahora tiene procesador se aplica (README §3: un registrado no cuenta como aplicado).
     const previo = await eventoGuardado(sobre.clave);
-    if (previo) return responderGuardado(res, previo, hash, sobre.clave);
+    if (previo && !(procesador && previo.estado === 'registrado' && previo.hash === hash)) {
+      return responderGuardado(res, previo, hash, sobre.clave);
+    }
 
     const avisos = [...v.avisos, ...await revisarPiezas(v.tipo, v.info)];
-    const resultado = { clave: sobre.clave, resultado: 'registrado', modo, aplicado: false, avisos };
+    let resultado = { clave: sobre.clave, resultado: 'registrado', modo, aplicado: false, avisos };
 
     await conn.beginTransaction();
     try {
-      await conn.query(`
-        INSERT INTO integracion_eventos
-          (clave, tipo, origen_app, version_contrato, hash_cuerpo, modo, estado, avisos, payload, resultado, ocurrido_en)
-        VALUES (?, ?, 'tienda', ?, ?, ?, 'registrado', ?, ?, ?, ?)
-      `, [sobre.clave, sobre.tipo, sobre.v, hash, modo, Math.min(avisos.length, 65535),
-        cuerpo.toString('utf8'), JSON.stringify(resultado), new Date(sobre.ocurrido_en)]);
-      // Aquí irán, en la MISMA transacción, los movimientos de las fases 2-3 (diseño §3.4).
+      if (procesador) {
+        // Los movimientos van en la MISMA transacción que el registro del evento (diseño §3.4):
+        // o queda aplicado y registrado, o nada. Con un registro previo (sombra) se toma su candado
+        // primero: dos reenvíos simultáneos no aplican dos veces.
+        if (previo) {
+          const [fila] = await conn.query('SELECT estado FROM integracion_eventos WHERE clave = ? FOR UPDATE', [sobre.clave]);
+          if (fila.length && fila[0].estado !== 'registrado') {
+            await conn.rollback();
+            return responderGuardado(res, await eventoGuardado(sobre.clave), hash, sobre.clave);
+          }
+        }
+        const aplicado = await procesador(conn, sobre, { modo });
+        resultado = { clave: sobre.clave, resultado: 'aplicado', modo, aplicado: true, avisos: [...avisos, ...aplicado.avisos], recepcion: aplicado.recepcion };
+      }
+      const estado = procesador ? 'aplicado' : 'registrado';
+      if (previo) {
+        await conn.query(`
+          UPDATE integracion_eventos SET modo = ?, estado = ?, avisos = ?, resultado = ?, procesado_en = NOW(3)
+          WHERE clave = ? AND estado = 'registrado'`,
+        [modo, estado, Math.min(resultado.avisos.length, 65535), JSON.stringify(resultado), sobre.clave]);
+      } else {
+        await conn.query(`
+          INSERT INTO integracion_eventos
+            (clave, tipo, origen_app, version_contrato, hash_cuerpo, modo, estado, avisos, payload, resultado, ocurrido_en, procesado_en)
+          VALUES (?, ?, 'tienda', ?, ?, ?, '${estado}', ?, ?, ?, ?, ${procesador ? 'NOW(3)' : 'NULL'})
+        `, [sobre.clave, sobre.tipo, sobre.v, hash, modo, Math.min(resultado.avisos.length, 65535),
+          cuerpo.toString('utf8'), JSON.stringify(resultado), new Date(sobre.ocurrido_en)]);
+      }
       await conn.commit();
     } catch (e) {
       await conn.rollback();
+      if (e instanceof ErrorEvento) return res.status(e.status).json({ error: e.codigo, detalle: e.message });
       if (e.code === 'ER_DUP_ENTRY') {
         // Dos envíos simultáneos con la misma clave: el segundo espera al primero y llega aquí.
         const guardado = await eventoGuardado(sobre.clave);

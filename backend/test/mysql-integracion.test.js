@@ -100,8 +100,11 @@ test('MySQL real: migración idempotente y consecutivo sin carreras', opciones, 
   };
   const [bods] = await pool.query("SELECT id, codigo FROM bodegas WHERE codigo IN ('BOD-DSP','BOD-CUS','WC-01','107')");
   const id = Object.fromEntries(bods.map(b => [b.codigo, b.id]));
-  // v10: el origen nunca; el destino solo WC-01; origen ≠ destino.
-  assert.equal((await llamar('POST', '/', { fecha: '2026-11-05', bodega_origen_id: id['107'], bodega_destino_id: id['WC-01'] })).status, 400);
+  // v10: el origen nunca (salvo 107 → WC-01, el traslado a la tienda); el destino solo WC-01; origen ≠ destino.
+  const traslado = await llamar('POST', '/', { fecha: '2026-11-05', bodega_origen_id: id['107'], bodega_destino_id: id['WC-01'] });
+  assert.equal(traslado.status, 201);
+  await pool.query('DELETE FROM ordenes_salida WHERE id = ?', [traslado.body.id]);
+  assert.equal((await llamar('POST', '/', { fecha: '2026-11-05', bodega_origen_id: id['107'], bodega_destino_id: id['BOD-DSP'] })).status, 400);
   assert.equal((await llamar('POST', '/', { fecha: '2026-11-05', bodega_origen_id: id['BOD-DSP'], bodega_destino_id: id['107'] })).status, 400);
   assert.equal((await llamar('POST', '/', { fecha: '2026-11-05', bodega_origen_id: id['BOD-DSP'], bodega_destino_id: id['BOD-DSP'] })).status, 400);
   const orden = await llamar('POST', '/', { fecha: '2026-11-05', bodega_origen_id: id['BOD-DSP'], bodega_destino_id: id['WC-01'] });

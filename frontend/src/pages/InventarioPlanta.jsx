@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, ClipboardPaste, FileSpreadsheet, RefreshCw, Upload } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { CheckCircle2, ClipboardPaste, FileSpreadsheet, RefreshCw, Truck, Upload } from 'lucide-react';
 import { api } from '../services/api';
 import Boton from '../components/ui/Boton';
 import { confirmar } from '../components/ui/confirmar';
@@ -10,14 +11,17 @@ import VistaPrevia from '../components/importador/VistaPrevia';
 import ResumenPlan from '../components/importador/ResumenPlan';
 import useImportacion from '../components/importador/useImportacion';
 import AltaRapidaCorte from '../components/AltaRapidaCorte';
+import Modal from '../components/ui/Modal';
 
 /*
   Inventario semanal que manda la planta CIISA (Excel «INV WAGYU SEMANA nn», bodega 107 / paquetería).
   Arriba se carga (subir el .xlsx o pegar la tabla) con vista previa: avisos por línea, totales por hoja,
   códigos fuera del catálogo (alta rápida) y cuánto cambia contra el último snapshot. Abajo se consulta
   el snapshot (por omisión el último) con filtros, y las altas/bajas contra el anterior.
-  Cada carga es una foto: no cambia cajas, primales ni custodia de la app. Es la base para pedirle
-  cajas a la planta (solicitudes de traslado, siguiente etapa).
+  Cada carga es una foto: no cambia cajas, primales ni custodia de la app.
+  Traslado a la tienda (Juan Carlos, 05/06-nov-2026): en el último snapshot se marcan las cajas de
+  «INV GENERAL» que quiere la tienda y se genera la orden 107 → WC-01 (reemplaza el Excel que iba y
+  volvía con la planta). Una caja que ya está en un traslado vivo no se puede marcar otra vez.
 */
 const n = (x, d = 2) => (x == null ? '—' : Number(x).toLocaleString('en-US', { maximumFractionDigits: d }));
 const fecha = (iso) => (iso ? String(iso).slice(0, 10).split('-').reverse().join('/') : '—');
@@ -198,8 +202,68 @@ function CargarInventario({ onAplicado }) {
 }
 
 const POR_PAGINA = 50;
+// Quienes piden los traslados hoy (JC, 06-nov-2026). Es una sugerencia: el campo es libre.
+const SOLICITANTES = ['Carolina', 'Michelle', 'Juan Carlos'];
+
+/** Ventana para confirmar el traslado de las cajas marcadas. */
+function PedirTraslado({ lineas, onCerrar, onCreado }) {
+  const [form, setForm] = useState({ solicitante: '', fecha: new Date().toISOString().slice(0, 10), notas: '', es_prueba: false });
+  const [enviando, setEnviando] = useState(false);
+  const kg = lineas.reduce((s, l) => s + Number(l.peso || 0), 0);
+  const porProducto = [...lineas.reduce((m, l) => {
+    const k = `${l.codigo || '—'} ${l.descripcion || ''}`.trim();
+    const x = m.get(k) || { cajas: 0, kg: 0 };
+    m.set(k, { cajas: x.cajas + 1, kg: x.kg + Number(l.peso || 0) });
+    return m;
+  }, new Map())];
+  const enviar = async (e) => {
+    e.preventDefault();
+    if (!form.solicitante.trim()) { aviso.error('Indique quién pide el traslado'); return; }
+    setEnviando(true);
+    try {
+      const r = await api.crearTrasladoTienda({ ...form, linea_ids: lineas.map(l => l.id) });
+      if (r.avisos?.length) aviso.info(`${r.avisos.length} caja(s) tienen el mismo código que otro traslado vivo: revise que no sea la misma caja`);
+      aviso.ok(`Traslado ${r.numero} creado: ${r.cajas} caja(s)`);
+      onCreado(r);
+    } catch (err) { aviso.error(err.message); } finally { setEnviando(false); }
+  };
+  return (
+    <Modal titulo="Pedir cajas a la tienda (107 → WC-01)" icono={Truck} onCerrar={onCerrar} ancho="ancho"
+      acciones={<><Boton onClick={onCerrar}>Volver</Boton><Boton variante="primario" type="submit" form="f-traslado" icono={Truck} cargando={enviando}>Generar orden de traslado</Boton></>}>
+      <form id="f-traslado" onSubmit={enviar}>
+        <p className="rp-nota"><strong>{lineas.length}</strong> caja(s) · <strong>{n(kg)}</strong> kg. La planta las busca por el código de barras y las manda completas, sin abrir.</p>
+        <ul style={{ margin: '0 0 var(--esp-3)' }}>
+          {porProducto.map(([k, x]) => <li key={k}>{k}: {x.cajas} caja(s) · {n(x.kg)} kg</li>)}
+        </ul>
+        <div className="form-row">
+          <div className="form-group">
+            <label htmlFor="tr-solicitante">Quién pide *</label>
+            <input id="tr-solicitante" list="tr-solicitantes" required value={form.solicitante} maxLength={80} onChange={e => setForm({ ...form, solicitante: e.target.value })} />
+            <datalist id="tr-solicitantes">{SOLICITANTES.map(x => <option key={x} value={x} />)}</datalist>
+          </div>
+          <div className="form-group">
+            <label htmlFor="tr-fecha">Fecha</label>
+            <input id="tr-fecha" type="date" value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })} />
+          </div>
+        </div>
+        <div className="form-group">
+          <label htmlFor="tr-notas">Notas para la planta</label>
+          <textarea id="tr-notas" rows={2} maxLength={500} value={form.notas} onChange={e => setForm({ ...form, notas: e.target.value })} />
+        </div>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input type="checkbox" checked={form.es_prueba} onChange={e => setForm({ ...form, es_prueba: e.target.checked })} />
+          Traslado de PRUEBA (no es un pedido real; se borra con el script de prueba)
+        </label>
+      </form>
+    </Modal>
+  );
+}
 
 function Snapshot({ recarga }) {
+  const { canEdit } = useAuth();
+  const navigate = useNavigate();
+  const [marcadas, setMarcadas] = useState(() => new Set());
+  const [pidiendo, setPidiendo] = useState(false);
   const [cargas, setCargas] = useState(null);
   const [cargaId, setCargaId] = useState('');
   const [filtro, setFiltro] = useState({ hoja: '', tarima: '', codigo: '', trazabilidad: '', vencidos: '', q: '' });
@@ -225,6 +289,12 @@ function Snapshot({ recarga }) {
   }, [cargaId, recarga]);
 
   const lineas = useMemo(() => datos?.lineas || [], [datos]);
+  // Solo se piden cajas del ÚLTIMO snapshot (el backend lo exige): el de antes ya no dice qué hay.
+  const esUltimo = Boolean(datos?.carga && cargas?.length && Number(cargas[0].id) === Number(datos.carga.id));
+  const pedible = (l) => canEdit && esUltimo && l.hoja === 'general' && Boolean(l.codigo_barras) && !l.traslado_numero;
+  const lineasMarcadas = lineas.filter(l => marcadas.has(l.id));
+  const alternar = (id) => setMarcadas(m => { const x = new Set(m); if (x.has(id)) x.delete(id); else x.add(id); return x; });
+  useEffect(() => { setMarcadas(new Set()); }, [cargaId, recarga]);
   const paginas = Math.max(1, Math.ceil(lineas.length / POR_PAGINA));
   const pag = Math.min(pagina, paginas - 1);
   const set = (k) => (e) => setFiltro(f => ({ ...f, [k]: e.target.value }));
@@ -266,11 +336,17 @@ function Snapshot({ recarga }) {
         {datos && <p className="rp-nota">{n(datos.filtradas, 0)} línea(s) con este filtro · {n(Object.values(datos.totales || {}).reduce((s, t) => s + t.kg, 0))} kg{datos.truncado ? ' · se muestran las primeras 5,000: afine el filtro' : ''}</p>}
         <div className="table-container">
           <table className="tabla-compacta">
-            <thead><tr><th>Hoja</th><th>Tarima</th><th>Código</th><th>Descripción</th><th className="num">Peso</th><th>Lote</th><th>Caja / código de barras</th><th>Vence</th><th>Trazabilidad</th><th className="num">BMS</th><th>Estatus / despacho</th></tr></thead>
+            <thead><tr><th><span className="sr-only">Pedir</span></th><th>Hoja</th><th>Tarima</th><th>Código</th><th>Descripción</th><th className="num">Peso</th><th>Lote</th><th>Caja / código de barras</th><th>Vence</th><th>Trazabilidad</th><th className="num">BMS</th><th>Estatus / despacho</th><th>Traslado</th></tr></thead>
             <tbody>
-              <FilaEstado columnas={11} cargando={!datos && !error} error={error} vacio={datos && !lineas.length} onReintentar={cargar} tituloVacio="Sin líneas con ese filtro" />
+              <FilaEstado columnas={13} cargando={!datos && !error} error={error} vacio={datos && !lineas.length} onReintentar={cargar} tituloVacio="Sin líneas con ese filtro" />
               {lineas.slice(pag * POR_PAGINA, (pag + 1) * POR_PAGINA).map(l => (
-                <tr key={l.id}>
+                <tr key={l.id} className={marcadas.has(l.id) ? 'fila-seleccionada' : undefined}>
+                  <td>
+                    {pedible(l) && (
+                      <input type="checkbox" checked={marcadas.has(l.id)} onChange={() => alternar(l.id)}
+                        aria-label={`Pedir la caja ${l.codigo_barras} a la tienda`} />
+                    )}
+                  </td>
                   <td>{HOJA[l.hoja]}</td>
                   <td>{l.tarima || '—'}</td>
                   <td><strong>{l.codigo || '—'}</strong></td>
@@ -282,11 +358,25 @@ function Snapshot({ recarga }) {
                   <td><BadgeTraz estado={l.trazabilidad} />{l.arete ? ` ${l.arete}` : ''}</td>
                   <td className="num"><Bms bms={l.bms} estado={l.bms_estado} animal={l.bms_animal} aviso={l.bms_aviso} /></td>
                   <td>{[l.estatus, l.despacho, l.pedido_por, l.orden].filter(Boolean).join(' · ') || '—'}</td>
+                  <td>{l.traslado_numero ? <span className="badge badge-blue">{l.traslado_numero}</span> : '—'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        {canEdit && esUltimo && (
+          <div className="rp-acciones" style={{ marginTop: 'var(--esp-3)', alignItems: 'center' }} role="status">
+            <span>{lineasMarcadas.length
+              ? <><strong>{lineasMarcadas.length}</strong> caja(s) marcadas · {n(lineasMarcadas.reduce((s, l) => s + Number(l.peso || 0), 0))} kg</>
+              : 'Marque las cajas de INV GENERAL que quiere la tienda.'}</span>
+            <Boton variante="primario" icono={Truck} disabled={!lineasMarcadas.length} onClick={() => setPidiendo(true)}>Pedir a la tienda…</Boton>
+            {lineasMarcadas.length > 0 && <Boton onClick={() => setMarcadas(new Set())}>Desmarcar</Boton>}
+          </div>
+        )}
+        {pidiendo && (
+          <PedirTraslado lineas={lineasMarcadas} onCerrar={() => setPidiendo(false)}
+            onCreado={(r) => { setPidiendo(false); setMarcadas(new Set()); navigate(`/traslados-tienda/${r.id}`); }} />
+        )}
         {paginas > 1 && (
           <nav className="rp-acciones" aria-label="Páginas del inventario" style={{ marginTop: 'var(--esp-3)' }}>
             <button type="button" className="btn btn-secondary btn-sm" disabled={pag === 0} onClick={() => setPagina(pag - 1)}>Anterior</button>

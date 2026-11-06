@@ -7,6 +7,8 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "seed": "node src/seeds/seed.js",
+    "seed:prueba": "node src/seeds/prueba-flujo.js",
+    "seed:prueba:borrar": "node src/seeds/borrar-prueba-flujo.js",
     "test": "node --test"
   },
   "dependencies": {
