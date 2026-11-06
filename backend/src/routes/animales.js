@@ -212,6 +212,22 @@ router.get('/:id/timeline', async (req, res) => {
       });
     }
 
+    // Reporte de producción de CIISA (deshuese por animal), ligado por la lista lote → arete.
+    const [reportes] = await pool.query(
+      `SELECT r.id, r.fecha_produccion, r.num_lote, r.lote_cc, r.pdf_url,
+              (SELECT SUM(x.peso_kg) FROM reporte_produccion_lineas x WHERE x.reporte_id = r.id) AS kilos,
+              (SELECT SUM(x.cajas) FROM reporte_produccion_lineas x WHERE x.reporte_id = r.id) AS cajas
+       FROM lotes_cc_aretes l JOIN reporte_produccion r ON r.fecha_produccion = l.fecha_deshuese AND r.lote_cc = l.lote_cc
+       WHERE l.animal_id = ? ORDER BY r.fecha_produccion`, [animalId]);
+    for (const r of reportes) {
+      events.push({
+        fecha: r.fecha_produccion,
+        tipo: 'reporte_produccion',
+        descripcion: `Reporte de producción CIISA lote ${r.num_lote || r.lote_cc}: ${Number(r.kilos || 0).toFixed(2)} kg en ${Number(r.cajas || 0)} cajas`,
+        data: r
+      });
+    }
+
     const [primales] = await pool.query('SELECT * FROM primales WHERE animal_id = ? ORDER BY created_at ASC', [animalId]);
     for (const p of primales) {
       events.push({

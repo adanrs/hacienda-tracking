@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { decodificar } = require('../lib/etiquetas');
 const { pool } = require('../models/database');
 const { compararConEtiqueta } = require('../lib/importador/procesadores/marmoleoCamara');
+const { recuperarPorReporte } = require('../lib/trazabilidadEtiqueta');
 
 // POST /api/etiquetas/decodificar  { codigo } → resultado de decodificar.
 // El decodificador es cálculo puro; aquí solo se agrega una LECTURA: si la etiqueta trae arete y
@@ -33,6 +34,22 @@ router.post('/decodificar', async (req, res) => {
     } catch (err) {
       console.error('[etiquetas] comparación de marmoleo', err.message);
     }
+  }
+  // Caja o primal con «xxx» (trazabilidad perdida): se intenta recuperar el animal por el puente
+  // fecha + lote de deshuese → reporte de producción con arete (ver lib/trazabilidadEtiqueta.js).
+  // El arete deducido se muestra como «recuperada», nunca como si viniera impreso.
+  if (c && c.trazabilidad === 'sin_trazabilidad' && (r.tipo === 'caja' || r.tipo === 'primal')) {
+    try {
+      const t = await recuperarPorReporte(pool, r);
+      r.trazabilidad = t;
+      if (t.estado === 'recuperada' && Array.isArray(r.advertencias)) {
+        r.advertencias.push({ codigo: 'trazabilidad_recuperada', campo: 'loteDeshuese', mensaje: t.motivo });
+      }
+    } catch (err) {
+      console.error('[etiquetas] recuperación de trazabilidad', err.message);
+    }
+  } else if (c && c.trazabilidad) {
+    r.trazabilidad = { estado: c.trazabilidad };
   }
   res.json(r);
 });

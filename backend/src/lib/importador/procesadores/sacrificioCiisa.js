@@ -165,6 +165,7 @@ async function planificar(conn, tabla, opciones = {}) {
       animal_id: item.animal_id || null, guia_id: item.guia ? item.guia.id : null, numero_canal: item.numero_canal,
       fecha, peso_vivo: v.peso_pie, peso_canal_caliente: v.peso_canal, rendimiento_canal: item.rendimiento_calculado ?? null,
       rendimiento_informado: v.rendimiento, musculo: v.musculo, denticion: v.dientes, grasa: v.grasa, golpe,
+      condicion_corporal: condicionCorporal(v.condicion_corporal, item.avisos),
     };
 
     // Idempotencia: canal + día ya registrada.
@@ -224,6 +225,17 @@ function textoReporte(fecha, discrepancias, filas) {
   return lineas.join('\n');
 }
 
+/**
+ * Condición corporal (pedido del dueño, 05-nov): opcional, escala 1–9 con un decimal. Fuera de rango
+ * no bloquea: se avisa y no se guarda. Duda abierta: podría ser un dato de la salida de finca (guía).
+ */
+function condicionCorporal(valor, avisos) {
+  if (valor == null || valor === '') return null;
+  const n = Number(String(valor).replace(',', '.'));
+  if (!Number.isFinite(n) || n < 1 || n > 9) { avisos.push(`Condición corporal «${valor}» fuera de la escala 1–9: no se guarda`); return null; }
+  return Math.round(n * 10) / 10;
+}
+
 async function aplicar(conn, plan, { importacionId, registrar }) {
   const res = { sacrificios_nuevos: 0, sacrificios_actualizados: 0 };
   for (const it of plan.filas) {
@@ -259,6 +271,9 @@ async function aplicar(conn, plan, { importacionId, registrar }) {
         [d.animal_id, `${d.fecha} 00:00:00`, ...valores, it.correccion ? `Arete informado por la planta: ${it.correccion.informado}` : null]);
       registrar(it.fila, 'sacrificio', r.insertId, 'creado', { canal: d.numero_canal, arete: it.arete, correccion: it.correccion || null });
       res.sacrificios_nuevos++;
+    }
+    if (d.condicion_corporal != null) {
+      await conn.query('UPDATE sacrificios SET condicion_corporal = ? WHERE animal_id = ?', [d.condicion_corporal, d.animal_id]);
     }
     await conn.query("UPDATE animales SET estado = 'sacrificado' WHERE id = ?", [d.animal_id]);
     // El animal llegó a la planta: su transporte de la guía queda recibido.

@@ -16,14 +16,24 @@ const { idsNumericos } = require('../lib/params');
 const { pool } = require('../models/database');
 const motor = require('../lib/importador/motor');
 const { formatosHabilitados, formato } = require('../lib/importador/formatos');
+const vision = require('../lib/vision');
 
 idsNumericos(router);
 
 const MAX_ARCHIVO = 5 * 1024 * 1024; // un reporte de hato o un correo con su tabla: 5 MB sobra
+// El libro histórico de solicitudes de la planta pesa ~31 MB (trae fotos): ese formato declara su
+// propio tope (`maxMB`) y multer acepta hasta el mayor; cada formato se revisa en leerPedido.
+const MAX_ARCHIVO_LIBRO = 40 * 1024 * 1024;
 const MAX_PEGADO = 2 * 1024 * 1024;
 const FORMATO_VALIDO = /^[a-z0-9-]{1,40}$/;
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_ARCHIVO, files: 1, fields: 10, fieldSize: MAX_PEGADO } });
+// Límites POR FORMATO (en memoria): tamaño = maxMB del formato (5 MB por omisión) y un solo archivo,
+// salvo los formatos de varios documentos (reporte de producción: hasta 40 PDF de 5 MB).
+const MAX_DOCUMENTOS = 40;
+function limitesDe(def) {
+  const varios = def && def.modo === 'documentos' && !def.leerCrudo;
+  return { mb: (def && def.maxMB) || 5, archivos: varios ? MAX_DOCUMENTOS : 1 };
+}
 
 const envolver = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((err) => {
   if (err instanceof motor.ErrorImportacion) return res.status(err.status).json({ error: err.message, ...err.extra });
@@ -34,9 +44,13 @@ const envolver = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((err)
 // multer solo si el pedido es multipart; con JSON (texto pegado) pasa directo.
 const archivoOpcional = (req, res, next) => {
   if (!req.is('multipart/form-data')) return next();
-  upload.single('archivo')(req, res, (err) => {
+  const def = FORMATO_VALIDO.test(req.params.formato || '') ? formato(req.params.formato) : null;
+  const { mb, archivos } = limitesDe(def);
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: mb * 1024 * 1024, files: archivos, fields: 10, fieldSize: MAX_PEGADO } });
+  upload.fields([{ name: 'archivo', maxCount: 1 }, { name: 'archivos', maxCount: archivos }])(req, res, (err) => {
     if (!err) return next();
-    const mensaje = err.code === 'LIMIT_FILE_SIZE' ? 'El archivo pesa más de 5 MB' : 'No se pudo recibir el archivo';
+    const mensaje = err.code === 'LIMIT_FILE_SIZE' ? `Cada archivo puede pesar hasta ${mb} MB`
+      : ['LIMIT_FILE_COUNT', 'LIMIT_UNEXPECTED_FILE'].includes(err.code) ? `Demasiados archivos (máximo ${archivos})` : 'No se pudo recibir el archivo';
     res.status(400).json({ error: mensaje });
   });
 };
@@ -56,10 +70,22 @@ function leerPedido(req) {
   if (!FORMATO_VALIDO.test(id) || !formato(id)) throw new motor.ErrorImportacion(404, 'Formato de importación desconocido');
   const body = req.body || {};
   const opciones = jsonCampo(body.opciones, 'opciones');
+  const tope = (formato(id).maxMB || 5) * 1024 * 1024;
+  const archivosSubidos = [...((req.files && req.files.archivo) || []), ...((req.files && req.files.archivos) || [])];
+  if (archivosSubidos.some(f => f.size > tope)) throw new motor.ErrorImportacion(400, `Cada archivo puede pesar hasta ${Math.round(tope / 1048576)} MB`);
   let entrada;
-  if (req.file && req.file.buffer && req.file.buffer.length) {
-    const nombre = String(req.file.originalname || 'archivo').replace(/[\u0000-\u001f]/g, '').slice(0, 255);
-    entrada = { archivo: { buffer: req.file.buffer, nombre } };
+  const limpioNombre = (f) => String(f.originalname || 'archivo').replace(/[\u0000-\u001f]/g, '').slice(0, 255);
+  const unico = req.files && req.files.archivo && req.files.archivo[0];
+  const varios = (req.files && req.files.archivos) || [];
+  if (varios.length) {
+    // Varios documentos, más el texto pegado opcional de la misma tanda.
+    const pegadoExtra = jsonCampo(body.pegado, 'pegado');
+    entrada = {
+      archivos: varios.filter(f => f.buffer && f.buffer.length).map(f => ({ buffer: f.buffer, nombre: limpioNombre(f) })),
+      pegado: typeof pegadoExtra.texto === 'string' && pegadoExtra.texto.length <= MAX_PEGADO ? { texto: pegadoExtra.texto } : null,
+    };
+  } else if (unico && unico.buffer && unico.buffer.length) {
+    entrada = { archivo: { buffer: unico.buffer, nombre: limpioNombre(unico) } };
   } else {
     const pegado = jsonCampo(body.pegado, 'pegado');
     const html = typeof pegado.html === 'string' ? pegado.html : '';
@@ -71,6 +97,33 @@ function leerPedido(req) {
 }
 
 router.get('/formatos', (req, res) => res.json(formatosHabilitados()));
+
+// ── Lectura por foto / PDF escaneado (lib/vision.js) ─────────────────────────
+// El resultado es TEXTO que vuelve a la pantalla (editable) y de ahí a la vista previa: nunca se aplica directo.
+const MIME_FOTO = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', pdf: 'application/pdf' };
+const uploadFoto = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 1 } });
+
+router.get('/vision/estado', (req, res) => res.json({ disponible: vision.disponible() }));
+
+router.post('/:formato/transcribir', (req, res, next) => uploadFoto.single('foto')(req, res, (err) => {
+  if (err) return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'La foto pesa más de 15 MB' : 'No se pudo recibir la foto' });
+  next();
+}), envolver(async (req, res) => {
+  const { formato: id } = req.params;
+  if (!FORMATO_VALIDO.test(id) || !formato(id)) throw new motor.ErrorImportacion(404, 'Formato de importación desconocido');
+  if (!vision.disponible()) throw new motor.ErrorImportacion(503, 'Lectura por foto no disponible');
+  if (!req.file || !req.file.buffer || !req.file.buffer.length) throw new motor.ErrorImportacion(400, 'Adjunte la foto o el PDF escaneado');
+  const ext = (String(req.file.originalname || '').match(/\.([a-z0-9]+)$/i) || [])[1]?.toLowerCase();
+  if (!MIME_FOTO[ext]) throw new motor.ErrorImportacion(400, 'Se aceptan fotos .jpg, .png, .webp o un PDF escaneado');
+  const trabajo = vision.encolar({ buffer: req.file.buffer, mime: MIME_FOTO[ext], formato: id, nombre: String(req.file.originalname).slice(0, 120), usuarioId: req.user && req.user.id });
+  res.status(202).json({ id: trabajo, estado: 'en_cola' });
+}));
+
+router.get('/transcripciones/:id', (req, res) => {
+  const t = vision.estado(req.params.id, req.user || {});
+  if (!t) return res.status(404).json({ error: 'La transcripción ya no existe: vuelva a subir la foto' });
+  res.json(t);
+});
 
 router.post('/:formato/planificar', archivoOpcional, envolver(async (req, res) => {
   const { id, entrada, opciones } = leerPedido(req);

@@ -111,12 +111,15 @@ const c4 = (codigo, nombre, tipo, notas = null) => ({
 });
 const NOTA_SOLO_ARREO = 'Normalmente solo a Arreo';
 const NOTA_LOTE_MATANZA = 'Usa lote de matanza, no lote individual';
+const NOTA_PROCESO = 'Materia prima de proceso (carne molida)';
 const cortesC4 = [
   // Trim y BCH
-  c4('11163', 'Beef trimmings', 'trim'),
+  // 11163 y 22229 son los sobrantes del deshuese que van a carne molida (JC, reunión 05-nov-2026:
+  // «Beef trimmings» 27.22 kg y «CH-Chuck res» 136.10 kg en el reporte de ejemplo): tipo trimming.
+  c4('11163', 'Beef trimmings', 'trimming', NOTA_PROCESO),
   c4('11164', 'Beef trimmings', 'trim'),
   c4('21327', 'Carne roja B95', 'trim'),
-  c4('22229', 'BCH carnes rojas (CH-Chuck)', 'bch'),
+  c4('22229', 'CH-Chuck res (BCH carnes rojas)', 'trimming', NOTA_PROCESO),
   c4('25000', 'BCH Wagyu', 'bch'),
   c4('25002', 'Trimmings', 'trim', 'Se prorratean por peso canal; bolsa granel 60 lb = 27.22 kg nominal'),
   // Primales y postas

@@ -82,6 +82,7 @@ const FORMATOS = {
       { clave: 'dientes', encabezados: ['dientes', 'denticion'], tipo: 'entero' },
       { clave: 'grasa', encabezados: ['grasa'], tipo: 'entero' },
       { clave: 'golpe', encabezados: ['golpe', 'golpes'], tipo: 'texto' },
+      { clave: 'condicion_corporal', encabezados: ['condicion corporal', 'cond corporal', 'condicion'], tipo: 'texto' },
     ],
     // Pegado como texto plano sin encabezado reconocible (Gmail lo parte en varias líneas):
     // una fila de datos con exactamente estas columnas, en este orden, se acepta igual.
@@ -119,8 +120,61 @@ const FORMATOS = {
     metadatos: [],
   },
 
-  // PRÓXIMO (no implementado): inventario por tarimas que manda CIISA («INV WAGYU SEMANA 41.xlsx»,
-  // hojas INV GENERAL / MADURACION / TORTAS WAGYU). El lector ya detecta su encabezado; falta el
+  // Reporte Diario de Producción de CIISA por animal: varios PDF a la vez (cada PDF = un lote = un
+  // animal) y/o el texto pegado, más la lista lote → arete del correo en opciones.mapa. No es una
+  // tabla con encabezado: modo «documentos» (el motor entrega el texto de cada archivo al procesador).
+  'reporte-produccion-ciisa': {
+    nombre: 'Reporte de producción CIISA (PDF por animal)',
+    descripcion: 'Uno o varios PDF «REPORTE DIARIO DE PRODUCCION» más la lista lote → arete del correo',
+    procesador: 'reporteProduccionCiisa',
+    modo: 'documentos',
+    extensiones: ['pdf', 'txt'],
+    columnas: [],
+    metadatos: [],
+  },
+
+  // Listado completo del catálogo de cortes (Excel de la planta o pegado): código, descripción y,
+  // si vienen, tipo, unidad y activo. Compara contra la base: nuevos / cambian / sin cambios.
+  'catalogo-cortes': {
+    nombre: 'Catálogo de cortes (listado completo)',
+    descripcion: 'Código de 5 dígitos y descripción; tipo, unidad y activo opcionales',
+    procesador: 'catalogoCortes',
+    extensiones: ['xlsx', 'csv', 'txt', 'html', 'htm'],
+    minimoColumnas: 2,
+    ordenFechas: 'dmy',
+    columnas: [
+      { clave: 'codigo', encabezados: ['codigo', 'cod', 'articulo', 'codigo articulo', 'sku'], tipo: 'texto', obligatoria: true },
+      { clave: 'nombre', encabezados: ['descripcion', 'nombre', 'corte', 'nombre del corte', 'producto'], tipo: 'texto', obligatoria: true },
+      { clave: 'tipo', encabezados: ['tipo', 'clase', 'categoria'], tipo: 'texto' },
+      { clave: 'unidad', encabezados: ['unidad', 'um', 'unidad de medida'], tipo: 'texto' },
+      { clave: 'activo', encabezados: ['activo', 'estado'], tipo: 'texto' },
+    ],
+    // Pegado sin encabezado: «22229  CH-CHUCK RES».
+    posicional: ['codigo', 'nombre'],
+    metadatos: [],
+  },
+
+  // Solicitud de deshuese histórica en el Excel de la planta («Solicitud_de_Deshuese_y_Porcionado.xlsx»,
+  // hojas «Deshuese ddmmaa»). El procesador lee el libro crudo: ver docs/importadores/solicitud-deshuese.md.
+  'solicitud-deshuese-excel': {
+    nombre: 'Solicitud de deshuese (Excel de la planta)',
+    descripcion: 'Hojas «Deshuese ddmmaa» del libro de solicitudes: canales por columna y cortes por fila',
+    procesador: 'solicitudDeshueseExcel',
+    modo: 'documentos',
+    leerCrudo: true,
+    maxMB: 40,
+    extensiones: ['xlsx'],
+    columnas: [],
+    metadatos: [],
+  },
+
+  // PRÓXIMO (no implementado): inventario por tarimas que manda CIISA («INV WAGYU SEMANA 41.xlsx»;
+  // la pestaña a importar es «INV GENERAL», además vienen MADURACION / TORTAS WAGYU). Su FECHA
+  // VENCIMIENTO se resuelve con lib/vencimiento.js → resolverVencimiento (se respeta la del archivo y se
+  // avisa si no es producción + 12 meses). En el código de caja, «xxx» = sin trazabilidad.
+  // La hoja MADURACION es la ÚNICA visibilidad que el dueño tiene hoy de custodia/maduración; sus
+  // columnas reales: TARIMA, CODIGO, DESCRIPCION, LOTE, CAJA, PESO, FECHA DE VENCIMIENTO FRESCO,
+  // ESTATUS. El importador (siguiente PR) debe leer INV GENERAL y MADURACION. El lector ya detecta su encabezado; falta el
   // procesador que concilie contra etiquetas/primales/cajas. `procesador: null` lo deja fuera
   // de la pantalla y de la API hasta que exista.
   'inventario-ciisa': {

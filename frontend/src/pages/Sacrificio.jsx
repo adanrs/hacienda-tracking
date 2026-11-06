@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Edit, Upload } from 'lucide-react';
+import { Plus, Edit, Upload, ListChecks } from 'lucide-react';
+import SacrificioLote from '../components/seleccion/SacrificioLote';
 import { api } from '../services/api';
 import { aviso } from '../components/ui/avisos';
 import { formatDate } from '../components/DateFormat';
@@ -27,6 +28,7 @@ export default function Sacrificio() {
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [form, setForm] = useState({});
+  const [lote, setLote] = useState(false); // selección múltiple
 
   const load = () => {
     api.getSacrificios().then(setSacrificios).catch(aviso.errorCarga());
@@ -72,9 +74,11 @@ export default function Sacrificio() {
         <h2>Sacrificio</h2>
         <div className="rp-acciones">
           <Link to="/sacrificio/importar-ciisa" className="btn btn-secondary"><Upload size={16} aria-hidden="true" /> Importar correo de CIISA</Link>
-          <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nuevo Sacrificio</button>
+          <button className="btn btn-secondary" onClick={openNew}><Plus size={16} /> Uno solo</button>
+          <button className="btn btn-primary" onClick={() => setLote(true)}><ListChecks size={16} aria-hidden="true" /> Varios animales</button>
         </div>
       </div>
+      {lote && <SacrificioLote onCerrar={() => setLote(false)} onListo={() => { setLote(false); load(); }} />}
 
       <div className="card">
         <div className="table-container">

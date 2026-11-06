@@ -10,6 +10,7 @@ import { useAuth } from '../components/AuthContext';
 import VistaPrevia from '../components/importador/VistaPrevia';
 import ResumenPlan from '../components/importador/ResumenPlan';
 import useImportacion from '../components/importador/useImportacion';
+import LecturaFoto from '../components/importador/LecturaFoto';
 
 /*
   Marmoleo por canal: etapa entre Sacrificio y Solicitud de deshuese.
@@ -212,6 +213,10 @@ function DesdeCamara() {
             <Boton icono={RefreshCw} cargando={imp.cargando} disabled={!canEdit || !pegado.texto.trim()} onClick={() => imp.planificar({ pegado }, { confirmaciones })}>Leer lo pegado</Boton>
             <Boton icono={Upload} disabled={!canEdit} onClick={() => refArchivo.current?.click()}>O subir CSV/Excel…</Boton>
             <input ref={refArchivo} type="file" accept=".csv,.txt,.xlsx,.html,.htm" hidden onChange={elegir} />
+            {/* Foto de la pantalla de la cámara: se transcriben solo Body no. y DMs (AUSMEAT) y el texto
+                queda en el cuadro de arriba para revisarlo antes de leerlo (nunca se aplica directo). */}
+            <LecturaFoto formato="marmoleo-camara" deshabilitado={!canEdit}
+              onTexto={(t, dudas) => { setPegado({ html: '', texto: t }); if (dudas.length) aviso.info(`Revise con cuidado (baja confianza): ${dudas.join(', ')}`); }} />
           </div>
         </div>
         <div className="card">

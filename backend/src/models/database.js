@@ -1,6 +1,8 @@
 const mysql = require('mysql2/promise');
 const { migrarBaseIntegracion } = require('./nucleoV10');
 const { migrarImportaciones } = require('./importaciones');
+const { migrarProduccionCatalogo } = require('./produccionCatalogo');
+const catalogoCortes = require('../lib/catalogoCortes');
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'mysql',
@@ -832,6 +834,11 @@ async function initDB() {
 
     // Importador masivo (Ganadero SG, sacrificio CIISA) y guía de transporte: ver models/importaciones.js.
     await migrarImportaciones(conn);
+
+    // Catálogo de cortes en BD, reporte de producción por animal y solicitud «con reporte»:
+    // ver models/produccionCatalogo.js. Después se carga el catálogo en memoria para el decodificador.
+    await migrarProduccionCatalogo(conn);
+    await catalogoCortes.recargar(conn);
 
     console.log('Database tables initialized');
   } finally {
