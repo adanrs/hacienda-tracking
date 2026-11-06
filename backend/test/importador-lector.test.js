@@ -119,3 +119,45 @@ test('lector sin encabezado ni formato posicional: no inventa filas', () => {
   assert.equal(r.encabezado, null);
   assert.equal(r.filas.length, 0);
 });
+
+// ── Revisión de seguridad del PR #9 ─────────────────────────────────────────
+
+test('.msg con RTF comprimido que declara un tamaño enorme: se ignora sin reservar memoria', async () => {
+  const CFB = require('cfb');
+  const cfb = CFB.utils.cfb_new();
+  CFB.utils.cfb_add(cfb, '/__properties_version1.0', Buffer.alloc(32));
+  CFB.utils.cfb_add(cfb, '/__substg1.0_0037001F', Buffer.from('x', 'utf16le'));
+  const rtf = Buffer.alloc(16);
+  rtf.writeInt32LE(2000000000, 0); // CompSize falso
+  rtf.writeInt32LE(10, 4);
+  rtf.writeInt32LE(0x75465A4C, 8); // «LZFu»
+  CFB.utils.cfb_add(cfb, '/__substg1.0_10090102', rtf);
+  CFB.utils.cfb_add(cfb, '/__substg1.0_001A001F', Buffer.from('IPM.Note', 'utf16le'));
+  const buf = Buffer.from(CFB.write(cfb, { type: 'buffer' }));
+  const antes = process.memoryUsage().rss;
+  const r = await leerArchivo(buf, 'bomba.msg');
+  assert.ok(Array.isArray(r.hojas));
+  assert.ok(process.memoryUsage().rss - antes < 200 * 1024 * 1024);
+  const { rtfComprimidoSeguro } = require('../src/lib/importador/archivos');
+  assert.equal(rtfComprimidoSeguro(rtf), false);
+  const rawEnorme = Buffer.from(rtf); rawEnorme.writeInt32LE(12, 0); rawEnorme.writeInt32LE(600 * 1024 * 1024, 4);
+  assert.equal(rtfComprimidoSeguro(rawEnorme), false);
+});
+
+test('HTML con miles de «<» sin cerrar: tiempo lineal y tope de 500 KB', () => {
+  let t = Date.now();
+  tablasDesdeHtml('<'.repeat(400000));
+  tablasDesdeHtml('<!--'.repeat(100000));
+  tablasDesdeHtml(`<table><tr><td>${'<script'.repeat(50000)}`);
+  assert.ok(Date.now() - t < 2000, `tardó ${Date.now() - t} ms`);
+  t = Date.now();
+  assert.throws(() => leerPegado({ html: '<'.repeat(2e6) }), /demasiado grande/);
+  assert.ok(Date.now() - t < 500);
+  assert.deepEqual(tablasDesdeHtml('<table><tr><td>a < b</td><td>3<4</td></tr></table>'), [[['a < b', '3<4']]]);
+});
+
+test('texto pegado o CSV con más filas que el tope: error claro', async () => {
+  const largo = Array.from({ length: 5100 }, (_, i) => `${i}\tx`).join('\n');
+  assert.throws(() => leerPegado({ texto: largo }), /máximo es 5000/);
+  await assert.rejects(leerArchivo(Buffer.from(largo.replace(/\t/g, ';')), 'grande.csv'), /más de 5000 filas/);
+});

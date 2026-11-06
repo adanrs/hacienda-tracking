@@ -123,6 +123,7 @@ async function planificar(conn, tabla, opciones = {}) {
   let pesajes = [];
   let vacunas = [];
   let enGuias = [];
+  let manuales = [];
   if (ids.length) {
     [pesajes] = await conn.query(`SELECT id, animal_id, ${fmtFechaSql('fecha', 'fecha')}, tipo, peso_kg FROM pesajes WHERE animal_id IN (${marcas(ids.length)})`, ids);
     [vacunas] = await conn.query(`SELECT id, animal_id, ${fmtFechaSql('fecha', 'fecha')}, UPPER(TRIM(COALESCE(producto, descripcion))) AS producto FROM eventos_salud WHERE tipo = 'vacunacion' AND animal_id IN (${marcas(ids.length)})`, ids);
@@ -130,9 +131,20 @@ async function planificar(conn, tabla, opciones = {}) {
       `SELECT gta.animal_id, gta.transporte_id, gta.guia_id, g.numero, ${fmtFechaSql('g.fecha_salida', 'fecha_salida')}, g.finca_origen, g.comprador
        FROM guia_transporte_animales gta JOIN guias_transporte g ON g.id = gta.guia_id
        WHERE g.estado <> 'anulada' AND gta.animal_id IN (${marcas(ids.length)})`, ids);
+    // Transportes a matadero cargados a mano (sin guía): si coinciden en fecha se ADOPTAN en la
+    // guía en vez de crear otra fila de transporte para el mismo viaje.
+    [manuales] = await conn.query(
+      `SELECT id, animal_id, ${fmtFechaSql('fecha_salida', 'fecha')} FROM transporte
+       WHERE tipo = 'matadero' AND guia_id IS NULL AND estado <> 'cancelado' AND animal_id IN (${marcas(ids.length)})
+       ORDER BY id`, ids);
   }
-  const pesajeDe = (id, fecha, tipo) => pesajes.find(p => p.animal_id === id && p.fecha === fecha && p.tipo === tipo);
-  const vacunaDe = (id, fecha, producto) => vacunas.find(p => p.animal_id === id && p.fecha === fecha && p.producto === producto);
+  // Índices por clave natural: con miles de filas y pesajes, buscar con find por fila es cuadrático.
+  const indice = (lista, clave) => { const m = new Map(); for (const x of lista) if (!m.has(clave(x))) m.set(clave(x), x); return m; };
+  const pesajesIdx = indice(pesajes, p => `${p.animal_id}|${p.fecha}|${p.tipo}`);
+  const vacunasIdx = indice(vacunas, p => `${p.animal_id}|${p.fecha}|${p.producto}`);
+  const manualesIdx = indice(manuales, t => `${t.animal_id}|${t.fecha}`);
+  const pesajeDe = (id, fecha, tipo) => pesajesIdx.get(`${id}|${fecha}|${tipo}`);
+  const vacunaDe = (id, fecha, producto) => vacunasIdx.get(`${id}|${fecha}|${producto}`);
 
   const [plantas] = await conn.query('SELECT nombre, direccion_linea1 FROM config_planta WHERE activa = 1 ORDER BY id LIMIT 1');
   const destino = plantas.length ? [plantas[0].nombre, plantas[0].direccion_linea1].filter(Boolean).join(' · ') : null;
@@ -225,9 +237,11 @@ async function planificar(conn, tabla, opciones = {}) {
       const otra = id && enGuias.find(g => g.animal_id === id && !(g.fecha_salida === v.fecha_salida && g.finca_origen === (finca || '') && g.comprador === (v.vendido_a || '')));
       if (otra) item.errores.push(`Ya está en la guía ${otra.numero} del ${fechaTexto(otra.fecha_salida)}: anule esa guía o corrija la fecha de salida`);
       const ya = id && enGuias.find(g => g.animal_id === id && g.fecha_salida === v.fecha_salida && g.finca_origen === (finca || '') && g.comprador === (v.vendido_a || ''));
+      const manual = !ya && id ? manualesIdx.get(`${id}|${v.fecha_salida}`) : null;
+      if (manual) item.avisos.push('Ya tenía un transporte a matadero de esa fecha cargado a mano: se incorpora a la guía (no se duplica)');
       item.salida = {
         fecha_salida: v.fecha_salida, comprador: v.vendido_a || '', peso_salida_kg: v.peso_salida,
-        ya_en_guia: ya ? ya.numero : null, transporte_id: ya ? ya.transporte_id : null,
+        ya_en_guia: ya ? ya.numero : null, transporte_id: ya ? ya.transporte_id : manual ? manual.id : null,
         linea: {
           arete: v.numero, identificacion_electronica: v.ie, sexo: v.sexo, raza: v.raza,
           fecha_nacimiento: v.fecha_nacimiento, edad_meses: v.edad_meses, madre_numero: v.madre,
@@ -312,6 +326,7 @@ async function aplicar(conn, plan, { importacionId, usuarioId, registrar }) {
   }
 
   const animalDeFila = new Map();
+  const filaPorNumero = new Map(plan.filas.map(f => [f.fila, f]));
   for (const it of plan.filas) {
     if (it.accion === 'error') continue;
     const d = it.datos;
@@ -389,14 +404,14 @@ async function aplicar(conn, plan, { importacionId, usuarioId, registrar }) {
     let orden = 0;
     for (const a of g.animales) {
       orden++;
-      const it = plan.filas.find(f => f.fila === a.fila);
+      const it = filaPorNumero.get(a.fila);
       const animalId = animalDeFila.get(a.fila);
       const s = it.salida;
       const l = s.linea;
       let transporteId = s.transporte_id;
       if (transporteId) {
-        await conn.query('UPDATE transporte SET fecha_salida = ?, peso_pie_finca = ?, guia_movilizacion = COALESCE(guia_movilizacion, ?), guia_id = ? WHERE id = ?',
-          [`${s.fecha_salida} 00:00:00`, s.peso_salida_kg, numero, guiaId, transporteId]);
+        await conn.query("UPDATE transporte SET fecha_salida = ?, peso_pie_finca = ?, guia_movilizacion = COALESCE(guia_movilizacion, ?), destino = COALESCE(destino, ?), guia_id = ? WHERE id = ?",
+          [`${s.fecha_salida} 00:00:00`, s.peso_salida_kg, numero, g.destino, guiaId, transporteId]);
       } else {
         const [r] = await conn.query(
           `INSERT INTO transporte (animal_id, tipo, destino, fecha_salida, guia_movilizacion, estado, notas, peso_pie_finca, guia_id)
