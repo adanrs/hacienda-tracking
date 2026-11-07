@@ -10,7 +10,7 @@
 // Así un código que el dueño da de alta en la pantalla lo reconoce el decodificador al instante,
 // y nada se rompe si la base no está disponible.
 
-const { CATALOGO_POR_CODIGO } = require('../data/catalogo-ciisa');
+const { CATALOGO_POR_CODIGO, CODIGOS_ANTERIORES } = require('../data/catalogo-ciisa');
 
 /** Código genérico para lo que la planta trae sin código conocido (se reasigna después). */
 const CODIGO_PENDIENTE = '99';
@@ -42,10 +42,20 @@ function buscar(codigo) {
   return null;
 }
 
+/**
+ * Código vigente de un código anterior (p. ej. 26345 → 26682, Porterhouse FB del v10 que la planta
+ * no usa). Devuelve el mismo código si no es un código anterior. Es un dato fijo del archivo, no de
+ * la base: los dos códigos siguen existiendo en catalogo_cortes y ninguno se borra.
+ */
+function codigoVigente(codigo) {
+  const c = String(codigo == null ? '' : codigo).trim();
+  return CODIGOS_ANTERIORES[c] || c;
+}
+
 /** Solo para pruebas: vuelve al estado «sin base leída». */
 function olvidar() { porCodigo = null; }
 
 /** Para pruebas: fija el catálogo de la base sin MySQL. */
 function fijar(filas) { porCodigo = new Map(filas.map((f) => [String(f.codigo), { activo: true, ...f }])); }
 
-module.exports = { recargar, buscar, olvidar, fijar, CODIGO_PENDIENTE, NOMBRE_PENDIENTE };
+module.exports = { recargar, buscar, codigoVigente, olvidar, fijar, CODIGO_PENDIENTE, NOMBRE_PENDIENTE };

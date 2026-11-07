@@ -76,9 +76,10 @@ const { vencimientoDe } = require('./vencimiento');
 const LARGO_PAQUETE = 28;
 const LARGO_CAJA_PRIMAL = 25;
 
-// FB con código fuera de la serie 263xx (anexo C1). También están en el catálogo;
-// se repiten aquí para que la regla sea explícita aunque el catálogo cambie.
-const FB_FUERA_DE_SERIE = new Set(['26676', '26680', '26684']);
+// FB con código fuera de la serie 263xx (anexo C1; 26682 Porterhouse y 26683 T-Bone confirmados por
+// JC el 07-nov-2026). También están en el catálogo; se repiten aquí para que la regla sea explícita
+// aunque el catálogo cambie (sin esto, por prefijo 266 se leerían como F1).
+const FB_FUERA_DE_SERIE = new Set(['26676', '26680', '26682', '26683', '26684']);
 
 // ── Utilidades ──────────────────────────────────────────────────────────────
 
@@ -197,7 +198,7 @@ function normalizarArete(texto) {
 
 /**
  * Serie de un código de producto según el catálogo CIISA (anexos C1–C4).
- * 'F1' (266xx), 'FB' (263xx o FB fuera de serie 26676/26680/26684), 'PVA' (procesados),
+ * 'F1' (266xx), 'FB' (263xx o FB fuera de serie 26676/26680/26682/26683/26684), 'PVA' (procesados),
  * 'ARREO' (códigos de planta) o null si no se reconoce.
  * El catálogo manda sobre el prefijo (p. ej. 26344 es PVA aunque empiece por 263).
  */
@@ -214,11 +215,16 @@ function serieDeCodigo(codigo) {
 
 function datosProducto(codigo) {
   const entrada = catalogo.buscar(codigo);
-  return {
+  const datos = {
     codigoProducto: codigo,
     serie: serieDeCodigo(codigo),
     producto: entrada ? entrada.nombre : null,
   };
+  // Código anterior del v10 (26345/26347): se reconoce como el mismo producto y se informa el
+  // código que usa hoy la planta. Solo se agrega el campo cuando difiere, para no ensuciar el resto.
+  const vigente = catalogo.codigoVigente(codigo);
+  if (vigente !== codigo) datos.codigoVigente = vigente;
+  return datos;
 }
 
 // ── Lectores por tipo (asumen el largo ya verificado) ───────────────────────
