@@ -6,13 +6,15 @@ import { aviso } from '../components/ui/avisos';
 import { Link } from 'react-router-dom';
 import AnimalSearch from '../components/AnimalSearch';
 import { formatDate } from '../components/DateFormat';
+import { FilaEstado, useEstadoCarga } from '../components/ui/Estados';
 
 export default function Pesajes() {
   const [pesajes, setPesajes] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ tipo: 'rutinario' });
 
-  const load = () => api.getPesajes().then(setPesajes).catch(aviso.errorCarga());
+  const [carga, seguir] = useEstadoCarga();
+  const load = () => seguir(api.getPesajes().then(setPesajes));
   useEffect(() => { load(); }, []);
 
   const save = async (e) => {
@@ -28,20 +30,23 @@ export default function Pesajes() {
 
   const remove = async (id) => {
     if (!(await confirmar({ titulo: '¿Eliminar este pesaje?', mensaje: 'Esta acción no se puede deshacer.', textoConfirmar: 'Eliminar', peligro: true }))) return;
-    await api.deletePesaje(id);
-    load();
+    try {
+      await api.deletePesaje(id);
+      aviso.ok('Pesaje eliminado');
+      load();
+    } catch (err) { aviso.error(err.message); }
   };
 
   return (
     <div>
       <div className="page-header">
         <h2>Pesajes</h2>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}><Plus size={16} /> Nuevo Pesaje</button>
+        <button type="button" className="btn btn-primary" onClick={() => setShowModal(true)}><Plus size={16} aria-hidden="true" /> Nuevo pesaje</button>
       </div>
       <div className="card">
         <div className="table-container">
           <table>
-            <thead><tr><th>Fecha</th><th>Animal</th><th>Peso (kg)</th><th>Tipo</th><th>Notas</th><th></th></tr></thead>
+            <thead><tr><th>Fecha</th><th>Animal</th><th>Peso (kg)</th><th>Tipo</th><th>Notas</th><th>Acciones</th></tr></thead>
             <tbody>
               {pesajes.map(p => (
                 <tr key={p.id}>
@@ -50,10 +55,12 @@ export default function Pesajes() {
                   <td><strong>{p.peso_kg} kg</strong></td>
                   <td><span className="badge badge-green">{p.tipo}</span></td>
                   <td>{p.notas || '-'}</td>
-                  <td><button className="btn-icon" onClick={() => remove(p.id)}><Trash2 size={16} color="#dc2626" /></button></td>
+                  <td><button type="button" className="btn-icon peligro" onClick={() => remove(p.id)} title="Eliminar pesaje" aria-label={`Eliminar pesaje de ${p.numero_trazabilidad} del ${formatDate(p.fecha)}`}><Trash2 size={16} aria-hidden="true" /></button></td>
                 </tr>
               ))}
-              {pesajes.length === 0 && <tr><td colSpan={6} className="empty-state">Sin pesajes registrados</td></tr>}
+              <FilaEstado columnas={6} cargando={carga.cargando} error={carga.error} onReintentar={load}
+                vacio={pesajes.length === 0} tituloVacio="Todavía no hay pesajes"
+                textoVacio="Registre el primero con «Nuevo pesaje»." />
             </tbody>
           </table>
         </div>
@@ -62,7 +69,7 @@ export default function Pesajes() {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h3>Nuevo Pesaje</h3><button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowModal(false)}>&times;</button></div>
+            <div className="modal-header"><h3>Nuevo pesaje</h3><button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowModal(false)}>&times;</button></div>
             <form onSubmit={save}>
               <div className="form-group">
                 <label>Animal *</label>

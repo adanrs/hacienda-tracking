@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Edit, Upload, ListChecks } from 'lucide-react';
+import { Plus, Edit, Upload, ListChecks, AlertTriangle } from 'lucide-react';
 import SacrificioLote from '../components/seleccion/SacrificioLote';
 import { api } from '../services/api';
 import { aviso } from '../components/ui/avisos';
 import { formatDate } from '../components/DateFormat';
 import AnimalSearch from '../components/AnimalSearch';
+import { FilaEstado, useEstadoCarga } from '../components/ui/Estados';
 
 const resultadoBadge = { aprobado: 'badge-green', rechazado: 'badge-red', condicionado: 'badge-blue' };
 
@@ -30,8 +31,9 @@ export default function Sacrificio() {
   const [form, setForm] = useState({});
   const [lote, setLote] = useState(false); // selección múltiple
 
+  const [carga, seguir] = useEstadoCarga();
   const load = () => {
-    api.getSacrificios().then(setSacrificios).catch(aviso.errorCarga());
+    seguir(api.getSacrificios().then(setSacrificios));
   };
 
   useEffect(() => { load(); }, []);
@@ -89,9 +91,9 @@ export default function Sacrificio() {
                 <th>Pasaje</th>
                 <th>Nº MAG</th>
                 <th>Animal</th>
-                <th>Peso Vivo</th>
-                <th>Peso Canal Caliente</th>
-                <th>Peso Canal Frio</th>
+                <th>Peso vivo</th>
+                <th>Canal caliente</th>
+                <th>Canal frío</th>
                 <th>Rendimiento</th>
                 <th>Marmoleo</th>
                 <th>Inspector</th>
@@ -117,13 +119,15 @@ export default function Sacrificio() {
                     <td><span className={`badge ${resultadoBadge[s.resultado_inspeccion] || 'badge-gray'}`}>{s.resultado_inspeccion || '-'}</span></td>
                     <td>
                       <div style={{ display: 'flex', gap: 4 }}>
-                        <button className="btn-icon" onClick={() => openEdit(s)}><Edit size={16} /></button>
+                        <button type="button" className="btn-icon" onClick={() => openEdit(s)} title="Editar sacrificio" aria-label={`Editar sacrificio de ${s.numero_trazabilidad || 'animal'} del ${formatDate(s.fecha)}`}><Edit size={16} aria-hidden="true" /></button>
                       </div>
                     </td>
                   </tr>
                 );
               })}
-              {sacrificios.length === 0 && <tr><td colSpan={12} className="empty-state">No se encontraron sacrificios</td></tr>}
+              <FilaEstado columnas={12} cargando={carga.cargando} error={carga.error} onReintentar={load}
+                vacio={sacrificios.length === 0} tituloVacio="Todavía no hay sacrificios"
+                textoVacio="Regístrelos uno a uno, por lote o importando el reporte de CIISA." />
             </tbody>
           </table>
         </div>
@@ -176,8 +180,8 @@ export default function Sacrificio() {
                   <input type="number" step="0.1" value={form.peso_canal_frio || ''} onChange={e => setForm({ ...form, peso_canal_frio: parseFloat(e.target.value) || '' })} />
                 </div>
               </div>
-              <div style={{ marginTop: 16, marginBottom: 12, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
-                <h4 style={{ fontSize: '0.95rem', color: '#374151', margin: 0, marginBottom: 12 }}>Informacion MAG / Matadero</h4>
+              <div>
+                <h4 className="form-seccion">Información MAG / matadero</h4>
                 <div className="form-row-3">
                   <div className="form-group">
                     <label>Consecutivo MAG</label>
@@ -218,12 +222,13 @@ export default function Sacrificio() {
                 </div>
               </div>
               {form.tipo_pasaje && form.marmoleo && BMS_TH[form.tipo_pasaje] && form.marmoleo < BMS_TH[form.tipo_pasaje] && (
-                <div style={{ background: '#fef2f2', color: '#dc2626', padding: 8, borderRadius: 6, marginBottom: 12 }}>
-                  ⚠ BMS {form.marmoleo} debajo del umbral {BMS_TH[form.tipo_pasaje]} para pasaje {form.tipo_pasaje}
+                <div className="banner alerta" role="status">
+                  <AlertTriangle size={18} aria-hidden="true" />
+                  BMS {form.marmoleo} debajo del umbral {BMS_TH[form.tipo_pasaje]} para pasaje {form.tipo_pasaje}
                 </div>
               )}
-              <div style={{ marginTop: 8, marginBottom: 12, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
-                <h4 style={{ fontSize: '0.95rem', color: '#374151', margin: 0, marginBottom: 12 }}>Detalles Carcasa</h4>
+              <div>
+                <h4 className="form-seccion">Detalles de la carcasa</h4>
                 <div className="form-row-3">
                   <div className="form-group">
                     <label>Músculo (1-4)</label>
@@ -258,8 +263,8 @@ export default function Sacrificio() {
                 <input type="datetime-local" value={form.fecha_colgado || ''} onChange={e => setForm({ ...form, fecha_colgado: e.target.value })} />
               </div>
               {liveRendimiento !== null && (
-                <div style={{ padding: '8px 12px', background: '#f0fdf4', borderRadius: 8, marginBottom: 16, textAlign: 'center' }}>
-                  <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>Rendimiento Canal: </span>
+                <div className="dato-destacado" aria-live="polite">
+                  <span>Rendimiento de canal</span>
                   <strong className={rendimientoClass(parseFloat(liveRendimiento))}>{liveRendimiento}%</strong>
                 </div>
               )}

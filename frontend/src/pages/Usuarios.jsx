@@ -5,6 +5,7 @@ import { confirmar } from '../components/ui/confirmar';
 import { aviso } from '../components/ui/avisos';
 import { useAuth } from '../components/AuthContext';
 import { formatDate } from '../components/DateFormat';
+import { FilaEstado, useEstadoCarga } from '../components/ui/Estados';
 
 const rolBadge = { admin: 'badge-red', operador: 'badge-blue', viewer: 'badge-gray' };
 const rolIcon = { admin: ShieldCheck, operador: Shield, viewer: Eye };
@@ -16,10 +17,11 @@ export default function Usuarios() {
   const [editUser, setEditUser] = useState(null);
   const [form, setForm] = useState({ rol: 'operador' });
 
-  const load = () => api.getUsuarios().then(setUsuarios).catch(aviso.errorCarga());
+  const [carga, seguir] = useEstadoCarga();
+  const load = () => seguir(api.getUsuarios().then(setUsuarios));
   useEffect(() => { load(); }, []);
 
-  if (!isAdmin) return <div className="empty-state">Solo administradores pueden acceder a esta seccion</div>;
+  if (!isAdmin) return <div className="empty-state">Solo los administradores pueden ver esta sección.</div>;
 
   const openNew = () => { setEditUser(null); setForm({ rol: 'operador' }); setShowModal(true); };
   const openEdit = (u) => { setEditUser(u); setForm({ nombre: u.nombre, email: u.email, rol: u.rol, activo: u.activo }); setShowModal(true); };
@@ -48,13 +50,13 @@ export default function Usuarios() {
   return (
     <div>
       <div className="page-header">
-        <h2>Gestion de Usuarios</h2>
-        <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nuevo Usuario</button>
+        <h2>Usuarios</h2>
+        <button type="button" className="btn btn-primary" onClick={openNew}><Plus size={16} aria-hidden="true" /> Nuevo usuario</button>
       </div>
       <div className="card">
         <div className="table-container">
           <table>
-            <thead><tr><th>Usuario</th><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th>Creado</th><th></th></tr></thead>
+            <thead><tr><th>Usuario</th><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th>Creado</th><th>Acciones</th></tr></thead>
             <tbody>
               {usuarios.map(u => {
                 const RolIcon = rolIcon[u.rol] || Eye;
@@ -63,18 +65,20 @@ export default function Usuarios() {
                     <td><strong>{u.username}</strong></td>
                     <td>{u.nombre}</td>
                     <td>{u.email || '-'}</td>
-                    <td><span className={`badge ${rolBadge[u.rol]}`}><RolIcon size={12} style={{ marginRight: 4 }} />{u.rol}</span></td>
+                    <td><span className={`badge ${rolBadge[u.rol]}`}><RolIcon size={12} aria-hidden="true" />{u.rol}</span></td>
                     <td><span className={`badge ${u.activo ? 'badge-green' : 'badge-red'}`}>{u.activo ? 'Activo' : 'Inactivo'}</span></td>
                     <td>{formatDate(u.created_at?.split('T')[0] || u.created_at?.split(' ')[0])}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 4 }}>
-                        <button className="btn-icon" onClick={() => openEdit(u)}><Edit size={16} /></button>
-                        <button className="btn-icon" onClick={() => remove(u.id)}><Trash2 size={16} color="#dc2626" /></button>
+                        <button type="button" className="btn-icon" onClick={() => openEdit(u)} title="Editar usuario" aria-label={`Editar ${u.username}`}><Edit size={16} aria-hidden="true" /></button>
+                        <button type="button" className="btn-icon peligro" onClick={() => remove(u.id)} title="Eliminar usuario" aria-label={`Eliminar ${u.username}`}><Trash2 size={16} aria-hidden="true" /></button>
                       </div>
                     </td>
                   </tr>
                 );
               })}
+              <FilaEstado columnas={7} cargando={carga.cargando} error={carga.error} onReintentar={load}
+                vacio={usuarios.length === 0} tituloVacio="Todavía no hay usuarios" />
             </tbody>
           </table>
         </div>

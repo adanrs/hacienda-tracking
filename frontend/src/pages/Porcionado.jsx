@@ -220,7 +220,7 @@ export default function Porcionado() {
                 <div className="form-group">
                   <label htmlFor="porcionado-primal">Primal *</label>
                   <select id="porcionado-primal" required value={form.primal_id || ''} onChange={e => setForm({ ...form, primal_id: e.target.value })}>
-                    <option value="">Seleccionar...</option>
+                    <option value="">Seleccionar…</option>
                     {primales.map(p => (
                       <option key={p.id} value={p.id}>{p.codigo} - {p.tipo_primal} ({parseFloat(p.peso_kg || 0).toFixed(2)} kg, {p.estado})</option>
                     ))}
@@ -286,7 +286,7 @@ export default function Porcionado() {
                       <div className="form-group">
                         <label>Corte (catalogo)</label>
                         <select value={s.corte_codigo || ''} onChange={e => updateStickerCorte(i, e.target.value)}>
-                          <option value="">Seleccionar...</option>
+                          <option value="">Seleccionar…</option>
                           {catalogoCortes.map(c => (
                             <option key={c.codigo} value={c.codigo}>{c.codigo} — {c.nombre}</option>
                           ))}
@@ -308,7 +308,7 @@ export default function Porcionado() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <button type="button" className="btn-icon" onClick={() => removeSticker(i)}><Trash2 size={16} color="#dc2626" /></button>
+                      <button type="button" className="btn-icon peligro" onClick={() => removeSticker(i)} title="Quitar sticker" aria-label={`Quitar sticker ${i + 1}`}><Trash2 size={16} aria-hidden="true" /></button>
                     </div>
                   </div>
                 ))}

@@ -3,6 +3,7 @@ import { Plus, RotateCcw, Check } from 'lucide-react';
 import { api } from '../services/api';
 import { aviso } from '../components/ui/avisos';
 import { formatDate } from '../components/DateFormat';
+import { FilaEstado, useEstadoCarga } from '../components/ui/Estados';
 
 const motivoBadge = {
   perdida_vacio: 'badge-red', producto_danado: 'badge-red', error_empaque: 'badge-yellow',
@@ -17,7 +18,8 @@ export default function Devoluciones() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ target: 'caja', motivo: 'producto_danado' });
 
-  const load = () => api.getDevoluciones().then(setItems).catch(aviso.errorCarga());
+  const [carga, seguir] = useEstadoCarga();
+  const load = () => seguir(api.getDevoluciones().then(setItems));
   useEffect(() => {
     load();
     api.getCajas().then(setCajas).catch(aviso.errorCarga());
@@ -59,7 +61,7 @@ export default function Devoluciones() {
     <div>
       <div className="page-header">
         <h2>Devoluciones</h2>
-        <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nueva Devolucion</button>
+        <button type="button" className="btn btn-primary" onClick={openNew}><Plus size={16} aria-hidden="true" /> Nueva devolución</button>
       </div>
 
       <div className="card">
@@ -83,20 +85,22 @@ export default function Devoluciones() {
                 <tr key={d.id}>
                   <td>{formatDate(d.fecha)}</td>
                   <td>{d.caja_codigo || '-'}</td>
-                  <td>{d.sticker_codigo ? <span style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{d.sticker_codigo}</span> : '-'}</td>
+                  <td>{d.sticker_codigo ? <span className="codigo-mono">{d.sticker_codigo}</span> : '-'}</td>
                   <td>{d.primal_codigo || '-'}</td>
                   <td><span className={`badge ${motivoBadge[d.motivo] || 'badge-gray'}`}>{d.motivo}</span></td>
                   <td>{d.peso_kg ? `${parseFloat(d.peso_kg).toFixed(2)} kg` : '-'}</td>
                   <td>{d.responsable || '-'}</td>
-                  <td><span className={`badge ${d.reprocesada ? 'badge-green' : 'badge-gray'}`}>{d.reprocesada ? 'Si' : 'No'}</span></td>
+                  <td><span className={`badge ${d.reprocesada ? 'badge-green' : 'badge-gray'}`}>{d.reprocesada ? 'Sí' : 'No'}</span></td>
                   <td>
                     {!d.reprocesada && (
-                      <button className="btn-icon" onClick={() => marcar(d.id)} title="Marcar reprocesada"><Check size={16} color="#16a34a" /></button>
+                      <button type="button" className="btn-icon ok" onClick={() => marcar(d.id)} title="Marcar como reprocesada" aria-label={`Marcar como reprocesada la devolución de ${d.caja_codigo || d.sticker_codigo || d.primal_codigo || 'este producto'}`}><Check size={16} aria-hidden="true" /></button>
                     )}
                   </td>
                 </tr>
               ))}
-              {items.length === 0 && <tr><td colSpan={9} className="empty-state">Sin devoluciones</td></tr>}
+              <FilaEstado columnas={9} cargando={carga.cargando} error={carga.error} onReintentar={load}
+                vacio={items.length === 0} tituloVacio="Sin devoluciones"
+                textoVacio="Cuando la tienda o un cliente devuelva una caja o pieza, regístrela con «Nueva devolución»." />
             </tbody>
           </table>
         </div>
@@ -121,7 +125,7 @@ export default function Devoluciones() {
               <div className="form-group">
                 <label>{form.target === 'caja' ? 'Caja' : form.target === 'sticker' ? 'Sticker' : 'Primal'} *</label>
                 <select required value={form.ref_id || ''} onChange={e => setForm({ ...form, ref_id: e.target.value })}>
-                  <option value="">Seleccionar...</option>
+                  <option value="">Seleccionar…</option>
                   {refOptions.map(x => (
                     <option key={x.id} value={x.id}>
                       {x.codigo || x.codigo_barras} {x.tipo_corte || x.tipo_primal || ''}

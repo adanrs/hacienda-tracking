@@ -60,6 +60,12 @@ igual, todo error lleva ícono o texto.
 Fuente del sistema (`system-ui`: Segoe UI en Windows, Roboto en Android, SF en iPad). No se cargan
 fuentes web: la red en planta es irregular y la app tiene que pintar al instante.
 
+**Voz de la marca (`--fuente-titulos`, nov-2026):** serif clásica *del sistema* (Iowan Old Style en
+iPad/iPhone, Palatino Linotype en Windows, Georgia/Noto Serif en Android). Solo para el wordmark
+«Hacienda Tempisque», el título de cada pantalla (`.page-header h2`) y los títulos de sección
+(`.seccion-titulo`). Da el aire de hacienda sin descargar nada. Datos, campos, botones y tablas
+siguen en la sans del sistema.
+
 | Token | Tamaño | Uso |
 | --- | --- | --- |
 | `--texto-xs` | 13 px | Cabeceras de tabla, badges, metadatos, migas. |
@@ -105,6 +111,14 @@ de oración en todo: nada de etiquetas en MAYÚSCULAS espaciadas.
 | Paginación | `ui/Paginacion.jsx` | «21–40 de 312 animales» + Anterior/Siguiente de 44 px. |
 | Encabezado de página | `.page-header` con `h2` + acción primaria; migas en el layout (`.migas`) | Las migas («Planta / Sacrificio») se muestran en escritorio; en tablet/celular la barra superior dice etapa y pantalla. |
 | Escáner | `ui/Escaner.jsx` | Campo de 56 px, respuesta grande con color + ícono + texto. |
+| Sección | `section.seccion > h3.seccion-titulo` | Agrupa bloques de una pantalla larga (Resumen: Finca / Planta y bodega / Hato). Serif, regla fina debajo. |
+| KPI enlazado | `Link.stat-card` (+ `.alerta` y `.stat-aviso`) | La alerta pinta borde y fondo pálido de error **y** agrega una línea de texto («Revisar hoy»). Sin bordes laterales gruesos. |
+| Fichas de catálogo | `.fichas > .card` con `.ficha-encabezado`, `.ficha-acciones`, `.cifras`, `.barra` | Potreros y Bodegas. La barra se escala con `transform: scaleX()`. |
+| Pares dato/valor | `dl.ficha-datos` | Ficha del animal. |
+| Banner | `.banner` + `.info` / `.ok` / `.error` / `.alerta` / `.critico`, con `.chips > .chip` | `.critico` (fondo rojo pleno) solo para primales olvidados. |
+| Buscador de animal | `components/AnimalSearch.jsx` | Combobox accesible: flechas + Enter, opciones de 44 px, X para limpiar. |
+| Carga de pantalla | `useEstadoCarga()` de `ui/Estados.jsx` + `FilaEstado` | `const [carga, seguir] = useEstadoCarga(); const load = () => seguir(api.getX().then(setX));` |
+| Accesibilidad global | `ui/useAccesibilidadGlobal.js` (montado en `App.jsx`) | Asocia `<label>` y campo en `.form-group`, pone `inputmode` en numéricos no negativos, nombra casillas de tablas, y da a los `.modal` hechos a mano `role="dialog"`, foco, Tab atrapado y Escape; el toque en el fondo no cierra una ventana con formulario. |
 
 ## Navegación
 
@@ -119,12 +133,13 @@ de oración en todo: nada de etiquetas en MAYÚSCULAS espaciadas.
 - Contraste AA en todo texto (≥ 4.5:1) y en bordes de controles (≥ 3:1).
 - Foco visible: anillo carmesí de 3 px con separación de 2 px.
 - `prefers-contrast: more`: textos secundarios y bordes suben a tinta.
-- `prefers-reduced-motion`: sin transiciones ni animaciones.
+- `prefers-reduced-motion`: sin transiciones ni animaciones, salvo el spinner, que gira lento (es la única señal de «cargando»).
 - Salto al contenido, `aria-current` en las migas, regiones vivas en avisos y escáner.
 
 ## Pendiente / ideas
 
-- Los gráficos de `AnimalDetalle` y algunos colores en línea de `Maduracion`, `Potreros`,
-  `Paqueteria` todavía usan hex sueltos; conviene pasarlos a tokens cuando se toquen esas pantallas.
-- Hay textos sin tilde en algunas pantallas («Maduracion», «Codigo», «Dias»); se dejaron igual en
-  este cambio para no chocar con otros trabajos en curso.
+- `Paqueteria`, `Porcionado`, `Deshuese` y `Sacrificio` (formularios) todavía tienen hex y estilos en
+  línea; conviene pasarlos a tokens cuando se toquen esas pantallas (`Maduracion`, `AnimalDetalle`,
+  `Potreros`, `Bodegas` y el Resumen ya están en el sistema desde la pasada del 07-nov-2026).
+- Los modales hechos a mano conviene migrarlos a `ui/Modal.jsx` cuando se toque cada pantalla;
+  mientras tanto `useAccesibilidadGlobal` les da el comportamiento básico.

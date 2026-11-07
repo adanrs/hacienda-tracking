@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2, Snowflake } from 'lucide-react';
 import { api } from '../services/api';
 import { confirmar } from '../components/ui/confirmar';
 import { aviso } from '../components/ui/avisos';
+import { Cargando, EstadoError, EstadoVacio, useEstadoCarga } from '../components/ui/Estados';
 
 const tipoBadge = { custodia: 'badge-blue', maduracion: 'badge-yellow', deshuese: 'badge-gray', porcionado: 'badge-green', despacho: 'badge-gray' };
 // Mismos valores que el ENUM bodegas.tipo (backend/src/models/database.js); el backend
@@ -21,7 +22,8 @@ export default function Bodegas() {
   const [editItem, setEditItem] = useState(null);
   const [form, setForm] = useState({});
 
-  const load = () => api.getBodegas().then(setBodegas).catch(aviso.errorCarga());
+  const [carga, seguir] = useEstadoCarga();
+  const load = () => seguir(api.getBodegas().then(setBodegas));
   useEffect(() => { load(); }, []);
 
   const openNew = () => { setEditItem(null); setForm({ tipo: 'custodia', activa: 1 }); setShowModal(true); };
@@ -46,40 +48,44 @@ export default function Bodegas() {
     <div>
       <div className="page-header">
         <h2>Bodegas</h2>
-        <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nueva Bodega</button>
+        <button type="button" className="btn btn-primary" onClick={openNew}><Plus size={16} aria-hidden="true" /> Nueva bodega</button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
+      <div className="fichas">
         {bodegas.map(b => (
           <div className="card" key={b.id}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 12 }}>
+            <div className="ficha-encabezado">
               <div>
-                <h3 style={{ fontSize: '1.05rem' }}><Snowflake size={16} style={{ marginRight: 4 }} />{b.codigo}</h3>
-                <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>{b.nombre}</div>
+                <h3><Snowflake size={18} aria-hidden="true" />{b.codigo}</h3>
+                <div className="ficha-sub">{b.nombre}</div>
               </div>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <button className="btn-icon" onClick={() => openEdit(b)}><Edit size={16} /></button>
-                <button className="btn-icon" onClick={() => remove(b.id)}><Trash2 size={16} color="#dc2626" /></button>
+              <div className="ficha-acciones">
+                <button type="button" className="btn-icon" onClick={() => openEdit(b)} title="Editar bodega" aria-label={`Editar bodega ${b.codigo}`}><Edit size={16} aria-hidden="true" /></button>
+                <button type="button" className="btn-icon peligro" onClick={() => remove(b.id)} title="Eliminar bodega" aria-label={`Eliminar bodega ${b.codigo}`}><Trash2 size={16} aria-hidden="true" /></button>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+            <div className="ficha-badges">
               <span className={`badge ${tipoBadge[b.tipo] || 'badge-gray'}`}>{b.tipo}</span>
               <span className={`badge ${b.activa ? 'badge-green' : 'badge-gray'}`}>{b.activa ? 'Activa' : 'Inactiva'}</span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, textAlign: 'center' }}>
+            <div className="cifras">
               <div>
-                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{b.temperatura_c !== null && b.temperatura_c !== undefined ? `${parseFloat(b.temperatura_c).toFixed(1)}°C` : '-'}</div>
-                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Temperatura</div>
+                <div className="cifra-valor">{b.temperatura_c !== null && b.temperatura_c !== undefined ? `${parseFloat(b.temperatura_c).toFixed(1)} °C` : '-'}</div>
+                <div className="cifra-etiqueta">Temperatura</div>
               </div>
               <div>
-                <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>{b.capacidad_kg ? `${parseFloat(b.capacidad_kg).toFixed(0)}kg` : '-'}</div>
-                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Capacidad</div>
+                <div className="cifra-valor">{b.capacidad_kg ? `${parseFloat(b.capacidad_kg).toFixed(0)} kg` : '-'}</div>
+                <div className="cifra-etiqueta">Capacidad</div>
               </div>
             </div>
-            {b.notas && <div style={{ marginTop: 8, fontSize: '0.8rem', color: '#6b7280' }}>{b.notas}</div>}
+            {b.notas && <div className="ficha-sub">{b.notas}</div>}
           </div>
         ))}
-        {bodegas.length === 0 && <div className="empty-state">No hay bodegas registradas</div>}
+        {carga.cargando && <Cargando texto="Cargando bodegas…" />}
+        {!carga.cargando && carga.error && <EstadoError mensaje={carga.error} onReintentar={load} />}
+        {!carga.cargando && !carga.error && bodegas.length === 0 && (
+          <EstadoVacio titulo="Todavía no hay bodegas" texto="Cree la primera con «Nueva bodega»." />
+        )}
       </div>
 
       {showModal && (

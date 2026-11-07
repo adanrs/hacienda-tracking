@@ -5,6 +5,7 @@ import { aviso } from '../components/ui/avisos';
 import { Link } from 'react-router-dom';
 import AnimalSearch from '../components/AnimalSearch';
 import { formatDate } from '../components/DateFormat';
+import { FilaEstado, useEstadoCarga } from '../components/ui/Estados';
 
 export default function Movimientos() {
   const [movimientos, setMovimientos] = useState([]);
@@ -12,7 +13,8 @@ export default function Movimientos() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({});
 
-  const load = () => api.getMovimientos().then(setMovimientos).catch(aviso.errorCarga());
+  const [carga, seguir] = useEstadoCarga();
+  const load = () => seguir(api.getMovimientos().then(setMovimientos));
   useEffect(() => {
     load();
     api.getPotreros().then(setPotreros).catch(aviso.errorCarga('los potreros'));
@@ -33,7 +35,7 @@ export default function Movimientos() {
     <div>
       <div className="page-header">
         <h2>Movimientos</h2>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}><Plus size={16} /> Nuevo Movimiento</button>
+        <button type="button" className="btn btn-primary" onClick={() => setShowModal(true)}><Plus size={16} aria-hidden="true" /> Nuevo movimiento</button>
       </div>
       <div className="card">
         <div className="table-container">
@@ -50,7 +52,9 @@ export default function Movimientos() {
                   <td>{m.responsable || '-'}</td>
                 </tr>
               ))}
-              {movimientos.length === 0 && <tr><td colSpan={6} className="empty-state">Sin movimientos registrados</td></tr>}
+              <FilaEstado columnas={6} cargando={carga.cargando} error={carga.error} onReintentar={load}
+                vacio={movimientos.length === 0} tituloVacio="Todavía no hay movimientos"
+                textoVacio="Cada cambio de potrero queda aquí al registrarlo con «Nuevo movimiento»." />
             </tbody>
           </table>
         </div>
@@ -59,7 +63,7 @@ export default function Movimientos() {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h3>Nuevo Movimiento</h3><button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowModal(false)}>&times;</button></div>
+            <div className="modal-header"><h3>Nuevo movimiento</h3><button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowModal(false)}>&times;</button></div>
             <form onSubmit={save}>
               <div className="form-group">
                 <label>Animal *</label>
@@ -69,14 +73,14 @@ export default function Movimientos() {
                 <div className="form-group">
                   <label>Potrero Origen</label>
                   <select value={form.potrero_origen_id || ''} onChange={e => setForm({ ...form, potrero_origen_id: parseInt(e.target.value) || null })}>
-                    <option value="">Seleccionar...</option>
+                    <option value="">Seleccionar…</option>
                     {potreros.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
                   <label>Potrero Destino</label>
                   <select value={form.potrero_destino_id || ''} onChange={e => setForm({ ...form, potrero_destino_id: parseInt(e.target.value) || null })}>
-                    <option value="">Seleccionar...</option>
+                    <option value="">Seleccionar…</option>
                     {potreros.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                   </select>
                 </div>

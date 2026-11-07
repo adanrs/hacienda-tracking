@@ -51,7 +51,7 @@ export default function Cortes() {
     <div>
       <div className="page-header">
         <h2>Cortes</h2>
-        <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nuevo Corte</button>
+        <button className="btn btn-primary" onClick={openNew}><Plus size={16} aria-hidden="true" /> Nuevo corte</button>
       </div>
 
       <div className="filter-bar">
@@ -95,7 +95,7 @@ export default function Cortes() {
                   <td>{formatDate(c.fecha_empaque)}</td>
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="btn-icon" onClick={() => remove(c.id)}><Trash2 size={16} color="#dc2626" /></button>
+                      <button type="button" className="btn-icon peligro" onClick={() => remove(c.id)} title="Eliminar corte" aria-label="Eliminar corte"><Trash2 size={16} aria-hidden="true" /></button>
                     </div>
                   </td>
                 </tr>
@@ -117,7 +117,7 @@ export default function Cortes() {
               <div className="form-group">
                 <label>Sacrificio *</label>
                 <select required value={form.sacrificio_id || ''} onChange={e => setForm({ ...form, sacrificio_id: e.target.value })}>
-                  <option value="">Seleccionar sacrificio...</option>
+                  <option value="">Seleccionar sacrificio…</option>
                   {sacrificios.map(s => (
                     <option key={s.id} value={s.id}>
                       {s.lote_sacrificio || `Sacrificio #${s.id}`} - {s.numero_trazabilidad || 'Animal'} ({formatDate(s.fecha)})

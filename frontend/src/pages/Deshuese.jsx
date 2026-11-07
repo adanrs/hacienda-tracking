@@ -119,7 +119,7 @@ export default function Deshuese() {
     <div>
       <div className="page-header">
         <h2>Deshuese</h2>
-        <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nuevo Deshuese</button>
+        <button className="btn btn-primary" onClick={openNew}><Plus size={16} aria-hidden="true" /> Nuevo deshuese</button>
       </div>
 
       <input type="file" ref={fileInputRef} accept="application/pdf" style={{ display: 'none' }} onChange={onFilePicked} />
@@ -153,9 +153,9 @@ export default function Deshuese() {
                   <td>{d.pdf_url ? <button type="button" className="btn-icon" aria-label={`Abrir el PDF del deshuese ${d.numero_lote}`} onClick={() => api.abrirArchivo(d.pdf_url).catch(e => aviso.error(e.message))}><FileText size={18} aria-hidden="true" /></button> : '-'}</td>
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="btn-icon" onClick={() => openEdit(d)}><Edit size={16} /></button>
-                      <button className="btn-icon" onClick={() => triggerUpload(d.id)}><Upload size={16} /></button>
-                      <button className="btn-icon" onClick={() => remove(d.id)}><Trash2 size={16} color="#dc2626" /></button>
+                      <button type="button" className="btn-icon" onClick={() => openEdit(d)} title="Editar deshuese" aria-label="Editar deshuese"><Edit size={16} aria-hidden="true" /></button>
+                      <button type="button" className="btn-icon" onClick={() => triggerUpload(d.id)} title="Subir PDF del deshuese" aria-label="Subir PDF del deshuese"><Upload size={16} aria-hidden="true" /></button>
+                      <button type="button" className="btn-icon peligro" onClick={() => remove(d.id)} title="Eliminar deshuese" aria-label="Eliminar deshuese"><Trash2 size={16} aria-hidden="true" /></button>
                     </div>
                   </td>
                 </tr>
@@ -180,7 +180,7 @@ export default function Deshuese() {
                   const s = sacrificios.find(x => String(x.id) === String(e.target.value));
                   setForm({ ...form, sacrificio_id: e.target.value, animal_id: s?.animal_id || null });
                 }}>
-                  <option value="">Seleccionar...</option>
+                  <option value="">Seleccionar…</option>
                   {sacrificios.map(s => (
                     <option key={s.id} value={s.id}>
                       {s.lote_sacrificio || `Sacrificio #${s.id}`} - {s.numero_trazabilidad || 'Animal'} ({formatDate(s.fecha)})
@@ -205,7 +205,7 @@ export default function Deshuese() {
               <div className="form-group">
                 <label>Bodega Origen</label>
                 <select value={form.bodega_origen_id || ''} onChange={e => setForm({ ...form, bodega_origen_id: e.target.value })}>
-                  <option value="">Seleccionar...</option>
+                  <option value="">Seleccionar…</option>
                   {bodegasDeshuese.map(b => <option key={b.id} value={b.id}>{b.codigo} - {b.nombre}</option>)}
                 </select>
               </div>
@@ -217,7 +217,7 @@ export default function Deshuese() {
                       <strong style={{ fontSize: '0.9rem' }}><FileText size={14} style={{ verticalAlign: 'middle' }} /> Cargar PDF de arreo (opcional)</strong>
                       <input type="file" ref={newPdfRef} accept="application/pdf" style={{ display: 'none' }} onChange={onPdfPicked} />
                       <button type="button" className="btn btn-secondary" onClick={() => newPdfRef.current.click()} disabled={parsingPdf}>
-                        <Upload size={14} /> {parsingPdf ? 'Parseando...' : (pdfFile ? 'Cambiar PDF' : 'Subir PDF')}
+                        <Upload size={14} /> {parsingPdf ? 'Leyendo el PDF…' : (pdfFile ? 'Cambiar PDF' : 'Subir PDF')}
                       </button>
                     </div>
                     {pdfFile && (
@@ -253,7 +253,7 @@ export default function Deshuese() {
                           <label>Marmoleo</label>
                           <input type="number" min="1" max="12" value={p.marmoleo} onChange={e => updatePrimalRow(i, 'marmoleo', parseInt(e.target.value) || '')} />
                         </div>
-                        <button type="button" className="btn-icon" onClick={() => removePrimalRow(i)} style={{ marginBottom: 2 }}><Trash2 size={16} color="#dc2626" /></button>
+                        <button type="button" className="btn-icon peligro" onClick={() => removePrimalRow(i)} style={{ marginBottom: 2 }} title="Quitar primal" aria-label={`Quitar primal ${i + 1}`}><Trash2 size={16} aria-hidden="true" /></button>
                       </div>
                     </div>
                   ))}
