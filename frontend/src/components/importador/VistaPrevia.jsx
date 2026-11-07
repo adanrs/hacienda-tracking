@@ -7,6 +7,8 @@ import { ChevronDown, ChevronRight, CircleAlert, TriangleAlert } from 'lucide-re
   avisos, cambios [{ etiqueta, antes, despues }] y acciones [{ entidad, accion, … }].
   Las columnas propias de cada formato llegan por `columnas` ([{ titulo, valor: (fila) => …, num }]).
   Filtros por estado y paginación de 25 filas: un reporte de hato puede traer cientos.
+  Texto leído por FOTO (backend lib/importador/foto.js): las filas traen `leido_por_foto` y, las que
+  hay que revisar contra el papel, `revisar_foto`; se avisa arriba y se marcan en la columna Resultado.
 */
 const POR_PAGINA = 25;
 const FILTROS = [
@@ -53,8 +55,15 @@ export default function VistaPrevia({ filas, columnas, renderExtra, filtroInicia
     return n;
   });
 
+  const porFoto = filas.some(f => f.leido_por_foto);
+  const aRevisar = filas.filter(f => f.revisar_foto).length;
   return (
     <div>
+      {porFoto && (
+        <div className={`banner ${aRevisar ? 'error' : 'info'}`} role="status">
+          Datos leídos de una foto{aRevisar ? <>: <strong>{aRevisar} fila(s) para revisar contra el papel</strong> (marcadas «Leído por foto: revisar»). Corrija el texto y vuelva a leerlo si algo no coincide.</> : '. Compare los totales con el papel antes de aplicar.'}
+        </div>
+      )}
       <div className="tabs" role="group" aria-label="Filtrar filas de la vista previa">
         {FILTROS.map(({ id, texto }) => (
           <button key={id} type="button" className={`tab ${filtro === id ? 'active' : ''}`} aria-pressed={filtro === id}
@@ -94,7 +103,10 @@ export default function VistaPrevia({ filas, columnas, renderExtra, filtroInicia
                       )}
                     </td>
                     <td className="num">{f.fila}</td>
-                    <td><span className={`badge ${et.clase}`}>{et.texto}</span></td>
+                    <td>
+                      <span className={`badge ${et.clase}`}>{et.texto}</span>
+                      {f.revisar_foto && <> <span className="badge badge-orange badge-foto" title="La lectura de la foto no fue segura o el dato no cuadra: compárelo con el papel">Leído por foto: revisar</span></>}
+                    </td>
                     {columnas.map(c => <td key={c.titulo} className={c.num ? 'num' : ''}>{c.valor(f)}</td>)}
                     <td>
                       {f.errores?.length > 0 && <div style={{ color: 'var(--error-fuerte)' }}><CircleAlert size={14} aria-hidden="true" /> {f.errores[0]}{f.errores.length > 1 ? ` (+${f.errores.length - 1})` : ''}</div>}

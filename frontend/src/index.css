@@ -1078,3 +1078,14 @@ tr.rp-fila-falta > td { background: var(--alerta-suave); }
 
 /* Inventario de la planta: caja marcada para pedir a la tienda. */
 tr.fila-seleccionada td { background: var(--info-suave, #e8f1fb); }
+/* Carga por foto (LecturaFoto): botones que se acomodan en el celular y miniaturas de las páginas. */
+.lectura-foto-botones { display: flex; flex-wrap: wrap; gap: var(--esp-2); }
+.lectura-foto-paginas { display: flex; flex-direction: column; gap: var(--esp-2); }
+.lectura-foto-paginas ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--esp-2); }
+.lectura-foto-paginas li { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; width: 84px; font-size: 0.75rem; }
+.lectura-foto-paginas li img { width: 84px; height: 108px; object-fit: cover; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-card); }
+.lectura-foto-paginas li.pagina-alerta img { outline: 3px solid var(--alerta); }
+.lectura-foto-paginas li .btn-icon { position: absolute; top: 2px; right: 2px; min-width: 28px; min-height: 28px; background: var(--bg-card); border-radius: 50%; }
+.lectura-foto-avance { width: 100%; height: 8px; }
+.badge-foto { white-space: nowrap; }
+@media (max-width: 640px) { .lectura-foto-botones .btn { flex: 1 1 auto; justify-content: center; min-height: 44px; } }

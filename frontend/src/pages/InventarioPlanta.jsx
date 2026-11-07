@@ -10,6 +10,7 @@ import { useAuth } from '../components/AuthContext';
 import VistaPrevia from '../components/importador/VistaPrevia';
 import ResumenPlan from '../components/importador/ResumenPlan';
 import useImportacion from '../components/importador/useImportacion';
+import LecturaFoto from '../components/importador/LecturaFoto';
 import AltaRapidaCorte from '../components/AltaRapidaCorte';
 import Modal from '../components/ui/Modal';
 
@@ -93,6 +94,7 @@ function CargarInventario({ onAplicado }) {
   const refArchivo = useRef(null);
   const [pegado, setPegado] = useState('');
   const [fechaInv, setFechaInv] = useState('');
+  const [foto, setFoto] = useState(null); // { dudosas } si la tabla salió de fotos de la hoja impresa
   const [alta, setAlta] = useState(null);
   const imp = useImportacion('inventario-ciisa');
   const { plan } = imp;
@@ -103,11 +105,12 @@ function CargarInventario({ onAplicado }) {
     e.target.value = '';
     if (!a) return;
     if (a.size > 10 * 1024 * 1024) { aviso.error('El archivo pesa más de 10 MB'); return; }
+    setFoto(null);
     await imp.planificar({ archivo: a }, opciones());
   };
   const leerPegado = () => {
     if (!pegado.trim()) { aviso.error('Pegue la tabla (con su fila de encabezados) primero'); return; }
-    imp.planificar({ pegado: { texto: pegado } }, opciones());
+    imp.planificar({ pegado: { texto: pegado } }, opciones({ foto: foto || undefined }));
   };
   const aplicar = async () => {
     const ok = await confirmar({
@@ -145,8 +148,13 @@ function CargarInventario({ onAplicado }) {
           <label htmlFor="inv-pegado" className="sr-only">Tabla pegada</label>
           <textarea id="inv-pegado" rows={5} className="imp-pegado" value={pegado} disabled={!canEdit}
             placeholder="Tarima · Linea · Cod Barra · Codigo · Descripción · Peso · Medida · Lote · Fecha Vencimiento…"
-            onChange={e => setPegado(e.target.value)} />
-          <Boton icono={RefreshCw} onClick={leerPegado} cargando={imp.cargando} disabled={!canEdit}>Leer lo pegado</Boton>
+            onChange={e => { setPegado(e.target.value); if (!e.target.value.trim()) setFoto(null); }} />
+          <div className="rp-acciones">
+            <Boton icono={RefreshCw} onClick={leerPegado} cargando={imp.cargando} disabled={!canEdit}>Leer lo pegado</Boton>
+            {/* Hoja impresa del inventario: una foto por página; el texto queda arriba para revisarlo. */}
+            <LecturaFoto formato="inventario-ciisa" deshabilitado={!canEdit}
+              onTexto={(t, dudas) => { setPegado(t); setFoto({ dudosas: dudas }); }} />
+          </div>
         </div>
       </div>
 

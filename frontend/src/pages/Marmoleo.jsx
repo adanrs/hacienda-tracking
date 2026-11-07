@@ -143,6 +143,8 @@ function DesdeCamara() {
   const refArchivo = useRef(null);
   const [pegado, setPegado] = useState({ html: '', texto: '' });
   const [confirmaciones, setConfirmaciones] = useState({});
+  // El texto salió de una foto: la vista previa marca lo que hay que revisar (backend importador/foto.js).
+  const [foto, setFoto] = useState(null);
   const imp = useImportacion('marmoleo-camara');
   const { plan } = imp;
   const [reporteFinal, setReporteFinal] = useState(null);
@@ -153,14 +155,14 @@ function DesdeCamara() {
     if (!html && !texto) return;
     e.preventDefault();
     setPegado({ html, texto });
-    setConfirmaciones({});
+    setConfirmaciones({}); setFoto(null);
     imp.planificar({ pegado: { html, texto } }, { confirmaciones: {} });
   };
   const elegir = (e) => {
     const a = e.target.files?.[0];
     e.target.value = '';
     if (!a) return;
-    setConfirmaciones({});
+    setConfirmaciones({}); setFoto(null);
     imp.planificar({ archivo: a }, { confirmaciones: {} });
   };
   const ligar = (fila, sacrificioId) => {
@@ -208,15 +210,15 @@ function DesdeCamara() {
           <label htmlFor="mm-pegado" className="sr-only">Tabla pegada</label>
           <textarea id="mm-pegado" className="imp-pegado" rows={6} value={pegado.texto} disabled={!canEdit}
             placeholder="Pegue aquí (Ctrl+V) la tabla de la cámara"
-            onPaste={alPegar} onChange={e => setPegado({ html: '', texto: e.target.value })} />
+            onPaste={alPegar} onChange={e => { setPegado({ html: '', texto: e.target.value }); if (!e.target.value.trim()) setFoto(null); }} />
           <div className="rp-acciones">
-            <Boton icono={RefreshCw} cargando={imp.cargando} disabled={!canEdit || !pegado.texto.trim()} onClick={() => imp.planificar({ pegado }, { confirmaciones })}>Leer lo pegado</Boton>
+            <Boton icono={RefreshCw} cargando={imp.cargando} disabled={!canEdit || !pegado.texto.trim()} onClick={() => imp.planificar({ pegado }, { confirmaciones, foto: foto || undefined })}>Leer lo pegado</Boton>
             <Boton icono={Upload} disabled={!canEdit} onClick={() => refArchivo.current?.click()}>O subir CSV/Excel…</Boton>
             <input ref={refArchivo} type="file" accept=".csv,.txt,.xlsx,.html,.htm" hidden onChange={elegir} />
             {/* Foto de la pantalla de la cámara: se transcriben solo Body no. y DMs (AUSMEAT) y el texto
                 queda en el cuadro de arriba para revisarlo antes de leerlo (nunca se aplica directo). */}
             <LecturaFoto formato="marmoleo-camara" deshabilitado={!canEdit}
-              onTexto={(t, dudas) => { setPegado({ html: '', texto: t }); if (dudas.length) aviso.info(`Revise con cuidado (baja confianza): ${dudas.join(', ')}`); }} />
+              onTexto={(t, dudas) => { setPegado({ html: '', texto: t }); setFoto({ dudosas: dudas }); if (dudas.length) aviso.info(`Revise con cuidado (baja confianza): ${dudas.join(', ')}`); }} />
           </div>
         </div>
         <div className="card">

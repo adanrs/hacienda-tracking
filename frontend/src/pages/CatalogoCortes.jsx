@@ -9,6 +9,7 @@ import Boton from '../components/ui/Boton';
 import VistaPrevia from '../components/importador/VistaPrevia';
 import ResumenPlan from '../components/importador/ResumenPlan';
 import useImportacion from '../components/importador/useImportacion';
+import LecturaFoto from '../components/importador/LecturaFoto';
 import { TIPOS_CORTE, UNIDADES } from '../components/AltaRapidaCorte';
 
 /*
@@ -208,9 +209,10 @@ function Pendientes({ canEdit }) {
 
 function ImportarListado({ canEdit }) {
   const [texto, setTexto] = useState('');
+  const [foto, setFoto] = useState(null); // { dudosas } si el listado salió de una foto
   const imp = useImportacion('catalogo-cortes');
   const { plan } = imp;
-  const elegir = (e) => { const a = e.target.files?.[0]; e.target.value = ''; if (a) imp.planificar({ archivo: a }); };
+  const elegir = (e) => { const a = e.target.files?.[0]; e.target.value = ''; if (a) { setFoto(null); imp.planificar({ archivo: a }); } };
   const aplicar = async () => {
     if (!(await confirmar({ titulo: '¿Aplicar el listado?', mensaje: `${plan.resumen.nuevos} nuevo(s) y ${plan.resumen.actualizados} con cambios. Lo que no venga en el listado NO se desactiva.`, textoConfirmar: 'Aplicar' }))) return;
     const r = await imp.aplicar();
@@ -229,10 +231,11 @@ function ImportarListado({ canEdit }) {
           <Upload size={16} aria-hidden="true" /> Subir Excel o CSV
           <input type="file" accept=".xlsx,.csv,.txt" hidden disabled={!canEdit} onChange={elegir} />
         </label>
+        <LecturaFoto formato="catalogo-cortes" deshabilitado={!canEdit} onTexto={(t, dudas) => { setTexto(t); setFoto({ dudosas: dudas }); }} />
       </div>
       <div className="form-group"><label htmlFor="cc-pegar">O pegue el listado</label>
-        <textarea id="cc-pegar" rows={6} value={texto} onChange={e => setTexto(e.target.value)} placeholder={'Codigo\tDescripcion\tTipo\n22229\tCH-CHUCK RES\ttrimming'} /></div>
-      <Boton icono={ListChecks} cargando={imp.cargando} disabled={!canEdit || !texto.trim()} onClick={() => imp.planificar({ pegado: { texto } })}>Ver vista previa</Boton>
+        <textarea id="cc-pegar" rows={6} value={texto} onChange={e => { setTexto(e.target.value); if (!e.target.value.trim()) setFoto(null); }} placeholder={'Codigo\tDescripcion\tTipo\n22229\tCH-CHUCK RES\ttrimming'} /></div>
+      <Boton icono={ListChecks} cargando={imp.cargando} disabled={!canEdit || !texto.trim()} onClick={() => imp.planificar({ pegado: { texto } }, { foto: foto || undefined })}>Ver vista previa</Boton>
       {plan && (
         <Fragment>
           <ResumenPlan resumen={plan.resumen} />

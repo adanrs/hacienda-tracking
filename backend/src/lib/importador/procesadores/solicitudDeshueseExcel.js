@@ -112,37 +112,115 @@ function leerHoja(hoja) {
   return { canales, cortes };
 }
 
+// ── Texto (leído por foto o pegado) → hoja equivalente ───────────────────────
+// La solicitud en papel no es una tabla con encabezado: canales en columnas y cortes en filas. La
+// visión la devuelve en este texto (instrucciones en lib/vision.js), separado por tabuladores:
+//   Deshuese 151026
+//   Canal #	Canal # 1	Canal # 2
+//   Arete	225MLE	438MLF
+//   … (Sexo, Padre, Peso en Pie, Peso Pie Planta, Peso canal, Consecutivo…, Lote de Deshuese, Marble Score)
+//   Codigo
+//   22229	CH-CHUCK	2	2
+// Para no tener un segundo lector, el texto se vuelca a una hoja de ExcelJS con la MISMA disposición
+// que el libro de la planta (etiqueta en B, nombre del corte en E, canales en G, I, K…) y pasa por
+// leerHoja. La columna Q (17) es la de observaciones del libro: ninguna canal cae ahí.
+const COL_ETIQUETA = 2;
+const COL_NOMBRE = 5;
+const COL_OBSERVACION = 17;
+function columnasCanal(n) {
+  const cols = [];
+  for (let c = 7; cols.length < n; c += 2) if (c !== COL_OBSERVACION) cols.push(c);
+  return cols;
+}
+const numeroOTexto = (v) => {
+  const t = String(v ?? '').trim();
+  if (!t) return null;
+  return /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : t;
+};
+
+/** Texto → { nombre, hoja } (hoja de ExcelJS) o null si no parece una solicitud. PURO. */
+function hojaDesdeTexto(texto) {
+  const lineas = String(texto || '').split(/\r?\n/).map((l) => l.replace(/\s+$/, '')).filter((l) => l.trim());
+  if (!lineas.length) return null;
+  let nombre = 'Deshuese (texto)';
+  const titulo = lineas.findIndex((l) => /^\s*deshu?e?s+e?\s*\d{4,6}\s*$/i.test(l.replace(/\t/g, ' ')));
+  if (titulo >= 0) { nombre = `Deshuese ${lineas[titulo].replace(/\D+/g, '')}`; lineas.splice(titulo, 1); }
+  const celdas = lineas.map((l) => l.split('\t').map((c) => c.trim()));
+  // Cuántas canales: la fila «Canal #» si viene; si no, el máximo de valores de la fila «Arete».
+  const filaCanal = celdas.find((c) => /^canal\s*#?$/i.test(c[0] || '') || /^canal\s*#\s*\d+/i.test(c[0] || ''));
+  const filaArete = celdas.find((c) => /^arete/i.test(norm(c[0])));
+  if (!filaArete) return null;
+  const nCanales = Math.max(filaCanal ? filaCanal.slice(/^canal\s*#\s*\d+/i.test(filaCanal[0]) ? 0 : 1).filter(Boolean).length : 0, filaArete.length - 1);
+  if (nCanales < 1) return null;
+  const cols = columnasCanal(nCanales);
+  const libro = new ExcelJS.Workbook();
+  const hoja = libro.addWorksheet('texto');
+  let r = 1;
+  // Fila de títulos de canal (aunque el texto no la traiga): leerHoja la necesita.
+  cols.forEach((c, i) => { hoja.getCell(r, c).value = `Canal # ${i + 1}`; });
+  r++;
+  let enCortes = false;
+  for (const c of celdas) {
+    if (filaCanal && c === filaCanal) continue;
+    if (!enCortes && norm(c[0]) === 'codigo') { hoja.getCell(r, COL_ETIQUETA).value = 'Codigo'; enCortes = true; r++; continue; }
+    if (enCortes) {
+      // código, nombre y una media por canal; el código puede venir vacío («\tLomito\t2\t2»).
+      hoja.getCell(r, COL_ETIQUETA).value = numeroOTexto(c[0]);
+      hoja.getCell(r, COL_NOMBRE).value = c[1] || null;
+      cols.forEach((col, i) => { hoja.getCell(r, col).value = numeroOTexto(c[2 + i]); });
+    } else {
+      hoja.getCell(r, COL_ETIQUETA).value = c[0] || null;
+      cols.forEach((col, i) => { hoja.getCell(r, col).value = numeroOTexto(c[1 + i]); });
+    }
+    r++;
+  }
+  return { nombre, hoja };
+}
+
 async function planificar(conn, _tabla, opciones = {}, { lectura }) {
-  const fechasElegidas = opciones.fechas && typeof opciones.fechas === 'object' ? opciones.fechas : {};
+  const fechasElegidas = { ...(opciones.fechas && typeof opciones.fechas === 'object' ? opciones.fechas : {}) };
   const soloHojas = Array.isArray(opciones.hojas) && opciones.hojas.length ? new Set(opciones.hojas.map(String)) : null;
   const filas = [];
+  // Hojas a leer: las «Deshuese ddmmaa» de cada libro y, si vino texto (foto o pegado), su hoja equivalente.
+  const hojas = [];
   for (const doc of lectura.documentos) {
+    if (doc.pegado) {
+      const h = hojaDesdeTexto(doc.texto);
+      if (!h) {
+        filas.push({ fila: filas.length + 1, entidad: 'solicitud', clave: 'texto', accion: 'error', errores: ['El texto no tiene el formato de solicitud: falta la línea «Arete» con un valor por canal'], avisos: [], cambios: [] });
+        continue;
+      }
+      // Sin «Deshuese ddmmaa» en el texto, la fecha la da la pantalla (opciones.fecha_texto).
+      if (opciones.fecha_texto && !fechasElegidas[h.nombre]) fechasElegidas[h.nombre] = String(opciones.fecha_texto);
+      hojas.push({ nombre: h.nombre, hoja: h.hoja });
+      continue;
+    }
     if (!doc.buffer) continue;
     const libro = new ExcelJS.Workbook();
     try { await libro.xlsx.load(doc.buffer); } catch (_) {
       filas.push({ fila: filas.length + 1, entidad: 'solicitud', clave: doc.nombre, accion: 'error', errores: ['No se pudo leer el Excel'], avisos: [], cambios: [] });
       continue;
     }
-    for (const hoja of libro.worksheets) {
-      const nombre = hoja.name.trim();
-      if (!/^deshuse?s?e?s?\s/i.test(nombre) && !/^deshuese/i.test(nombre)) continue;
-      if (soloHojas && !soloHojas.has(nombre)) continue;
-      const item = { fila: filas.length + 1, entidad: 'solicitud', hoja: nombre, clave: nombre, accion: 'nuevo', errores: [], avisos: [], cambios: [] };
-      filas.push(item);
-      const leida = leerHoja(hoja);
-      if (!leida) { item.errores.push('No tiene el formato de solicitud (faltan «Canal #» o «Arete»)'); item.accion = 'error'; continue; }
-      const posibles = fechasDeNombre(nombre);
-      const elegida = fechasElegidas[nombre] ? parsearFecha(fechasElegidas[nombre], 'dmy') : null;
-      item.fechas_posibles = posibles;
-      if (typeof elegida === 'string') item.fecha = elegida;
-      else if (posibles.length === 1) item.fecha = posibles[0];
-      else if (posibles.length > 1) item.errores.push(`El nombre «${nombre}» admite varias fechas (${posibles.map(fechaTexto).join(' o ')}): indique cuál`);
-      else item.errores.push(`No se pudo sacar la fecha del nombre «${nombre}»: indíquela`);
-      item.canales = leida.canales.map((c) => ({ ...c, col: undefined }));
-      item.cortes = leida.cortes;
-      item.total_canales = leida.canales.length;
-      item.total_cortes = leida.cortes.length;
-    }
+    for (const hoja of libro.worksheets) hojas.push({ nombre: hoja.name.trim(), hoja });
+  }
+  for (const { nombre, hoja } of hojas) {
+    if (!/^deshuse?s?e?s?\s/i.test(nombre) && !/^deshuese/i.test(nombre)) continue;
+    if (soloHojas && !soloHojas.has(nombre)) continue;
+    const item = { fila: filas.length + 1, entidad: 'solicitud', hoja: nombre, clave: nombre, accion: 'nuevo', errores: [], avisos: [], cambios: [] };
+    filas.push(item);
+    const leida = leerHoja(hoja);
+    if (!leida) { item.errores.push('No tiene el formato de solicitud (faltan «Canal #» o «Arete»)'); item.accion = 'error'; continue; }
+    const posibles = fechasDeNombre(nombre);
+    const elegida = fechasElegidas[nombre] ? parsearFecha(fechasElegidas[nombre], 'dmy') : null;
+    item.fechas_posibles = posibles;
+    if (typeof elegida === 'string') item.fecha = elegida;
+    else if (posibles.length === 1) item.fecha = posibles[0];
+    else if (posibles.length > 1) item.errores.push(`El nombre «${nombre}» admite varias fechas (${posibles.map(fechaTexto).join(' o ')}): indique cuál`);
+    else item.errores.push(`No se pudo sacar la fecha del nombre «${nombre}»: indíquela`);
+    item.canales = leida.canales.map((c) => ({ ...c, col: undefined }));
+    item.cortes = leida.cortes;
+    item.total_canales = leida.canales.length;
+    item.total_cortes = leida.cortes.length;
   }
   if (!filas.length) return { filas: [], errores_generales: ['El libro no trae hojas «Deshuese ddmmaa»'] };
 
@@ -211,7 +289,7 @@ async function aplicar(conn, plan, { importacionId, usuarioId, registrar }) {
     const [ins] = await conn.query(
       `INSERT INTO solicitudes_deshuese (numero, fecha_sacrificio, estado, observaciones, creado_por, actualizado_por, importacion_id)
        VALUES (?, ?, 'deshuesada', ?, ?, ?, ?)`,
-      [siguiente, f.fecha, `Importada del Excel de la planta (hoja «${f.hoja}»)`, usuarioId || null, usuarioId || null, importacionId]);
+      [siguiente, f.fecha, f.leido_por_foto ? `Importada de una foto de la solicitud («${f.hoja}»)` : `Importada del Excel de la planta (hoja «${f.hoja}»)`, usuarioId || null, usuarioId || null, importacionId]);
     const sid = ins.insertId;
     const ligadas = f.canales.filter((c) => c.sacrificio_id);
     const idCanal = new Map();
@@ -240,4 +318,4 @@ async function aplicar(conn, plan, { importacionId, usuarioId, registrar }) {
   return { resumen: res };
 }
 
-module.exports = { planificar, aplicar, fechasDeNombre, leerHoja };
+module.exports = { planificar, aplicar, fechasDeNombre, leerHoja, hojaDesdeTexto };

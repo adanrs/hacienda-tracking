@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Upload, CheckCircle2, Truck, ArrowLeft, CircleAlert, FileSpreadsheet } from 'lucide-react';
+import { Upload, CheckCircle2, Truck, ArrowLeft, CircleAlert, FileSpreadsheet, ListChecks } from 'lucide-react';
 import Boton from '../components/ui/Boton';
 import { confirmar } from '../components/ui/confirmar';
 import { aviso } from '../components/ui/avisos';
@@ -8,11 +8,15 @@ import { useAuth } from '../components/AuthContext';
 import VistaPrevia from '../components/importador/VistaPrevia';
 import ResumenPlan from '../components/importador/ResumenPlan';
 import useImportacion from '../components/importador/useImportacion';
+import LecturaFoto from '../components/importador/LecturaFoto';
 
 /*
   Importar desde Ganadero SG: el reporte personalizado «Sistematización de Hatos» (salida de
   animales de la finca). Subir → vista previa (nada se guarda) → Aplicar con confirmación.
   Si las filas traen Fec. salida y Vendido a, se arma la guía de transporte del día.
+  También por FOTO del reporte impreso (celular) o pegando la tabla: el texto queda en un cuadro
+  editable y pasa por el mismo procesador; las filas dudosas (p. ej. una I.E. con un dígito de
+  menos) salen marcadas «Leído por foto: revisar».
 */
 const fechaCorta = (iso) => (iso ? iso.split('-').reverse().join('/') : '—');
 const kg = (n) => (n == null ? '—' : Number(n).toLocaleString('en-US', { maximumFractionDigits: 1 }));
@@ -33,6 +37,8 @@ export default function ImportarGanaderoSg() {
   const refArchivo = useRef(null);
   const [archivo, setArchivo] = useState(null);
   const [crearGuias, setCrearGuias] = useState(true);
+  const [texto, setTexto] = useState('');
+  const [foto, setFoto] = useState(null); // { dudosas } si el texto salió de una foto
   const imp = useImportacion('ganadero-sg');
   const { plan } = imp;
 
@@ -41,8 +47,13 @@ export default function ImportarGanaderoSg() {
     e.target.value = '';
     if (!a) return;
     if (a.size > MAX_MB * 1024 * 1024) { aviso.error(`El archivo pesa más de ${MAX_MB} MB`); return; }
-    setArchivo(a);
+    setArchivo(a); setFoto(null);
     await imp.planificar({ archivo: a }, { crear_guias: crearGuias });
+  };
+  const leerTexto = () => {
+    if (!texto.trim()) { aviso.error('Pegue la tabla o cargue la foto del reporte primero'); return; }
+    setArchivo(null);
+    imp.planificar({ pegado: { texto } }, { crear_guias: crearGuias, foto: foto || undefined });
   };
 
   const cambiarGuias = (v) => {
@@ -80,7 +91,7 @@ export default function ImportarGanaderoSg() {
         <p className="rp-nota">
           Exporte el reporte personalizado (Número, Sexo, F. Nto, Raza, # Madre, # Padre, Pot., I.E., U.Peso, FUV, UV, Fec. salida, Peso sal., Vendido a…)
           y súbalo tal cual, con los títulos de arriba: la app encuentra sola la fila de encabezados. Acepta .xlsx, .csv y .xls exportado como texto.
-          Nada se guarda hasta que usted revise la vista previa y presione «Aplicar».
+          Si solo tiene el reporte impreso, cárguelo por foto (una por página). Nada se guarda hasta que usted revise la vista previa y presione «Aplicar».
         </p>
         <div className="rp-acciones">
           <Boton variante="primario" icono={Upload} cargando={imp.cargando} disabled={!canEdit} onClick={() => refArchivo.current?.click()}>
@@ -88,6 +99,17 @@ export default function ImportarGanaderoSg() {
           </Boton>
           <input ref={refArchivo} type="file" accept=".xlsx,.xls,.csv,.txt" onChange={elegir} hidden />
           {archivo && <span className="rp-tenue">{archivo.name}</span>}
+        </div>
+        <div className="form-group" style={{ marginTop: 'var(--esp-4)' }}>
+          <label htmlFor="sg-texto">O cargue el reporte impreso por foto (o pegue la tabla) y revise el texto</label>
+          <LecturaFoto formato="ganadero-sg" deshabilitado={!canEdit}
+            onTexto={(t, dudas) => { setTexto(t); setFoto({ dudosas: dudas }); }} />
+          <textarea id="sg-texto" rows={5} className="imp-pegado" value={texto} disabled={!canEdit} style={{ marginTop: 'var(--esp-2)' }}
+            placeholder={'01-003 - ENGORDE WAGYU\nActualizado a: 15/10/26\nNúmero\tSexo\tF. Nto\tRaza\t…\tFec. salida\tPeso sal.\tVendido a'}
+            onChange={e => { setTexto(e.target.value); if (!e.target.value.trim()) setFoto(null); }} />
+          <Boton icono={ListChecks} cargando={imp.cargando} disabled={!canEdit || !texto.trim()} onClick={leerTexto}>Ver vista previa del texto</Boton>
+        </div>
+        <div className="rp-acciones">
           <label className="rp-check">
             <input type="checkbox" checked={crearGuias} onChange={e => cambiarGuias(e.target.checked)} />
             Crear o actualizar la guía de transporte con los animales que traen fecha de salida

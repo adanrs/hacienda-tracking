@@ -184,8 +184,9 @@ const FORMATOS = {
     columnas: [],
     metadatos: [],
   },
-  // PRÓXIMO (no implementado): lectura por foto (OCR). La vía de entrada sería otra (imagen →
-  // servicio de OCR → filas), pero el formato resultante reutiliza uno de los de arriba.
+  // Lectura por FOTO (lib/vision.js, pantalla «Cargar por foto»): no es un formato aparte. La foto
+  // vuelve como texto por tabulador con los mismos encabezados de arriba (instrucciones por formato
+  // en vision.js) y entra como texto pegado al formato que corresponde; foto.js marca lo dudoso.
 };
 
 function formato(id) {

@@ -29,6 +29,8 @@ export default function ImportarReportePdf({ canEdit, onAplicado }) {
   const [archivos, setArchivos] = useState([]);
   const [texto, setTexto] = useState('');
   const [dudosas, setDudosas] = useState([]);
+  // El texto (o parte) salió de una foto: la vista previa marca sus filas a revisar (backend importador/foto.js).
+  const [foto, setFoto] = useState(false);
   const [mapa, setMapa] = useState('');
   const [correcciones, setCorrecciones] = useState({});
   const [sinAnimal, setSinAnimal] = useState({});
@@ -40,7 +42,7 @@ export default function ImportarReportePdf({ canEdit, onAplicado }) {
   const imp = useImportacion('reporte-produccion-ciisa');
   const { plan } = imp;
 
-  const opciones = (extra = {}) => ({ mapa, correcciones, sin_animal: sinAnimal, pendientes, reemplazar_arete: reemplazos, ...extra });
+  const opciones = (extra = {}) => ({ mapa, correcciones, sin_animal: sinAnimal, pendientes, reemplazar_arete: reemplazos, foto: foto && texto.trim() ? { dudosas } : undefined, ...extra });
   const entrada = (a = archivos, t = texto) => ({ archivos: a, pegado: t.trim() ? { texto: t } : undefined });
 
   const revisar = (extra = {}, a = archivos, t = texto) => {
@@ -97,7 +99,7 @@ export default function ImportarReportePdf({ canEdit, onAplicado }) {
     const res = await imp.aplicar();
     if (res) {
       aviso.ok(`Reportes registrados: ${res.resultado.resumen.reportes_nuevos}${res.resultado.resumen.solicitudes_con_reporte ? ` · ${res.resultado.resumen.solicitudes_con_reporte} solicitud(es) pasan a «con reporte»` : ''}`);
-      setReporteFinal(reporte); setArchivos([]); setTexto(''); setDudosas([]);
+      setReporteFinal(reporte); setArchivos([]); setTexto(''); setDudosas([]); setFoto(false);
       onAplicado?.();
     }
   };
@@ -112,7 +114,7 @@ export default function ImportarReportePdf({ canEdit, onAplicado }) {
     { titulo: 'Lote', num: true, valor: f => f.num_lote || '—' },
     {
       titulo: 'Arete', valor: (f) => {
-        if (f.requiere_vision) return <span className="badge badge-orange">PDF escaneado: use «Leer por foto»</span>;
+        if (f.requiere_vision) return <span className="badge badge-orange">PDF escaneado: tómele una foto a cada página con «Cargar por foto»</span>;
         const pideArete = f.correccion || (f.accion === 'error' && /arete/i.test(f.errores.join(' ')));
         if (pideArete && canEdit) {
           return (
@@ -187,7 +189,7 @@ export default function ImportarReportePdf({ canEdit, onAplicado }) {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Boton icono={Upload} disabled={!canEdit} onClick={() => refArchivos.current?.click()}>Adjuntar PDF</Boton>
             <LecturaFoto formato="reporte-produccion-ciisa" deshabilitado={!canEdit}
-              onTexto={(t, d) => { setTexto(prev => (prev.trim() ? `${prev}\n${t}` : t)); setDudosas(d); }} />
+              onTexto={(t, d) => { setTexto(prev => (prev.trim() ? `${prev}\n${t}` : t)); setDudosas(prev => [...new Set([...prev, ...d])]); setFoto(true); }} />
           </div>
           {archivos.length > 0 && (
             <ul className="lista-archivos">
@@ -198,7 +200,7 @@ export default function ImportarReportePdf({ canEdit, onAplicado }) {
           )}
           <div className="form-group" style={{ marginTop: 12 }}>
             <label htmlFor="rp-texto">O pegue el texto del reporte (o revise lo que leyó la foto)</label>
-            <textarea id="rp-texto" rows={6} value={texto} onChange={e => setTexto(e.target.value)} placeholder={'REPORTE DIARIO DE PRODUCCION\nFecha de Produccion: 19/10/26\nNum. Lote 2 …'} />
+            <textarea id="rp-texto" rows={6} value={texto} onChange={e => { setTexto(e.target.value); if (!e.target.value.trim()) { setFoto(false); setDudosas([]); } }} placeholder={'REPORTE DIARIO DE PRODUCCION\nFecha de Produccion: 19/10/26\nNum. Lote 2 …'} />
             {dudosas.length > 0 && (
               <div className="transcripcion-dudas" aria-label="Partes que la lectura no pudo leer bien">
                 <span className="rp-tenue">Revise con cuidado (baja confianza):</span>

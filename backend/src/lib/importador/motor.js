@@ -17,6 +17,7 @@ const { formato } = require('./formatos');
 const { leerArchivo, leerPegado, ErrorArchivo } = require('./archivos');
 const { leerHojas } = require('./tabla');
 const procesadores = require('./procesadores');
+const { marcarLecturaFoto } = require('./foto');
 
 class ErrorImportacion extends Error {
   constructor(status, mensaje, extra = {}) {
@@ -115,6 +116,8 @@ async function planificar(conn, formatoId, entrada, opciones = {}) {
     const lectura = await leerDocumentos(entrada, def);
     const plan = await proc.planificar(conn, null, opciones, { def, lectura });
     const completo = { formato: formatoId, archivo_nombre: lectura.archivo_nombre, origen: lectura.origen, hoja: null, encabezado: null, metadatos: {}, ...plan };
+    // Texto leído por foto: marca las filas a revisar ANTES del resumen y de la huella (ver foto.js).
+    marcarLecturaFoto(completo, opciones);
     completo.resumen = resumir(completo.filas, completo.resumen);
     completo.huella = sha256(JSON.stringify(completo));
     completo.contenido_sha256 = lectura.sha;
@@ -143,6 +146,7 @@ async function planificar(conn, formatoId, entrada, opciones = {}) {
     metadatos: { ...tabla.metadatos, ...(lectura.asunto ? { asunto: lectura.asunto } : {}) },
     ...plan,
   };
+  marcarLecturaFoto(completo, opciones);
   completo.resumen = resumir(completo.filas, completo.resumen);
   completo.huella = sha256(JSON.stringify(completo));
   completo.contenido_sha256 = lectura.sha;
