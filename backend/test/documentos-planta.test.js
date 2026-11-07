@@ -308,7 +308,7 @@ test('custodia: varios LOTE o varias RES distintos → el documento cubre varios
   assert.deepEqual(loteYRes('LOTE 35 / RES 5094 (LOTE 035 RES 05094)'), { lote_cc: 35, res: '5094', varios_animales: false });
 });
 
-test('custodia: documento con varios animales → sin animal y aviso «lígalo a mano»', async () => {
+test('custodia: documento con varios animales → sin animal y aviso «lígelo a mano»', async () => {
   const conn = connSimulada({
     lotes: [{ id: 21, arete: '177MFU', fecha: '2026-04-02', lote_cc: 35 }],
     canales: [{ id: 21, arete: '177MFU', fecha: '2026-04-01', canal: '5094' }],
@@ -318,7 +318,7 @@ test('custodia: documento con varios animales → sin animal y aviso «lígalo a
   const d = plan.documentos[0];
   assert.equal(d.animal_id, null);
   assert.equal(d.lote_cc, null);
-  assert.match(d.avisos.join(' '), /cubre varios animales.*lígalo a mano/);
+  assert.match(d.avisos.join(' '), /cubre varios animales.*lígelo a mano/);
 });
 
 test('custodia: trae LOTE y RES pero la RES no está en la base → sin animal (no se liga por el lote)', async () => {

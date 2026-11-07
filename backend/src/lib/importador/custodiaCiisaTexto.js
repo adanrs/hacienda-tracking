@@ -177,7 +177,7 @@ function parsearDocumentoCustodia(texto) {
   }
 
   const lr = loteYRes(observaciones);
-  if (lr.varios_animales) avisos.push('Sin animal: el documento cubre varios animales (más de un LOTE o de una RES en las Observaciones): lígalo a mano');
+  if (lr.varios_animales) avisos.push('Sin animal: el documento cubre varios animales (más de un LOTE o de una RES en las Observaciones): lígelo a mano');
 
   return {
     tipo, numero: numeroDoc, fecha, hora,
