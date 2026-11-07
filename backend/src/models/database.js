@@ -4,6 +4,7 @@ const { migrarImportaciones } = require('./importaciones');
 const { migrarProduccionCatalogo } = require('./produccionCatalogo');
 const { migrarInventarioPlanta } = require('./inventarioPlanta');
 const { migrarTrasladosTienda } = require('./trasladosTienda');
+const { migrarDocumentosPlanta } = require('./documentosPlanta');
 const catalogoCortes = require('../lib/catalogoCortes');
 
 const pool = mysql.createPool({
@@ -846,6 +847,8 @@ async function initDB() {
     await migrarInventarioPlanta(conn);
     // Traslados 107 → tienda (WC-01) desde el inventario de la planta y su recepción: ver models/trasladosTienda.js.
     await migrarTrasladosTienda(conn);
+    // Guías de movilización del MAG y documentos de custodia de CIISA (ASE/TRE): ver models/documentosPlanta.js.
+    await migrarDocumentosPlanta(conn);
 
     // Columna `bms` de los escaneos (06-nov-2026). Desde el 07-nov-2026 queda vacía: los 2 últimos
     // dígitos de la caja son un sufijo, NO el BMS (Juan Carlos); el BMS se calcula al leer con el

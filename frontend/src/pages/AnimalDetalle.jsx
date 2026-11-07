@@ -9,8 +9,8 @@ import { CowWeightIndicator } from '../components/CowIcon';
 
 const estadoBadge = { activo: 'badge-green', vendido: 'badge-blue', muerto: 'badge-red', trasladado: 'badge-yellow' };
 const saludBadge = { vacunacion: 'badge-green', desparasitacion: 'badge-blue', tratamiento: 'badge-yellow', cirugia: 'badge-red', examen: 'badge-gray', otro: 'badge-gray' };
-const timelineDotColor = { pesaje: '#16a34a', vacunacion: '#2563eb', movimiento: '#f59e0b', sacrificio: '#dc2626', corte: '#7c3aed', transporte: '#ea580c', deshuese: '#0891b2', primal: '#0ea5e9', custodia: '#64748b', maduracion: '#ca8a04', porcionado: '#be185d', sticker: '#94a3b8' };
-const timelineBadgeClass = { pesaje: 'badge-green', vacunacion: 'badge-blue', movimiento: 'badge-yellow', sacrificio: 'badge-red', corte: 'badge-purple', transporte: 'badge-orange', deshuese: 'badge-blue', primal: 'badge-blue', custodia: 'badge-gray', maduracion: 'badge-yellow', porcionado: 'badge-purple', sticker: 'badge-gray' };
+const timelineDotColor = { pesaje: '#16a34a', vacunacion: '#2563eb', movimiento: '#f59e0b', sacrificio: '#dc2626', corte: '#7c3aed', transporte: '#ea580c', deshuese: '#0891b2', primal: '#0ea5e9', custodia: '#64748b', maduracion: '#ca8a04', porcionado: '#be185d', sticker: '#94a3b8', guia_movilizacion: '#ea580c', custodia_ciisa: '#64748b' };
+const timelineBadgeClass = { pesaje: 'badge-green', vacunacion: 'badge-blue', movimiento: 'badge-yellow', sacrificio: 'badge-red', corte: 'badge-purple', transporte: 'badge-orange', deshuese: 'badge-blue', primal: 'badge-blue', custodia: 'badge-gray', maduracion: 'badge-yellow', porcionado: 'badge-purple', sticker: 'badge-gray', guia_movilizacion: 'badge-orange', custodia_ciisa: 'badge-gray' };
 
 export default function AnimalDetalle() {
   const { id } = useParams();
@@ -96,6 +96,30 @@ export default function AnimalDetalle() {
               <Line type="monotone" dataKey="peso" stroke="#16a34a" strokeWidth={2} dot={{ r: 4, fill: '#16a34a' }} activeDot={{ r: 6, fill: '#15803d' }} />
             </LineChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {(animal.guias_movilizacion?.length > 0 || animal.documentos_custodia?.length > 0) && (
+        // Documentos del MAG y de la planta donde aparece el animal (guía por DIIO; ASE/TRE por Lote CC / RES).
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h3 style={{ marginBottom: 12 }}>Documentos</h3>
+          <ul className="lista-documentos">
+            {(animal.guias_movilizacion || []).map(g => (
+              <li key={`g${g.id}`}>
+                <Link to={`/guias-movilizacion/${g.id}`}><strong>Guía de movilización MAG {g.numero}</strong></Link>
+                {' · '}{formatDate(g.fecha)} · DIIO <code>{g.diio}</code>{g.destino_establecimiento ? ` · a ${g.destino_establecimiento}` : ''}
+                {g.vinculo === 'manual' && <span className="rp-tenue"> · ligado a mano</span>}
+              </li>
+            ))}
+            {(animal.documentos_custodia || []).map(d => (
+              <li key={`d${d.id}`}>
+                <Link to={`/documentos-custodia/${d.id}`}><strong>{d.tipo === 'traslado' ? `Traslado de custodia TRE ${d.numero}` : `Ajuste de salida ASE ${d.numero}`}</strong></Link>
+                {' · '}{formatDate(d.fecha)}{d.bodega_destino_nombre ? ` · a ${d.bodega_destino_nombre}` : ''}
+                {d.total_kg != null ? ` · ${Number(d.total_kg).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg` : ''}
+                {d.vinculo === 'manual' && <span className="rp-tenue"> · ligado a mano</span>}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

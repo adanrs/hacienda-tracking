@@ -187,7 +187,7 @@ export default function ImportarReportePdf({ canEdit, onAplicado }) {
         <div className="card">
           <h3>1. Los PDF del reporte</h3>
           <p className="rp-tenue">Cada PDF «REPORTE DIARIO DE PRODUCCION» es un animal. Puede adjuntar todos los de la tanda a la vez.</p>
-          <input ref={refArchivos} type="file" accept=".pdf,.txt,application/pdf,text/plain" multiple hidden onChange={elegir} />
+          <input ref={refArchivos} type="file" accept=".pdf,.txt,.docx,application/pdf,text/plain" multiple hidden onChange={elegir} />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Boton icono={Upload} disabled={!canEdit} onClick={() => refArchivos.current?.click()}>Adjuntar PDF</Boton>
             <LecturaFoto formato="reporte-produccion-ciisa" deshabilitado={!canEdit}

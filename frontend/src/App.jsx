@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Routes, Route, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Beef, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Package, Snowflake, Clock, Boxes, FileOutput, FileInput, RotateCcw, Barcode, Utensils, BookOpen, Menu, X, FileSpreadsheet, ClipboardList, Gauge, PackageSearch } from 'lucide-react';
+import { LayoutDashboard, Beef, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Package, Snowflake, Clock, Boxes, FileOutput, FileInput, RotateCcw, Barcode, Utensils, BookOpen, Menu, X, FileSpreadsheet, ClipboardList, Gauge, PackageSearch, FileCheck2, ClipboardCheck } from 'lucide-react';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { CowWalking } from './components/CowIcon';
 import { Avisos } from './components/ui/avisos';
@@ -36,6 +36,8 @@ import GuiasTransporte from './pages/GuiasTransporte';
 import Marmoleo from './pages/Marmoleo';
 import InventarioPlanta from './pages/InventarioPlanta';
 import TrasladosTienda from './pages/TrasladosTienda';
+import GuiasMovilizacion from './pages/GuiasMovilizacion';
+import DocumentosCustodia from './pages/DocumentosCustodia';
 
 // Menú ordenado según el recorrido del producto: Finca → Planta → Bodega y despacho.
 const grupos = [
@@ -60,11 +62,15 @@ const grupos = [
       // Nombres del dueño (reunión 05-nov). Las guías se abren desde Transporte; Deshuese y Cortes
       // por animal quedaron dentro de «Reporte de producción» (sus rutas viejas redirigen).
       { to: '/transporte', icon: Truck, label: 'Transporte' },
+      // Guía oficial FTZ-02 del SENASA (PDF/foto): liga el DIIO de cada bovino al animal.
+      { to: '/guias-movilizacion', icon: FileCheck2, label: 'Guías del MAG' },
       { to: '/sacrificio', icon: Warehouse, label: 'Sacrificio' },
       { to: '/marmoleo', icon: Gauge, label: 'Marmoleo' },
       { to: '/solicitud-deshuese', icon: ClipboardList, label: 'Solicitud de deshuese' },
       { to: '/reporte-produccion', icon: FileSpreadsheet, label: 'Reporte de producción' },
       { to: '/custodia', icon: Package, label: 'Custodia' },
+      // Ajustes de salida (ASE) y traslados (TRE) de la bodega 107 de CIISA, por foto o archivo.
+      { to: '/documentos-custodia', icon: ClipboardCheck, label: 'Documentos de custodia' },
       { to: '/maduracion', icon: Clock, label: 'Maduración' },
       { to: '/porcionado', icon: Boxes, label: 'Porcionado' },
       { to: '/paqueteria', icon: Utensils, label: 'Paquetería' },
@@ -248,10 +254,14 @@ function AppLayout() {
           <Route path="/marmoleo" element={<Marmoleo />} />
           <Route path="/guias-transporte" element={<GuiasTransporte />} />
           <Route path="/guias-transporte/:id" element={<GuiasTransporte />} />
+          <Route path="/guias-movilizacion" element={<GuiasMovilizacion />} />
+          <Route path="/guias-movilizacion/:id" element={<GuiasMovilizacion />} />
           <Route path="/solicitud-deshuese" element={<SolicitudDeshuese />} />
           <Route path="/deshuese" element={<Navigate to="/reporte-produccion?pestana=deshuese" replace />} />
           <Route path="/reporte-produccion" element={<ReporteProduccion />} />
           <Route path="/custodia" element={<Custodia />} />
+          <Route path="/documentos-custodia" element={<DocumentosCustodia />} />
+          <Route path="/documentos-custodia/:id" element={<DocumentosCustodia />} />
           <Route path="/maduracion" element={<Maduracion />} />
           <Route path="/porcionado" element={<Porcionado />} />
           <Route path="/cortes" element={<Navigate to="/reporte-produccion?pestana=cortes" replace />} />

@@ -59,10 +59,31 @@ router.get('/:id', async (req, res) => {
       FROM animales WHERE madre_id = ? OR padre_id = ?
     `, [req.params.id, req.params.id]);
 
+    // Documentos oficiales y de la planta donde aparece el animal: guía de movilización del MAG
+    // (por su DIIO) y ajustes/traslados de custodia de CIISA (por Lote CC / RES).
+    // Si la base todavía no tiene las tablas (migración sin correr), la ficha se muestra igual sin
+    // esa sección en vez de responder 500: devuelve [] solo ante ER_NO_SUCH_TABLE.
+    const siLaTablaExiste = (consulta) => consulta.then(([rows]) => rows, (e) => {
+      if (e && e.code === 'ER_NO_SUCH_TABLE') return [];
+      throw e;
+    });
+    const guiasMovilizacion = await siLaTablaExiste(pool.query(`
+      SELECT g.id, g.numero, DATE_FORMAT(g.fecha, '%Y-%m-%d') AS fecha, g.destino_establecimiento, l.diio, l.vinculo
+      FROM guia_movilizacion_animales l JOIN guias_movilizacion g ON g.id = l.guia_id
+      WHERE l.animal_id = ? ORDER BY g.fecha DESC LIMIT 20
+    `, [req.params.id]));
+    const documentosCustodia = await siLaTablaExiste(pool.query(`
+      SELECT d.id, d.tipo, d.numero, DATE_FORMAT(d.fecha, '%Y-%m-%d') AS fecha, d.bodega_destino_nombre, d.observaciones,
+             d.total_kg, d.vinculo
+      FROM documentos_custodia d WHERE d.animal_id = ? ORDER BY d.fecha DESC LIMIT 50
+    `, [req.params.id]));
+
     animal.pesajes = pesajes;
     animal.salud = salud;
     animal.movimientos = movimientos;
     animal.crias = crias;
+    animal.guias_movilizacion = guiasMovilizacion;
+    animal.documentos_custodia = documentosCustodia;
     res.json(animal);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -189,6 +210,32 @@ router.get('/:id/timeline', async (req, res) => {
         tipo: 'sacrificio',
         descripcion: `Sacrificio - Peso vivo: ${s.peso_vivo || 'N/A'} kg, Rendimiento: ${s.rendimiento_canal || 'N/A'}%`,
         data: s
+      });
+    }
+
+    // Guía de movilización del MAG (finca → planta) en la que viaja el animal, por su DIIO.
+    const [guiasMov] = await pool.query(
+      `SELECT g.id, g.numero, g.fecha, g.destino_establecimiento, l.diio
+       FROM guia_movilizacion_animales l JOIN guias_movilizacion g ON g.id = l.guia_id WHERE l.animal_id = ?`, [animalId]);
+    for (const g of guiasMov) {
+      events.push({
+        fecha: g.fecha,
+        tipo: 'guia_movilizacion',
+        descripcion: `Guía de movilización MAG ${g.numero} (DIIO ${g.diio})${g.destino_establecimiento ? ` a ${g.destino_establecimiento}` : ''}`,
+        data: g
+      });
+    }
+
+    // Ajustes de salida y traslados de custodia de CIISA ligados al animal (Lote CC / RES).
+    const [custodiaDocs] = await pool.query(
+      'SELECT id, tipo, numero, fecha, bodega_destino_nombre, observaciones, total_kg FROM documentos_custodia WHERE animal_id = ?', [animalId]);
+    for (const d of custodiaDocs) {
+      const nombre = d.tipo === 'traslado' ? `Traslado de custodia TRE ${d.numero}${d.bodega_destino_nombre ? ` a ${d.bodega_destino_nombre}` : ''}` : `Ajuste de salida de custodia ASE ${d.numero}`;
+      events.push({
+        fecha: d.fecha,
+        tipo: 'custodia_ciisa',
+        descripcion: `${nombre} - ${d.total_kg != null ? `${Number(d.total_kg)} kg` : 'sin peso'}`,
+        data: d
       });
     }
 

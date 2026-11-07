@@ -178,7 +178,7 @@ export default function ImportarSacrificio() {
           <h3 className="rp-subtitulo"><Mail size={20} aria-hidden="true" /> O subir el correo</h3>
           <p className="rp-nota">Guarde el correo desde Outlook (.msg) o descárguelo de Gmail como .eml («Descargar mensaje»).</p>
           <Boton variante="primario" icono={Upload} cargando={imp.cargando} disabled={!canEdit} onClick={() => refArchivo.current?.click()}>Elegir correo…</Boton>
-          <input ref={refArchivo} type="file" accept=".msg,.eml,.html,.htm,.txt,.csv,.xlsx" onChange={elegir} hidden />
+          <input ref={refArchivo} type="file" accept=".msg,.eml,.html,.htm,.txt,.csv,.xlsx,.docx" onChange={elegir} hidden />
           <div className="form-row" style={{ marginTop: 'var(--esp-4)' }}>
             <div className="form-group">
               <label htmlFor="fecha-sacrificio">Fecha de sacrificio</label>
