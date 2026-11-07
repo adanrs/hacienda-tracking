@@ -47,7 +47,7 @@ function EncabezadosGuias({ plan }) {
             <div className="rp-tenue"><Truck size={14} aria-hidden="true" /> Guía de transporte de la app: {g.guias_transporte.map(t => t.numero).join(', ')}</div>
           )}
           {g.cambios?.map(c => <div key={c.campo} className="rp-tenue">{c.etiqueta}: {String(c.antes ?? '—')} → {String(c.despues ?? '—')}</div>)}
-          {[...(g.errores || []), ...(g.avisos || [])].map((a, i) => <div key={i} style={{ color: 'var(--alerta)' }}><CircleAlert size={14} aria-hidden="true" /> {a}</div>)}
+          {[...(g.errores || []), ...(g.avisos || [])].map((a, i) => <div key={i} className="aviso-linea"><CircleAlert size={14} aria-hidden="true" /> <span>{a}</span></div>)}
         </div>
       ))}
     </div>
@@ -98,7 +98,7 @@ function ListaGuias() {
       />
 
       <div className="card">
-        <h3 className="rp-subtitulo">Guías cargadas</h3>
+        <div className="card-header"><h3>Guías cargadas</h3></div>
         {error && <EstadoError mensaje={error} onReintentar={cargar} />}
         {!error && !guias && <Cargando />}
         {guias && guias.length === 0 && (
@@ -184,7 +184,7 @@ function DetalleGuia({ id }) {
                     {a.animal_id ? <Link to={`/animales/${a.animal_id}`}><strong>{a.arete}</strong></Link> : <span className="badge badge-yellow">Sin animal</span>}
                     {a.vinculo === 'manual' && <span className="rp-tenue"> · a mano{a.vinculado_por_nombre ? ` (${a.vinculado_por_nombre})` : ''}</span>}
                   </td>
-                  <td><code style={{ fontSize: '0.8em' }}>{a.identificacion_electronica || '—'}</code></td>
+                  <td><code className="codigo-chico">{a.identificacion_electronica || '—'}</code></td>
                   {canEdit && (
                     <td><LigarAnimal id={a.id} aretActual={a.arete} onLigar={async (arete) => setGuia(await api.ligarDiioGuia(guia.id, a.id, arete))} /></td>
                   )}

@@ -1,4 +1,21 @@
+import { useCallback, useState } from 'react';
 import { Inbox, WifiOff, RefreshCw } from 'lucide-react';
+
+/*
+  Estado de la carga principal de una pantalla, para alimentar <FilaEstado>.
+    const [carga, seguir] = useEstadoCarga();
+    const load = () => seguir(api.getPesajes().then(setPesajes));
+  «cargando» solo es true hasta la primera respuesta: al recargar después de guardar, la tabla
+  sigue a la vista en vez de parpadear. Si la carga falla, el error queda en la tabla (con
+  «Reintentar») en vez de un aviso que se va y una tabla que dice «sin datos».
+*/
+export function useEstadoCarga() {
+  const [estado, setEstado] = useState({ cargando: true, error: null });
+  const seguir = useCallback((promesa) => promesa
+    .then(r => { setEstado({ cargando: false, error: null }); return r; })
+    .catch(err => { setEstado({ cargando: false, error: err?.message || 'Error de conexión' }); }), []);
+  return [estado, seguir];
+}
 
 /* Indicador de carga accesible (anuncia «Cargando…» a lectores de pantalla). */
 export function Cargando({ texto = 'Cargando…' }) {

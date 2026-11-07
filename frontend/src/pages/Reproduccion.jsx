@@ -5,6 +5,7 @@ import { aviso } from '../components/ui/avisos';
 import { Link } from 'react-router-dom';
 import AnimalSearch from '../components/AnimalSearch';
 import { formatDate } from '../components/DateFormat';
+import { FilaEstado, useEstadoCarga } from '../components/ui/Estados';
 
 const resultadoBadge = { gestante: 'badge-yellow', vacia: 'badge-gray', aborto: 'badge-red', parto_exitoso: 'badge-green', parto_complicado: 'badge-red' };
 
@@ -14,7 +15,8 @@ export default function Reproduccion() {
   const [editReg, setEditReg] = useState(null);
   const [form, setForm] = useState({ tipo: 'monta_natural', resultado: 'gestante' });
 
-  const load = () => api.getReproduccion().then(setRegistros).catch(aviso.errorCarga());
+  const [carga, seguir] = useEstadoCarga();
+  const load = () => seguir(api.getReproduccion().then(setRegistros));
   useEffect(() => { load(); }, []);
 
   const openEdit = (r) => { setEditReg(r); setForm({ ...r }); setShowModal(true); };
@@ -37,13 +39,13 @@ export default function Reproduccion() {
   return (
     <div>
       <div className="page-header">
-        <h2>Reproduccion</h2>
-        <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nuevo Registro</button>
+        <h2>Reproducción</h2>
+        <button type="button" className="btn btn-primary" onClick={openNew}><Plus size={16} aria-hidden="true" /> Nuevo registro</button>
       </div>
       <div className="card">
         <div className="table-container">
           <table>
-            <thead><tr><th>Fecha Servicio</th><th>Hembra</th><th>Macho</th><th>Tipo</th><th>Resultado</th><th>Parto Est.</th><th>Parto Real</th><th>Cria</th><th></th></tr></thead>
+            <thead><tr><th>Fecha de servicio</th><th>Hembra</th><th>Macho</th><th>Tipo</th><th>Resultado</th><th>Parto estimado</th><th>Parto real</th><th>Cría</th><th>Acciones</th></tr></thead>
             <tbody>
               {registros.map(r => (
                 <tr key={r.id}>
@@ -55,10 +57,12 @@ export default function Reproduccion() {
                   <td>{formatDate(r.fecha_parto_estimada)}</td>
                   <td>{formatDate(r.fecha_parto_real)}</td>
                   <td>{r.cria_trazabilidad ? <Link to={`/animales/${r.cria_id}`}>{r.cria_trazabilidad}</Link> : '-'}</td>
-                  <td><button className="btn-icon" onClick={() => openEdit(r)}><Edit size={16} /></button></td>
+                  <td><button type="button" className="btn-icon" onClick={() => openEdit(r)} title="Editar registro" aria-label={`Editar servicio de ${r.hembra_trazabilidad}`}><Edit size={16} aria-hidden="true" /></button></td>
                 </tr>
               ))}
-              {registros.length === 0 && <tr><td colSpan={9} className="empty-state">Sin registros</td></tr>}
+              <FilaEstado columnas={9} cargando={carga.cargando} error={carga.error} onReintentar={load}
+                vacio={registros.length === 0} tituloVacio="Todavía no hay registros de reproducción"
+                textoVacio="Registre servicios, diagnósticos y partos con «Nuevo registro»." />
             </tbody>
           </table>
         </div>
@@ -67,7 +71,7 @@ export default function Reproduccion() {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h3>{editReg ? 'Editar Registro' : 'Nuevo Registro'}</h3><button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowModal(false)}>&times;</button></div>
+            <div className="modal-header"><h3>{editReg ? 'Editar registro' : 'Nuevo registro'}</h3><button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowModal(false)}>&times;</button></div>
             <form onSubmit={save}>
               <div className="form-row">
                 <div className="form-group">

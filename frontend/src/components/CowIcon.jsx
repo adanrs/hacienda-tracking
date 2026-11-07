@@ -8,49 +8,26 @@ export function CowIcon({ size = 32, weight, color }) {
   );
 }
 
-// Animated walking cow for loading states
-export function CowWalking({ size = 48 }) {
-  return (
-    <div style={{ display: 'inline-block', animation: 'cowWalk 1.5s ease-in-out infinite' }}>
-      <span style={{ fontSize: size * 0.75, lineHeight: 1 }}>&#x1F404;</span>
-      <style>{`
-        @keyframes cowWalk {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(10px); }
-          50% { transform: translateX(20px); }
-          75% { transform: translateX(10px); }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-// Weight progress indicator with cow emoji
+// Avance de peso hacia el objetivo. La barra se escala con transform (no se anima width) y los
+// textos usan los tokens del sistema: los grises claros anteriores no llegaban a 4.5:1.
 export function CowWeightIndicator({ pesoNacimiento, pesoActual, pesoObjetivo = 500 }) {
-  const progress = pesoActual ? Math.min(100, (pesoActual / pesoObjetivo) * 100) : 0;
-  const ganancia = pesoActual && pesoNacimiento ? pesoActual - pesoNacimiento : null;
+  const actual = Number(pesoActual) || 0;
+  const nacimiento = Number(pesoNacimiento) || 0;
+  const avance = actual ? Math.min(1, actual / pesoObjetivo) : 0;
+  const ganancia = actual && nacimiento ? actual - nacimiento : null;
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-      <span style={{ fontSize: 36, lineHeight: 1 }}>&#x1F404;</span>
-      <div style={{ flex: 1 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#6b7280', marginBottom: 4 }}>
-          <span>{pesoActual ? `${pesoActual} kg` : 'Sin peso'}</span>
-          {ganancia !== null && <span style={{ color: '#16a34a' }}>+{ganancia} kg ganados</span>}
-        </div>
-        <div style={{ height: 8, background: '#e5e7eb', borderRadius: 4, overflow: 'hidden' }}>
-          <div style={{
-            height: '100%',
-            width: `${progress}%`,
-            background: `linear-gradient(90deg, #dcfce7, #16a34a)`,
-            borderRadius: 4,
-            transition: 'width 0.5s ease'
-          }} />
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#9ca3af', marginTop: 2 }}>
-          <span>Nac: {pesoNacimiento || '-'} kg</span>
-          <span>Obj: {pesoObjetivo} kg</span>
-        </div>
+    <div className="avance-peso">
+      <div className="ocupacion-texto">
+        <span>{actual ? `${actual.toFixed(2)} kg` : 'Sin peso'}</span>
+        {ganancia !== null && <span className="texto-ok">+{ganancia.toFixed(0)} kg ganados</span>}
+      </div>
+      <div className="barra" role="img" aria-label={`${Math.round(avance * 100)} % del peso objetivo`}>
+        <div className="barra-relleno" style={{ transform: `scaleX(${avance})` }} />
+      </div>
+      <div className="ocupacion-texto avance-peso-pie">
+        <span>Al nacer: {nacimiento ? `${nacimiento} kg` : '-'}</span>
+        <span>Objetivo: {pesoObjetivo} kg</span>
       </div>
     </div>
   );

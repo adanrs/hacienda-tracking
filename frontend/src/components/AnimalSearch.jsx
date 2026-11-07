@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Search } from 'lucide-react';
+import { useState, useEffect, useRef, useId } from 'react';
+import { Search, X } from 'lucide-react';
 import { api } from '../services/api';
 
 export default function AnimalSearch({ value, onChange, filter }) {
@@ -8,6 +8,9 @@ export default function AnimalSearch({ value, onChange, filter }) {
   const [open, setOpen] = useState(false);
   const [animales, setAnimales] = useState([]);
   const ref = useRef();
+  const idLista = useId();
+  // Opción resaltada con las flechas (−1: ninguna). Con pistola o teclado se elige sin el mouse.
+  const [activo, setActivo] = useState(-1);
 
   useEffect(() => {
     api.getAnimales({ estado: 'activo' }).then(setAnimales).catch(err => console.error('No se pudieron cargar los animales', err));
@@ -28,9 +31,9 @@ export default function AnimalSearch({ value, onChange, filter }) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const handleSearch = (q) => {
-    setQuery(q);
-    setOpen(true);
+  // Lista filtrada calculada aquí (no leída del estado): el handler de teclado la necesita en el
+  // mismo evento en que abre la lista, antes de que React actualice `results`.
+  const filtrar = (q) => {
     const lower = q.toLowerCase();
     let filtered = animales.filter(a =>
       a.numero_trazabilidad.toLowerCase().includes(lower) ||
@@ -38,7 +41,16 @@ export default function AnimalSearch({ value, onChange, filter }) {
       (a.raza && a.raza.toLowerCase().includes(lower))
     );
     if (filter) filtered = filtered.filter(filter);
-    setResults(filtered.slice(0, 15));
+    return filtered.slice(0, 15);
+  };
+
+  const handleSearch = (q) => {
+    const lista = filtrar(q);
+    setQuery(q);
+    setOpen(true);
+    setResults(lista);
+    setActivo(-1);
+    return lista;
   };
 
   const select = (animal) => {
@@ -53,48 +65,66 @@ export default function AnimalSearch({ value, onChange, filter }) {
     setOpen(false);
   };
 
+  const onTecla = (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      // Con la lista cerrada, la primera flecha la abre y resalta el primer resultado.
+      if (!open) { const lista = handleSearch(query); setActivo(lista.length ? 0 : -1); }
+      else setActivo(i => Math.min(results.length - 1, i + 1));
+    }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActivo(i => Math.max(0, i - 1)); }
+    else if (e.key === 'Enter' && open && results.length) {
+      // Enter elige la resaltada, o la única si la búsqueda dejó una sola: no envía el formulario.
+      const elegido = results[activo >= 0 ? activo : (results.length === 1 ? 0 : -1)];
+      if (elegido) { e.preventDefault(); select(elegido); }
+    } else if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); }
+  };
+
+  // Combobox accesible: el lector anuncia la lista y la opción activa; las opciones miden 44 px.
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <div style={{ position: 'relative' }}>
-        <Search size={16} style={{ position: 'absolute', left: 10, top: 10, color: '#9ca3af' }} />
+    <div ref={ref} className="buscador-animal">
+      <div className="buscador-campo">
+        <Search size={16} aria-hidden="true" className="buscador-icono" />
         <input
+          role="combobox"
+          aria-expanded={open && results.length > 0}
+          aria-controls={idLista}
+          aria-autocomplete="list"
+          aria-activedescendant={activo >= 0 ? `${idLista}-${activo}` : undefined}
+          autoComplete="off"
+          spellCheck={false}
           value={query}
           onChange={e => handleSearch(e.target.value)}
           onFocus={() => { if (query) handleSearch(query); else handleSearch(''); }}
-          placeholder="Buscar por numero, nombre o raza..."
-          style={{ paddingLeft: 32, width: '100%' }}
+          onKeyDown={onTecla}
+          placeholder="Buscar por número, nombre o raza…"
         />
         {query && (
-          <button onClick={clear} style={{ position: 'absolute', right: 8, top: 6, background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', color: '#9ca3af' }}>&times;</button>
+          <button type="button" className="btn-icon buscador-limpiar" onClick={clear} aria-label="Quitar animal elegido" title="Quitar">
+            <X size={16} aria-hidden="true" />
+          </button>
         )}
       </div>
       {open && results.length > 0 && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
-          background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)', maxHeight: 250, overflowY: 'auto'
-        }}>
-          {results.map(a => (
-            <div key={a.id} onClick={() => select(a)} style={{
-              padding: '8px 12px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between',
-              borderBottom: '1px solid #f3f4f6', fontSize: '0.85rem'
-            }}
-              onMouseEnter={e => e.currentTarget.style.background = '#f0fdf4'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+        <ul className="buscador-lista" role="listbox" id={idLista}>
+          {results.map((a, i) => (
+            <li
+              key={a.id}
+              id={`${idLista}-${i}`}
+              role="option"
+              aria-selected={i === activo}
+              className={i === activo ? 'activa' : ''}
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => select(a)}
             >
-              <span><strong>{a.numero_trazabilidad}</strong> {a.nombre && `- ${a.nombre}`}</span>
-              <span style={{ color: '#6b7280' }}>{a.raza} | {a.sexo} {a.peso_actual ? `| ${a.peso_actual}kg` : ''}</span>
-            </div>
+              <span><strong>{a.numero_trazabilidad}</strong> {a.nombre && `· ${a.nombre}`}</span>
+              <span className="buscador-meta">{a.raza} · {a.sexo}{a.peso_actual ? ` · ${a.peso_actual} kg` : ''}</span>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
       {open && query && results.length === 0 && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
-          background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px', textAlign: 'center', color: '#9ca3af'
-        }}>
-          No se encontraron animales
-        </div>
+        <div className="buscador-lista buscador-vacio" role="status">No se encontraron animales activos con «{query}»</div>
       )}
     </div>
   );

@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2, MapPin } from 'lucide-react';
 import { api } from '../services/api';
 import { confirmar } from '../components/ui/confirmar';
 import { aviso } from '../components/ui/avisos';
+import { Cargando, EstadoError, EstadoVacio, useEstadoCarga } from '../components/ui/Estados';
 
 const estadoBadge = { activo: 'badge-green', inactivo: 'badge-gray', mantenimiento: 'badge-yellow' };
 
@@ -12,7 +13,8 @@ export default function Potreros() {
   const [editPotrero, setEditPotrero] = useState(null);
   const [form, setForm] = useState({ estado: 'activo' });
 
-  const load = () => api.getPotreros().then(setPotreros).catch(aviso.errorCarga());
+  const [carga, seguir] = useEstadoCarga();
+  const load = () => seguir(api.getPotreros().then(setPotreros));
   useEffect(() => { load(); }, []);
 
   const openNew = () => { setEditPotrero(null); setForm({ estado: 'activo' }); setShowModal(true); };
@@ -33,57 +35,60 @@ export default function Potreros() {
 
   const remove = async (id) => {
     if (!(await confirmar({ titulo: '¿Eliminar este potrero?', mensaje: 'Esta acción no se puede deshacer.', textoConfirmar: 'Eliminar', peligro: true }))) return;
-    await api.deletePotrero(id);
-    load();
+    try {
+      await api.deletePotrero(id);
+      aviso.ok('Potrero eliminado');
+      load();
+    } catch (err) { aviso.error(err.message); }
   };
 
   return (
     <div>
       <div className="page-header">
         <h2>Potreros</h2>
-        <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nuevo Potrero</button>
+        <button type="button" className="btn btn-primary" onClick={openNew}><Plus size={16} aria-hidden="true" /> Nuevo potrero</button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-        {potreros.map(p => (
-          <div className="card" key={p.id}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 12 }}>
-              <div>
-                <h3 style={{ fontSize: '1.1rem' }}><MapPin size={16} style={{ marginRight: 4 }} />{p.nombre}</h3>
-                <span className={`badge ${estadoBadge[p.estado]}`}>{p.estado}</span>
-              </div>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <button className="btn-icon" onClick={() => openEdit(p)}><Edit size={16} /></button>
-                <button className="btn-icon" onClick={() => remove(p.id)}><Trash2 size={16} color="#dc2626" /></button>
-              </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, textAlign: 'center' }}>
-              <div>
-                <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#16a34a' }}>{p.total_animales}</div>
-                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Animales</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '1.3rem', fontWeight: 700 }}>{p.superficie_ha || '-'}</div>
-                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Hectareas</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '1.3rem', fontWeight: 700 }}>{p.capacidad_animales || '-'}</div>
-                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Capacidad</div>
-              </div>
-            </div>
-            {p.capacidad_animales > 0 && (
-              <div style={{ marginTop: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#6b7280', marginBottom: 4 }}>
-                  <span>Ocupacion</span>
-                  <span>{Math.round((p.total_animales / p.capacidad_animales) * 100)}%</span>
+      <div className="fichas">
+        {potreros.map(p => {
+          const ocupacion = p.capacidad_animales > 0 ? p.total_animales / p.capacidad_animales : null;
+          return (
+            <div className="card" key={p.id}>
+              <div className="ficha-encabezado">
+                <div>
+                  <h3><MapPin size={18} aria-hidden="true" />{p.nombre}</h3>
+                  <span className={`badge ${estadoBadge[p.estado] || 'badge-gray'}`}>{p.estado}</span>
                 </div>
-                <div style={{ height: 6, background: '#e5e7eb', borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${Math.min(100, (p.total_animales / p.capacidad_animales) * 100)}%`, background: p.total_animales > p.capacidad_animales ? '#dc2626' : '#16a34a', borderRadius: 3 }} />
+                <div className="ficha-acciones">
+                  <button type="button" className="btn-icon" onClick={() => openEdit(p)} title="Editar potrero" aria-label={`Editar ${p.nombre}`}><Edit size={16} aria-hidden="true" /></button>
+                  <button type="button" className="btn-icon peligro" onClick={() => remove(p.id)} title="Eliminar potrero" aria-label={`Eliminar ${p.nombre}`}><Trash2 size={16} aria-hidden="true" /></button>
                 </div>
               </div>
-            )}
-          </div>
-        ))}
+              <div className="cifras">
+                <div><div className="cifra-valor">{p.total_animales ?? 0}</div><div className="cifra-etiqueta">Animales</div></div>
+                <div><div className="cifra-valor">{p.superficie_ha || '-'}</div><div className="cifra-etiqueta">Hectáreas</div></div>
+                <div><div className="cifra-valor">{p.capacidad_animales || '-'}</div><div className="cifra-etiqueta">Capacidad</div></div>
+              </div>
+              {ocupacion !== null && (
+                <div>
+                  <div className="ocupacion-texto">
+                    <span>Ocupación</span>
+                    <span>{Math.round(ocupacion * 100)}%{ocupacion > 1 ? ' · sobre la capacidad' : ''}</span>
+                  </div>
+                  {/* La barra se escala con transform (no con width) para no recalcular el layout. */}
+                  <div className="barra" role="img" aria-label={`Ocupación ${Math.round(ocupacion * 100)} %`}>
+                    <div className={`barra-relleno ${ocupacion > 1 ? 'excedida' : ''}`} style={{ transform: `scaleX(${Math.min(1, ocupacion)})` }} />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {carga.cargando && <Cargando texto="Cargando potreros…" />}
+        {!carga.cargando && carga.error && <EstadoError mensaje={carga.error} onReintentar={load} />}
+        {!carga.cargando && !carga.error && potreros.length === 0 && (
+          <EstadoVacio titulo="Todavía no hay potreros" texto="Cree el primero con «Nuevo potrero»." />
+        )}
       </div>
 
       {showModal && (

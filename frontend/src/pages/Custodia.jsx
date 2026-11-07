@@ -182,7 +182,7 @@ export default function Custodia() {
               <div className="form-group">
                 <label>Bodega Destino *</label>
                 <select required value={moverForm.bodega_destino_id || ''} onChange={e => onMoverDestinoChange(e.target.value)}>
-                  <option value="">Seleccionar...</option>
+                  <option value="">Seleccionar…</option>
                   {bodegas.map(b => <option key={b.id} value={b.id}>{b.codigo} - {b.nombre} ({b.tipo})</option>)}
                 </select>
               </div>
@@ -236,7 +236,7 @@ export default function Custodia() {
               <div className="form-group">
                 <label htmlFor="recibir-primal">Primal *</label>
                 <select id="recibir-primal" required value={recibirForm.primal_id || ''} onChange={e => setRecibirForm({ ...recibirForm, primal_id: e.target.value })}>
-                  <option value="">Seleccionar...</option>
+                  <option value="">Seleccionar…</option>
                   {primalesDisponibles.map(p => (
                     <option key={p.id} value={p.id}>{p.codigo} - {p.tipo_primal} ({parseFloat(p.peso_kg || 0).toFixed(2)} kg)</option>
                   ))}
@@ -245,7 +245,7 @@ export default function Custodia() {
               <div className="form-group">
                 <label>Bodega Destino *</label>
                 <select required value={recibirForm.bodega_destino_id || ''} onChange={e => setRecibirForm({ ...recibirForm, bodega_destino_id: e.target.value })}>
-                  <option value="">Seleccionar...</option>
+                  <option value="">Seleccionar…</option>
                   {bodegas.filter(b => b.tipo === 'custodia').map(b => <option key={b.id} value={b.id}>{b.codigo} - {b.nombre}</option>)}
                 </select>
               </div>

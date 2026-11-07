@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { Routes, Route, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Beef, Weight, Heart, ArrowRightLeft, Baby, MapPin, Users, LogOut, User, Truck, Warehouse, Package, Snowflake, Clock, Boxes, FileOutput, FileInput, RotateCcw, Barcode, Utensils, BookOpen, Menu, X, FileSpreadsheet, ClipboardList, Gauge, PackageSearch, FileCheck2, ClipboardCheck } from 'lucide-react';
 import { AuthProvider, useAuth } from './components/AuthContext';
-import { CowWalking } from './components/CowIcon';
 import { Avisos } from './components/ui/avisos';
 import { DialogoConfirmacion } from './components/ui/confirmar';
 import useEtiquetasTablas from './components/ui/useEtiquetasTablas';
+import useAccesibilidadGlobal from './components/ui/useAccesibilidadGlobal';
+import { Cargando } from './components/ui/Estados';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Animales from './pages/Animales';
@@ -116,12 +117,7 @@ function ubicacionActual(pathname) {
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
-  if (loading) return (
-    <div className="estado" role="status" style={{ minHeight: '100vh', justifyContent: 'center' }}>
-      <CowWalking size={64} />
-      <p>Cargando…</p>
-    </div>
-  );
+  if (loading) return <div className="carga-inicial"><Cargando texto="Abriendo Hacienda Tempisque…" /></div>;
   if (!user) return <Navigate to="/login" />;
   return children;
 }
@@ -135,6 +131,7 @@ function AppLayout() {
   const refNav = useRef(null);
   const refBotonMenu = useRef(null);
   useEtiquetasTablas(refMain);
+  useAccesibilidadGlobal(refMain);
 
   const { etapa, pagina } = ubicacionActual(location.pathname);
 

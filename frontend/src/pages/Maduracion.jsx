@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Clock, Send, Plus, Trash2, Thermometer } from 'lucide-react';
+import { AlertTriangle, Clock, Send, Plus, Trash2, Thermometer, X } from 'lucide-react';
 import { api } from '../services/api';
 import { soloLegacy } from '../services/bodegas';
 import { confirmar } from '../components/ui/confirmar';
 import { aviso } from '../components/ui/avisos';
 import { formatDate } from '../components/DateFormat';
+import { FilaEstado, useEstadoCarga } from '../components/ui/Estados';
 
 const nivelBadge = { proximo: 'badge-green', urgente: 'badge-yellow', vencido: 'badge-red', olvidado: 'badge-red' };
 
@@ -25,12 +26,11 @@ function diasBadge(dias) {
   return 'badge-gray';
 }
 
-function diasColor(dias) {
-  if (dias >= 45) return '#7f1d1d';
-  if (dias >= 30) return '#dc2626';
-  if (dias >= 28) return '#f97316';
-  if (dias >= 21) return '#eab308';
-  return '#6b7280';
+// Clase de texto por días de maduración (tokens del sistema; el amarillo anterior no llegaba a 4.5:1).
+function diasClase(dias) {
+  if (dias >= 30) return 'texto-error';
+  if (dias >= 21) return 'texto-alerta';
+  return '';
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
@@ -86,11 +86,12 @@ export default function Maduracion() {
   const [showTempModal, setShowTempModal] = useState(false);
   const [tempForm, setTempForm] = useState({});
 
+  const [carga, seguir] = useEstadoCarga();
   const load = () => {
     callGetAlertasProximidad()
       .then(d => setAlertas(Array.isArray(d) ? d : []))
       .catch(err => { console.error(err); setAlertas([]); });
-    api.getMaduracion().then(setPrimales).catch(aviso.errorCarga());
+    seguir(api.getMaduracion().then(setPrimales));
   };
 
   const loadTemperaturas = () => {
@@ -184,70 +185,60 @@ export default function Maduracion() {
   return (
     <div>
       <div className="page-header">
-        <h2>Maduracion</h2>
+        <h2>Maduración</h2>
       </div>
 
       {alertasProximidad.length > 0 && (
-        <div style={{
-          padding: '12px 16px', marginBottom: 16, borderRadius: 8,
-          background: '#fff7ed', border: '1px solid #fdba74', color: '#9a3412'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <Clock size={18} />
-            <strong>{alertasProximidad.length} {alertasProximidad.length === 1 ? 'primal próximo' : 'primales próximos'} a cumplir maduración (≤5 días)</strong>
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {alertasProximidad.map(a => (
-              <span key={a.id} style={{
-                background: '#fff', border: '1px solid #fdba74', borderRadius: 6,
-                padding: '4px 10px', fontSize: '0.85rem', display: 'inline-flex', gap: 6, alignItems: 'center'
-              }}>
-                <strong>{a.codigo}</strong>
-                {a.numero_trazabilidad ? <span style={{ color: '#6b7280' }}>{a.numero_trazabilidad}</span> : null}
-                <span style={{ color: '#c2410c', fontWeight: 600 }}>{a.dias_restantes}d</span>
-              </span>
-            ))}
+        <div className="banner alerta" role="status">
+          <Clock size={18} aria-hidden="true" />
+          <div>
+            <div className="banner-titulo">
+              {alertasProximidad.length} {alertasProximidad.length === 1 ? 'primal próximo' : 'primales próximos'} a cumplir maduración (≤5 días)
+            </div>
+            <div className="chips">
+              {alertasProximidad.map(a => (
+                <span key={a.id} className="chip">
+                  <strong>{a.codigo}</strong>
+                  {a.numero_trazabilidad ? <span className="tenue">{a.numero_trazabilidad}</span> : null}
+                  <strong>{a.dias_restantes} d</strong>
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
       {(counts.olvidado > 0 || counts.vencido > 0 || counts.urgente > 0) && (
-        <div style={{
-          padding: '12px 16px', marginBottom: 16, borderRadius: 8,
-          background: counts.olvidado > 0 ? '#7f1d1d' : counts.vencido > 0 ? '#fef2f2' : '#fffbeb',
-          border: `1px solid ${counts.olvidado > 0 ? '#991b1b' : counts.vencido > 0 ? '#fecaca' : '#fde68a'}`,
-          color: counts.olvidado > 0 ? '#fff' : counts.vencido > 0 ? '#991b1b' : '#92400e',
-          display: 'flex', alignItems: 'center', gap: 8
-        }}>
-          <AlertTriangle size={18} />
+        <div className={`banner ${counts.olvidado > 0 ? 'critico' : counts.vencido > 0 ? 'error' : 'alerta'}`} role="alert">
+          <AlertTriangle size={18} aria-hidden="true" />
           <strong>
             {counts.olvidado > 0
-              ? `${counts.olvidado} primales OLVIDADOS (>45 dias sin movimiento) - revisión urgente`
+              ? `${counts.olvidado} primales olvidados (más de 45 días sin movimiento): revisión urgente`
               : counts.vencido > 0
-                ? `${counts.vencido} primales vencidos requieren accion inmediata`
+                ? `${counts.vencido} primales vencidos requieren acción inmediata`
                 : `${counts.urgente} primales en estado urgente`}
           </strong>
         </div>
       )}
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h3 style={{ marginBottom: 12 }}>Alertas de Maduracion</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
-          <div style={{ textAlign: 'center', padding: 12, background: '#f0fdf4', borderRadius: 8 }}>
-            <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#16a34a' }}>{counts.proximo}</div>
-            <span className="badge badge-green">Próximo (21-27d)</span>
+      <div className="card">
+        <div className="card-header"><h3>Alertas de maduración</h3></div>
+        <div className="niveles">
+          <div className="nivel proximo">
+            <div className="nivel-valor">{counts.proximo}</div>
+            <span className="badge badge-green">Próximo (21-27 d)</span>
           </div>
-          <div style={{ textAlign: 'center', padding: 12, background: '#fffbeb', borderRadius: 8 }}>
-            <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#eab308' }}>{counts.urgente}</div>
-            <span className="badge badge-yellow">Urgente (28-29d)</span>
+          <div className="nivel urgente">
+            <div className="nivel-valor">{counts.urgente}</div>
+            <span className="badge badge-yellow">Urgente (28-29 d)</span>
           </div>
-          <div style={{ textAlign: 'center', padding: 12, background: '#fef2f2', borderRadius: 8 }}>
-            <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#dc2626' }}>{counts.vencido}</div>
-            <span className="badge badge-red">Vencido (30-44d)</span>
+          <div className="nivel vencido">
+            <div className="nivel-valor">{counts.vencido}</div>
+            <span className="badge badge-red">Vencido (30-44 d)</span>
           </div>
-          <div style={{ textAlign: 'center', padding: 12, background: '#7f1d1d', borderRadius: 8, color: '#fff' }}>
-            <div style={{ fontSize: '1.8rem', fontWeight: 700 }}>{counts.olvidado}</div>
-            <span className="badge badge-red">Olvidado (&gt;45d)</span>
+          <div className="nivel olvidado">
+            <div className="nivel-valor">{counts.olvidado}</div>
+            <span className="badge badge-red">Olvidado (&gt;45 d)</span>
           </div>
         </div>
 
@@ -255,10 +246,10 @@ export default function Maduracion() {
           <table>
             <thead>
               <tr>
-                <th>Codigo</th>
+                <th>Código</th>
                 <th>Animal</th>
                 <th>Tipo</th>
-                <th>Dias</th>
+                <th>Días</th>
                 <th>Nivel</th>
               </tr>
             </thead>
@@ -271,29 +262,30 @@ export default function Maduracion() {
                     <td><strong>{a.codigo}</strong></td>
                     <td>{a.numero_trazabilidad || '-'}</td>
                     <td>{a.tipo_primal}</td>
-                    <td><span style={{ fontSize: '1.15rem', fontWeight: 700, color: diasColor(diasShown) }}>{diasShown !== undefined && diasShown !== null ? `${diasShown}d` : '-'}</span></td>
+                    <td><span className={diasClase(diasShown)}>{diasShown !== undefined && diasShown !== null ? `${diasShown} d` : '-'}</span></td>
                     <td>{nivelShown ? <span className={`badge ${nivelBadge[nivelShown] || 'badge-gray'}`}>{nivelShown}</span> : '-'}</td>
                   </tr>
                 );
               })}
-              {alertas.length === 0 && <tr><td colSpan={5} className="empty-state">Sin alertas</td></tr>}
+              <FilaEstado columnas={5} vacio={alertas.length === 0} tituloVacio="Sin alertas"
+                textoVacio="Ningún primal está cerca de cumplir su maduración." />
             </tbody>
           </table>
         </div>
       </div>
 
       <div className="card">
-        <h3 style={{ marginBottom: 12 }}>Primales en Maduracion</h3>
+        <div className="card-header"><h3>Primales en maduración</h3></div>
         <div className="table-container">
           <table>
             <thead>
               <tr>
-                <th>Codigo</th>
+                <th>Código</th>
                 <th>Animal</th>
                 <th>Tipo</th>
                 <th>Marmoleo</th>
                 <th>Inicio</th>
-                <th>Dias</th>
+                <th>Días</th>
                 <th>Bodega</th>
                 <th>Acciones</th>
               </tr>
@@ -308,54 +300,53 @@ export default function Maduracion() {
                     <td>{p.tipo_primal}</td>
                     <td>{p.marmoleo ? <span className="badge badge-blue">BMS {p.marmoleo}</span> : '-'}</td>
                     <td>{formatDate(p.fecha_maduracion_inicio)}</td>
-                    <td><span className={`badge ${diasBadge(dias)}`}>{dias !== null ? `${dias}d` : '-'}</span></td>
+                    <td><span className={`badge ${diasBadge(dias)}`}>{dias !== null ? `${dias} d` : '-'}</span></td>
                     <td>{p.bodega_codigo || '-'}</td>
                     <td>
-                      <button className="btn-icon" onClick={() => enviarPorcionado(p)} title="Enviar a porcionado"><Send size={16} /></button>
+                      <button type="button" className="btn-icon" onClick={() => enviarPorcionado(p)} title="Enviar a porcionado" aria-label={`Enviar ${p.codigo} a porcionado`}><Send size={16} aria-hidden="true" /></button>
                     </td>
                   </tr>
                 );
               })}
-              {primales.length === 0 && <tr><td colSpan={8} className="empty-state">Sin primales en maduracion</td></tr>}
+              <FilaEstado columnas={8} cargando={carga.cargando} error={carga.error} onReintentar={load}
+                vacio={primales.length === 0} tituloVacio="Sin primales en maduración"
+                textoVacio="Los primales entran aquí desde Custodia." />
             </tbody>
           </table>
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
-            <Thermometer size={18} /> Registro de Temperatura
-          </h3>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <select value={tempBodegaFilter} onChange={e => setTempBodegaFilter(e.target.value)}>
+      <div className="card">
+        <div className="card-header">
+          <h3 className="rp-subtitulo"><Thermometer size={18} aria-hidden="true" /> Registro de temperatura</h3>
+          <div className="card-herramientas">
+            <label className="sr-only" htmlFor="filtro-bodega-temp">Bodega de maduración</label>
+            <select id="filtro-bodega-temp" value={tempBodegaFilter} onChange={e => setTempBodegaFilter(e.target.value)}>
               <option value="">Todas las bodegas de maduración</option>
               {bodegasMaduracion.map(b => <option key={b.id} value={b.id}>{b.codigo} - {b.nombre}</option>)}
             </select>
-            <button className="btn btn-primary" onClick={openTempModal}><Plus size={16} /> Nuevo registro</button>
+            <button type="button" className="btn btn-primary" onClick={openTempModal}><Plus size={16} aria-hidden="true" /> Nuevo registro</button>
           </div>
         </div>
 
         {tempResumen && (
-          <div style={{
-            padding: '10px 14px', marginBottom: 12, borderRadius: 8,
-            background: '#f0f9ff', border: '1px solid #bae6fd', color: '#0c4a6e',
-            fontSize: '0.9rem'
-          }}>
-            <strong>Período actual:</strong>{' '}
-            {tempResumen.total ?? 0} registros,{' '}
-            {tempResumen.pct_cumplimiento !== undefined && tempResumen.pct_cumplimiento !== null
-              ? `${fmtNum(tempResumen.pct_cumplimiento, 1)}% cumplimiento`
-              : '-% cumplimiento'}
-            {tempResumen.min !== undefined && tempResumen.min !== null && (
-              <>, min {fmtNum(tempResumen.min, 1)}°C</>
-            )}
-            {tempResumen.max !== undefined && tempResumen.max !== null && (
-              <>, max {fmtNum(tempResumen.max, 1)}°C</>
-            )}
-            {tempResumen.avg !== undefined && tempResumen.avg !== null && (
-              <>, avg {fmtNum(tempResumen.avg, 1)}°C</>
-            )}
+          <div className="banner info">
+            <div>
+              <strong>Período actual:</strong>{' '}
+              {tempResumen.total ?? 0} registros,{' '}
+              {tempResumen.pct_cumplimiento !== undefined && tempResumen.pct_cumplimiento !== null
+                ? `${fmtNum(tempResumen.pct_cumplimiento, 1)}% de cumplimiento`
+                : '-% de cumplimiento'}
+              {tempResumen.min !== undefined && tempResumen.min !== null && (
+                <>, mín. {fmtNum(tempResumen.min, 1)} °C</>
+              )}
+              {tempResumen.max !== undefined && tempResumen.max !== null && (
+                <>, máx. {fmtNum(tempResumen.max, 1)} °C</>
+              )}
+              {tempResumen.avg !== undefined && tempResumen.avg !== null && (
+                <>, promedio {fmtNum(tempResumen.avg, 1)} °C</>
+              )}
+            </div>
           </div>
         )}
 
@@ -366,7 +357,7 @@ export default function Maduracion() {
                 <th>Fecha</th>
                 <th>Bodega</th>
                 <th>Temperatura (°C)</th>
-                <th>Cumple ≤4°C</th>
+                <th>Cumple ≤4 °C</th>
                 <th>Responsable</th>
                 <th>Notas</th>
                 <th>Acciones</th>
@@ -383,18 +374,19 @@ export default function Maduracion() {
                     <td><strong>{fmtNum(t.temperatura_c, 1)}</strong></td>
                     <td>
                       {cumple
-                        ? <span className="badge badge-green">✓</span>
-                        : <span className="badge badge-red">✗</span>}
+                        ? <span className="badge badge-green">Cumple</span>
+                        : <span className="badge badge-red">No cumple</span>}
                     </td>
                     <td>{t.responsable || '-'}</td>
-                    <td style={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.notas || ''}>{t.notas || '-'}</td>
+                    <td className="celda-recortada" title={t.notas || ''}>{t.notas || '-'}</td>
                     <td>
-                      <button className="btn-icon" onClick={() => deleteTemp(t.id)} title="Borrar"><Trash2 size={16} color="#dc2626" /></button>
+                      <button type="button" className="btn-icon peligro" onClick={() => deleteTemp(t.id)} title="Eliminar registro" aria-label={`Eliminar registro de temperatura del ${formatDate(t.fecha)}`}><Trash2 size={16} aria-hidden="true" /></button>
                     </td>
                   </tr>
                 );
               })}
-              {temperaturas.length === 0 && <tr><td colSpan={7} className="empty-state">Sin registros de temperatura</td></tr>}
+              <FilaEstado columnas={7} vacio={temperaturas.length === 0} tituloVacio="Sin registros de temperatura"
+                textoVacio="Anote la lectura diaria de la cámara con «Nuevo registro»." />
             </tbody>
           </table>
         </div>
@@ -405,13 +397,13 @@ export default function Maduracion() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Nuevo registro de temperatura</h3>
-              <button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowTempModal(false)}>&times;</button>
+              <button type="button" className="btn-icon" aria-label="Cerrar" onClick={() => setShowTempModal(false)}><X size={20} aria-hidden="true" /></button>
             </div>
             <form onSubmit={submitTemp}>
               <div className="form-group">
                 <label>Bodega *</label>
                 <select required value={tempForm.bodega_id || ''} onChange={e => setTempForm({ ...tempForm, bodega_id: e.target.value })}>
-                  <option value="">Seleccionar...</option>
+                  <option value="">Seleccionar…</option>
                   {bodegasMaduracion.map(b => <option key={b.id} value={b.id}>{b.codigo} - {b.nombre}</option>)}
                 </select>
               </div>

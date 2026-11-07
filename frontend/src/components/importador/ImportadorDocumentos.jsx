@@ -96,11 +96,11 @@ export default function ImportadorDocumentos({ formato, accept, ayuda, placehold
             ))}
           </ul>
         )}
-        <div className="form-group" style={{ marginTop: 'var(--esp-4)' }}>
+        <div className="form-group imp-documento-texto">
           <label htmlFor={idTexto}>O cargue el documento por foto (una por página) o pegue el texto, y revíselo</label>
           <LecturaFoto formato={formato} deshabilitado={!canEdit}
             onTexto={(t, dudas) => { setTexto(t); setFoto({ dudosas: dudas }); }} />
-          <textarea id={idTexto} rows={6} className="imp-pegado" value={texto} disabled={!canEdit} style={{ marginTop: 'var(--esp-2)' }}
+          <textarea id={idTexto} rows={6} className="imp-pegado" value={texto} disabled={!canEdit}
             placeholder={placeholder}
             onChange={e => { setTexto(e.target.value); if (!e.target.value.trim()) setFoto(null); }} />
           <Boton icono={ListChecks} cargando={imp.cargando} disabled={!canEdit || (!texto.trim() && !archivos.length)} onClick={() => revisar()}>Ver vista previa</Boton>

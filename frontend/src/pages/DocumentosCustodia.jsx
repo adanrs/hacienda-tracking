@@ -54,7 +54,7 @@ function EncabezadosDocumentos({ plan }) {
             {' · '}<span className={`badge ${ACCION[d.accion][1]}`}>{ACCION[d.accion][0]}</span>
           </div>
           {d.cambios?.map(c => <div key={c.campo} className="rp-tenue">{c.etiqueta}: {String(c.antes ?? '—')} → {String(c.despues ?? '—')}</div>)}
-          {[...(d.errores || []), ...(d.avisos || [])].map((a, i) => <div key={i} style={{ color: 'var(--alerta)' }}><CircleAlert size={14} aria-hidden="true" /> {a}</div>)}
+          {[...(d.errores || []), ...(d.avisos || [])].map((a, i) => <div key={i} className="aviso-linea"><CircleAlert size={14} aria-hidden="true" /> <span>{a}</span></div>)}
         </div>
       ))}
     </div>
@@ -108,7 +108,7 @@ function ListaDocumentos() {
       <div className="card">
         <div className="card-header">
           <h3>Documentos cargados</h3>
-          <div className="form-group" style={{ margin: 0 }}>
+          <div>
             <label htmlFor="dc-tipo" className="sr-only">Tipo de documento</label>
             <select id="dc-tipo" value={tipo} onChange={e => setTipo(e.target.value)}>
               <option value="">Todos</option>
@@ -195,13 +195,13 @@ function DetalleDocumento({ id }) {
           </div>
         )}
         {canEdit && (
-          <div className="form-group">
+          <div className="form-group ligar-documento">
             <span className="rp-nota">Ligar el documento a mano a un animal (por su arete):</span>
             <LigarAnimal id={`doc-${doc.id}`} aretActual={doc.arete} onLigar={async (arete) => setDoc(await api.ligarDocumentoCustodia(doc.id, arete))} />
           </div>
         )}
         <div className="table-container">
-          <table>
+          <table className="tabla-con-total">
             <thead><tr><th className="num">#</th><th>Artículo</th><th>Descripción</th><th>Equivale a</th><th>Und.</th><th className="num">Cajas</th><th className="num">Kg</th></tr></thead>
             <tbody>
               {doc.lineas.map(l => (
@@ -217,7 +217,7 @@ function DetalleDocumento({ id }) {
               ))}
             </tbody>
             <tfoot>
-              <tr><td colSpan={5}><strong>Total</strong></td><td className="num"><strong>{cant(doc.total_cajas)}</strong></td><td className="num"><strong>{kg(doc.total_kg)}</strong></td></tr>
+              <tr><td colSpan={5}><strong>Total</strong></td><td className="num" data-label-fija data-label="Cajas"><strong>{cant(doc.total_cajas)}</strong></td><td className="num" data-label-fija data-label="Kg"><strong>{kg(doc.total_kg)}</strong></td></tr>
             </tfoot>
           </table>
         </div>

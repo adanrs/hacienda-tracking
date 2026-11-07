@@ -232,8 +232,8 @@ export default function Paqueteria() {
   return (
     <div>
       <div className="page-header">
-        <h2>Productos de Paquetería</h2>
-        <button className="btn btn-primary" onClick={openNew}><Plus size={16} /> Nuevo Lote</button>
+        <h2>Productos de paquetería</h2>
+        <button className="btn btn-primary" onClick={openNew}><Plus size={16} aria-hidden="true" /> Nuevo lote</button>
       </div>
 
       <div className="card">
@@ -339,7 +339,7 @@ export default function Paqueteria() {
                       ref={scanInputRef}
                       autoFocus
                       type="text"
-                      placeholder="Escanee o digite el código LOT del deshuese..."
+                      placeholder="Escanee o digite el código LOT del deshuese…"
                       value={scanCodigo}
                       onChange={e => setScanCodigo(e.target.value)}
                       onKeyDown={onScanKey}
@@ -393,7 +393,7 @@ export default function Paqueteria() {
                     <div className="form-group" style={{ margin: 0 }}>
                       <label>Animal *</label>
                       <select value={f.animal_id} onChange={e => updateFuente(i, 'animal_id', e.target.value)}>
-                        <option value="">Seleccionar...</option>
+                        <option value="">Seleccionar…</option>
                         {animales.map(a => <option key={a.id} value={a.id}>{a.numero_trazabilidad} {a.nombre || ''}</option>)}
                       </select>
                     </div>
@@ -420,7 +420,7 @@ export default function Paqueteria() {
                         ))}
                       </select>
                     </div>
-                    <button type="button" className="btn-icon" onClick={() => removeFuente(i)} style={{ marginBottom: 2 }}><Trash2 size={16} color="#dc2626" /></button>
+                    <button type="button" className="btn-icon peligro" onClick={() => removeFuente(i)} style={{ marginBottom: 2 }} title="Quitar fuente" aria-label={`Quitar fuente ${i + 1}`}><Trash2 size={16} aria-hidden="true" /></button>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 1fr 180px 140px', gap: 8, marginTop: 8, alignItems: 'end' }}>

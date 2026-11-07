@@ -6,6 +6,7 @@ import { api } from '../services/api';
 import { aviso } from '../components/ui/avisos';
 import { formatDate } from '../components/DateFormat';
 import AnimalSearch from '../components/AnimalSearch';
+import { FilaEstado, useEstadoCarga } from '../components/ui/Estados';
 
 const estadoBadge = { programado: 'badge-blue', en_transito: 'badge-yellow', recibido: 'badge-green', cancelado: 'badge-red' };
 
@@ -16,8 +17,9 @@ export default function Transporte() {
   const [form, setForm] = useState({});
   const [lote, setLote] = useState(false); // selección múltiple
 
+  const [carga, seguir] = useEstadoCarga();
   const load = () => {
-    api.getTransportes().then(setTransportes).catch(aviso.errorCarga());
+    seguir(api.getTransportes().then(setTransportes));
   };
 
   useEffect(() => { load(); }, []);
@@ -66,14 +68,14 @@ export default function Transporte() {
           <table>
             <thead>
               <tr>
-                <th>Fecha Salida</th>
+                <th>Fecha de salida</th>
                 <th>Animal</th>
                 <th>Tipo</th>
                 <th>Destino</th>
                 <th>Transportista</th>
                 <th>Pasaje</th>
                 <th>Placa</th>
-                <th>Guia</th>
+                <th>Guía</th>
                 <th>Estado</th>
                 <th>Acciones</th>
               </tr>
@@ -92,12 +94,14 @@ export default function Transporte() {
                   <td><span className={`badge ${estadoBadge[t.estado] || 'badge-gray'}`}>{t.estado}</span></td>
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="btn-icon" onClick={() => openEdit(t)}><Edit size={16} /></button>
+                      <button type="button" className="btn-icon" onClick={() => openEdit(t)} title="Editar transporte" aria-label={`Editar transporte de ${t.numero_trazabilidad || 'animal'} del ${formatDate(t.fecha_salida)}`}><Edit size={16} aria-hidden="true" /></button>
                     </div>
                   </td>
                 </tr>
               ))}
-              {transportes.length === 0 && <tr><td colSpan={10} className="empty-state">No se encontraron transportes</td></tr>}
+              <FilaEstado columnas={10} cargando={carga.cargando} error={carga.error} onReintentar={load}
+                vacio={transportes.length === 0} tituloVacio="Todavía no hay transportes"
+                textoVacio="Registre la salida de un animal con «Uno solo» o de un lote con «Varios animales»." />
             </tbody>
           </table>
         </div>
@@ -160,8 +164,8 @@ export default function Transporte() {
                 <label>Guia de Movilizacion</label>
                 <input value={form.guia_movilizacion || ''} onChange={e => setForm({ ...form, guia_movilizacion: e.target.value })} />
               </div>
-              <div style={{ marginTop: 16, marginBottom: 12, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
-                <h4 style={{ fontSize: '0.95rem', color: '#374151', margin: 0, marginBottom: 12 }}>Datos Finca</h4>
+              <div>
+                <h4 className="form-seccion">Datos de la finca</h4>
                 <div className="form-row">
                   <div className="form-group">
                     <label>Tipo Pasaje</label>

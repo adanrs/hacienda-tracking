@@ -90,6 +90,10 @@
      Sin fuentes web: la app se usa en planta con red irregular y tiene que pintar al instante. */
   --fuente: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --fuente-mono: ui-monospace, 'Cascadia Mono', 'Consolas', 'Menlo', monospace;
+  /* Voz de la marca: serif clásica del sistema (Palatino en Windows, Iowan en iPad/iPhone, Georgia
+     o Noto Serif en Android). Solo para la marca y los títulos de pantalla y de sección: da el aire de
+     hacienda sin cargar fuentes web. Los datos, campos y botones siguen en la sans del sistema. */
+  --fuente-titulos: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, 'Noto Serif', ui-serif, serif;
   --texto-xs: 0.8125rem;   /* 13 px: metadatos, cabeceras de tabla, badges */
   --texto-sm: 0.9375rem;   /* 15 px: celdas, botones, menú */
   --texto-base: 1rem;      /* 16 px: cuerpo y campos (evita el zoom automático de iOS) */
@@ -173,6 +177,8 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
+  /* El giro del spinner es la única señal de «cargando»: se deja, pero lento, en vez de congelarlo. */
+  .spinner, .girando { animation: girar 2.4s linear infinite !important; }
 }
 
 /* 3. Layout ---------------------------------------------------------------- */
@@ -199,7 +205,7 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
   gap: var(--esp-3);
 }
 .sidebar-header .marca-icono { color: var(--marca); flex-shrink: 0; }
-.sidebar-header h1 { font-size: var(--texto-base); font-weight: 700; line-height: 1.2; color: var(--text); letter-spacing: -0.01em; }
+.sidebar-header h1 { font-family: var(--fuente-titulos); font-size: var(--texto-lg); font-weight: 700; line-height: 1.15; color: var(--text); letter-spacing: 0; }
 .sidebar-header p { font-size: var(--texto-xs); color: var(--nav-texto-tenue); margin-top: 2px; }
 
 .sidebar nav { flex: 1; padding: 0 var(--esp-3) var(--esp-4); }
@@ -300,7 +306,7 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
   flex-wrap: wrap;
   margin-bottom: var(--esp-6);
 }
-.page-header h2 { font-size: var(--texto-2xl); font-weight: 700; line-height: 1.2; letter-spacing: -0.015em; }
+.page-header h2 { font-family: var(--fuente-titulos); font-size: 1.875rem; font-weight: 700; line-height: 1.15; letter-spacing: -0.005em; }
 .page-header p { color: var(--text-secondary); }
 
 /* 4. Componentes base ------------------------------------------------------ */
@@ -460,6 +466,9 @@ td:has(> .btn-icon) { white-space: nowrap; }
 }
 .form-group input[type='checkbox'], .form-group input[type='radio'] { width: 20px; height: 20px; accent-color: var(--acento); vertical-align: middle; }
 input[type='checkbox'], input[type='radio'] { accent-color: var(--acento); }
+/* Casillas de selección en tablas (Inventario planta, selección por lote): 22 px; con 13 px no se
+   acertaban con guantes. El relleno de la celda completa el área táctil. */
+td > input[type='checkbox'], th > input[type='checkbox'], td label > input[type='checkbox'] { width: 22px; height: 22px; cursor: pointer; vertical-align: middle; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--esp-4); }
 .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 var(--esp-4); }
 .campo-ayuda { font-size: var(--texto-xs); color: var(--text-terciario); margin-top: 6px; }
@@ -503,6 +512,7 @@ input[type='checkbox'], input[type='radio'] { accent-color: var(--acento); }
   padding: var(--esp-6);
   animation: subir var(--dur) var(--curva);
 }
+.modal[tabindex='-1']:focus { outline: none; }
 .modal-header {
   display: flex; justify-content: space-between; align-items: center; gap: var(--esp-3);
   margin: calc(-1 * var(--esp-6)) calc(-1 * var(--esp-6)) var(--esp-5);
@@ -601,7 +611,9 @@ input[type='checkbox'], input[type='radio'] { accent-color: var(--acento); }
 .timeline { position: relative; padding-left: 30px; }
 .timeline::before { content: ''; position: absolute; left: 12px; top: 0; bottom: 0; width: 2px; background: var(--border); }
 .timeline-item { position: relative; margin-bottom: 16px; }
-.timeline-dot { position: absolute; left: -24px; top: 4px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 2px var(--border); }
+.timeline-dot { position: absolute; left: -24px; top: 6px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--bg-card); background: var(--marca); box-shadow: 0 0 0 2px var(--marca-suave); }
+.timeline-encabezado { display: flex; justify-content: space-between; align-items: center; gap: var(--esp-2); margin-bottom: var(--esp-1); flex-wrap: wrap; }
+.timeline-texto { font-size: var(--texto-sm); }
 .timeline-content { background: var(--bg-sutil); border-radius: var(--radius); padding: 12px 16px; border: 1px solid var(--border); }
 .timeline-date { font-size: var(--texto-xs); color: var(--text-terciario); }
 
@@ -609,6 +621,119 @@ input[type='checkbox'], input[type='radio'] { accent-color: var(--acento); }
 .rendimiento-high, .gdp-good { color: var(--ok); font-weight: 700; }
 .rendimiento-mid, .gdp-mid { color: var(--alerta); font-weight: 700; }
 .rendimiento-low, .gdp-low { color: var(--error); font-weight: 700; }
+
+/* Títulos de sección dentro de una pantalla (Resumen: «Finca», «Planta y bodega»). Misma voz serif
+   que el título de página, un paso más chico, con regla fina para separar bloques sin tarjetas extra. */
+.seccion { margin-bottom: var(--esp-6); }
+.seccion-titulo {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--esp-3);
+  font-family: var(--fuente-titulos);
+  font-size: var(--texto-xl); font-weight: 700; line-height: 1.2;
+  padding-bottom: var(--esp-2); margin-bottom: var(--esp-3);
+  border-bottom: 1px solid var(--border);
+}
+.seccion-titulo a { font-family: var(--fuente); font-size: var(--texto-sm); }
+
+/* KPI que pide atención: el número y una etiqueta lo dicen; el borde completo lo refuerza. */
+.stat-card.alerta { border-color: var(--error); background: var(--error-suave); }
+.stat-card.alerta .stat-value { color: var(--error-fuerte); }
+.stat-card.alerta .stat-icon { color: var(--error); }
+.stat-aviso { display: inline-block; margin-top: 6px; font-size: var(--texto-xs); font-weight: 700; color: var(--error-fuerte); }
+
+/* Ficha de datos (ficha del animal): pares etiqueta/valor alineados en vez de «Etiqueta: valor» corrido. */
+.ficha-titulo { font-size: var(--texto-xs); font-weight: 600; color: var(--text-secondary); margin-bottom: var(--esp-3); }
+.ficha-datos { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px var(--esp-4); font-size: var(--texto-sm); }
+.ficha-datos dt { color: var(--text-secondary); }
+.ficha-datos dd { font-weight: 600; overflow-wrap: anywhere; }
+.ficha-datos dd::first-letter { text-transform: uppercase; }
+.ficha-nota { margin-top: var(--esp-3); font-size: var(--texto-sm); color: var(--text-secondary); }
+.ficha-peso { margin-top: var(--esp-3); display: flex; justify-content: space-between; align-items: baseline; gap: var(--esp-3); padding: var(--esp-2) var(--esp-3); border-radius: var(--radius-control); background: var(--bg-sutil); border: 1px solid var(--border); font-size: var(--texto-sm); }
+.ficha-peso strong { font-size: var(--texto-lg); font-variant-numeric: tabular-nums; }
+.encabezado-ficha { display: flex; align-items: center; gap: var(--esp-3); min-width: 0; }
+.encabezado-ficha h2 { margin-bottom: 2px; }
+
+/* Maduración: los cuatro niveles como contadores; en celular pasan a 2×2. */
+.niveles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--esp-3); margin-bottom: var(--esp-4); }
+.nivel { text-align: center; padding: var(--esp-3); border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-sutil); }
+.nivel-valor { font-size: var(--texto-2xl); font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; margin-bottom: var(--esp-1); }
+.nivel.proximo .nivel-valor { color: var(--ok-fuerte); }
+.nivel.urgente .nivel-valor { color: var(--alerta); }
+.nivel.vencido .nivel-valor { color: var(--error-fuerte); }
+.nivel.olvidado { background: var(--error-fuerte); border-color: var(--error-fuerte); color: #fff; }
+/* Fichas de catálogo (Potreros, Bodegas): grilla de tarjetas con encabezado, acciones y cifras. */
+.fichas { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: var(--esp-4); }
+.fichas > .card { margin-bottom: 0; display: flex; flex-direction: column; gap: var(--esp-3); }
+.fichas .estado { grid-column: 1 / -1; }
+.ficha-encabezado { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--esp-3); }
+.ficha-encabezado h3 { display: flex; align-items: center; gap: var(--esp-2); font-size: var(--texto-lg); font-weight: 700; line-height: 1.25; }
+.ficha-encabezado h3 svg { color: var(--text-terciario); flex-shrink: 0; }
+.ficha-sub { font-size: var(--texto-sm); color: var(--text-secondary); margin-top: 2px; }
+.ficha-acciones { display: flex; gap: var(--esp-1); flex-shrink: 0; }
+.ficha-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.cifras { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: var(--esp-2); padding-top: var(--esp-3); border-top: 1px solid var(--border-regla); }
+.cifra-valor { font-size: var(--texto-xl); font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.cifra-etiqueta { font-size: var(--texto-xs); color: var(--text-secondary); margin-top: 2px; }
+.ocupacion-texto { display: flex; justify-content: space-between; font-size: var(--texto-xs); color: var(--text-secondary); margin-bottom: var(--esp-1); font-variant-numeric: tabular-nums; }
+.barra { height: 8px; background: var(--bg-hover); border-radius: var(--radius-pill); overflow: hidden; }
+.barra-relleno { height: 100%; width: 100%; background: var(--ok); border-radius: inherit; transform-origin: left center; }
+.barra-relleno.excedida { background: var(--error); }
+
+/* Fichas de catálogo (Potreros, Bodegas): grilla de tarjetas con encabezado, acciones y cifras. */
+.fichas { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: var(--esp-4); }
+.fichas > .card { margin-bottom: 0; display: flex; flex-direction: column; gap: var(--esp-3); }
+.fichas > .estado { grid-column: 1 / -1; }
+.ficha-encabezado { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--esp-3); }
+.ficha-encabezado h3 { display: flex; align-items: center; gap: var(--esp-2); font-size: var(--texto-lg); font-weight: 700; line-height: 1.25; margin-bottom: var(--esp-1); }
+.ficha-encabezado h3 svg { color: var(--text-terciario); flex-shrink: 0; }
+.ficha-sub { font-size: var(--texto-sm); color: var(--text-secondary); }
+.ficha-acciones { display: flex; gap: var(--esp-1); flex-shrink: 0; }
+.ficha-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.cifras { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: var(--esp-2); padding-top: var(--esp-3); border-top: 1px solid var(--border-regla); }
+.cifra-valor { font-size: var(--texto-xl); font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.cifra-etiqueta { font-size: var(--texto-xs); color: var(--text-secondary); margin-top: 2px; }
+.ocupacion-texto { display: flex; justify-content: space-between; font-size: var(--texto-xs); color: var(--text-secondary); margin-bottom: var(--esp-1); font-variant-numeric: tabular-nums; }
+.barra { height: 8px; background: var(--bg-hover); border-radius: var(--radius-pill); overflow: hidden; }
+.barra-relleno { height: 100%; width: 100%; background: var(--ok); border-radius: inherit; transform-origin: left center; }
+.barra-relleno.excedida { background: var(--error); }
+
+/* Subsección dentro de un formulario largo («Información MAG / matadero», «Detalles de la carcasa»). */
+.form-seccion { margin: var(--esp-4) 0 var(--esp-3); padding-top: var(--esp-3); border-top: 1px solid var(--border); font-size: var(--texto-base); font-weight: 700; color: var(--text); }
+.dato-destacado { display: flex; justify-content: space-between; align-items: baseline; gap: var(--esp-3); padding: var(--esp-2) var(--esp-3); margin-bottom: var(--esp-4); border-radius: var(--radius-control); background: var(--bg-sutil); border: 1px solid var(--border); font-size: var(--texto-sm); color: var(--text-secondary); }
+.dato-destacado strong { font-size: var(--texto-lg); color: var(--text); font-variant-numeric: tabular-nums; }
+.codigo-mono { font-family: var(--fuente-mono); font-size: var(--texto-xs); }
+
+.card-alerta { border-color: var(--alerta-borde); }
+/* Buscador de animal (components/AnimalSearch.jsx) */
+.buscador-animal { position: relative; }
+.buscador-campo { position: relative; }
+.buscador-icono { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-terciario); pointer-events: none; }
+.form-group .buscador-campo input:not([type='radio']):not([type='checkbox']):not([type='file']), .buscador-campo input { padding-left: 36px; padding-right: 48px; width: 100%; }
+.buscador-limpiar { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); border-color: transparent; background: transparent; }
+.buscador-lista {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 50;
+  list-style: none; margin: 0; padding: var(--esp-1) 0;
+  background: var(--bg-card); border: 1px solid var(--border-fuerte); border-radius: var(--radius-control);
+  box-shadow: var(--shadow-flota); max-height: 280px; overflow-y: auto; overscroll-behavior: contain;
+}
+.buscador-lista li {
+  display: flex; justify-content: space-between; align-items: center; gap: var(--esp-3);
+  min-height: var(--toque-min); padding: 6px var(--esp-3); cursor: pointer; font-size: var(--texto-sm);
+}
+.buscador-lista li:hover { background: var(--bg-sutil); }
+.buscador-lista li.activa { background: var(--marca-suave); }
+.buscador-meta { color: var(--text-secondary); font-size: var(--texto-xs); text-align: right; }
+.buscador-vacio { padding: var(--esp-3); text-align: center; color: var(--text-secondary); font-size: var(--texto-sm); }
+
+.carga-inicial { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; }
+
+.texto-ok { color: var(--ok-fuerte); font-weight: 700; }
+.avance-peso .barra-relleno { transition: transform var(--dur) var(--curva); }
+.avance-peso-pie { margin: var(--esp-1) 0 0; }
+.texto-error { color: var(--error-fuerte); font-weight: 700; }
+.texto-alerta { color: var(--alerta); font-weight: 700; }
+
+.card-herramientas { display: flex; flex-wrap: wrap; gap: var(--esp-2); align-items: center; }
+.celda-recortada { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* 5. Componentes ui/ ------------------------------------------------------- */
 
@@ -634,18 +759,17 @@ input[type='checkbox'], input[type='radio'] { accent-color: var(--acento); }
   background: var(--bg-card);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-flota);
-  border-left: 5px solid var(--neutro);
   font-size: var(--texto-sm);
   animation: subir var(--dur) var(--curva);
 }
 .aviso svg { flex-shrink: 0; margin-top: 2px; }
 .aviso-texto { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .aviso-titulo { font-weight: 700; }
-.aviso.ok { border-left-color: var(--ok); }
+.aviso.ok { border-color: #bfe0ca; }
 .aviso.ok svg { color: var(--ok); }
-.aviso.error { border-left-color: var(--error); }
+.aviso.error { border-color: #f3c4bf; }
 .aviso.error svg { color: var(--error); }
-.aviso.info { border-left-color: var(--info); }
+.aviso.info { border-color: #c3d4ee; }
 .aviso.info svg { color: var(--info); }
 .aviso .btn-icon { min-width: 36px; min-height: 36px; border: none; margin: -6px -4px 0 0; }
 .aviso .btn-icon svg { color: var(--text-secondary); margin: 0; }
@@ -741,6 +865,19 @@ tbody tr:hover > td.celda-estado, tbody tr > td.celda-estado { background: trans
 .banner.info { background: var(--info-suave); border-color: #c3d4ee; color: var(--info); }
 .banner.ok { background: var(--ok-suave); border-color: #bfe0ca; color: var(--ok-fuerte); }
 .banner.error { background: var(--error-suave); border-color: #f3c4bf; color: var(--error-fuerte); }
+.banner.alerta { background: var(--alerta-suave); border-color: #f0d48a; color: var(--alerta); }
+/* Crítico (primales olvidados): fondo de tinta roja, el único bloque de color pleno de la app. */
+.banner.critico { background: var(--error-fuerte); border-color: var(--error-fuerte); color: #fff; }
+.banner > svg { flex-shrink: 0; margin-top: 2px; }
+.banner-titulo { font-weight: 700; }
+.chips { display: flex; flex-wrap: wrap; gap: var(--esp-2); margin-top: var(--esp-2); }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: var(--radius-control);
+  background: var(--bg-card); border: 1px solid currentColor;
+  font-size: var(--texto-xs); color: inherit; font-variant-numeric: tabular-nums;
+}
+.chip .tenue { color: var(--text-secondary); font-weight: 400; }
 
 /* Paginación (components/ui/Paginacion.jsx) */
 .paginacion {
@@ -767,7 +904,7 @@ tbody tr:hover > td.celda-estado, tbody tr > td.celda-estado { background: trans
 }
 .login-marca { display: flex; align-items: center; gap: var(--esp-3); margin-bottom: var(--esp-8); }
 .login-marca svg { color: var(--marca); flex-shrink: 0; }
-.login-marca h1 { font-size: var(--texto-xl); font-weight: 700; line-height: 1.15; letter-spacing: -0.01em; }
+.login-marca h1 { font-family: var(--fuente-titulos); font-size: 1.625rem; font-weight: 700; line-height: 1.1; letter-spacing: 0; }
 .login-marca p { color: var(--text-secondary); font-size: var(--texto-sm); margin-top: 2px; }
 .login-error {
   display: flex; gap: var(--esp-2); align-items: flex-start;
@@ -855,9 +992,20 @@ tbody tr:hover > td.celda-estado, tbody tr > td.celda-estado { background: trans
   .form-row, .form-row-3 { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--esp-2); }
   .stat-card { padding: var(--esp-3) var(--esp-4); min-height: 0; }
-  .page-header h2 { font-size: var(--texto-xl); }
+  .page-header h2 { font-size: 1.5rem; }
   .page-header { margin-bottom: var(--esp-4); }
-  .filter-bar > * { flex: 1 1 180px; }
+  /* Acciones del encabezado: repartidas a lo ancho, para que no queden botones de anchos dispares. */
+  .page-header > div:not(:first-child):has(> .btn) { display: flex; flex-wrap: wrap; gap: var(--esp-2); width: 100%; }
+  .page-header > div:not(:first-child):has(> .btn) > .btn { flex: 1 1 auto; }
+  .page-header > .btn { flex: 1 1 auto; }
+  /* Filtros: la búsqueda a lo ancho y los selects de a dos, para que el primer dato quede a la vista. */
+  .filter-bar { gap: var(--esp-2); }
+  .filter-bar > * { flex: 1 1 140px; min-width: 0; }
+  .filter-bar > :has(input[type='search']), .filter-bar > input[type='search'] { flex-basis: 100%; }
+  /* Menos relleno lateral en los selects de a dos: «Todos los estados» entra completo a 390 px. */
+  .filter-bar select { padding-left: 10px; padding-right: 28px; }
+  .niveles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .seccion-titulo { font-size: var(--texto-lg); }
   .filter-bar input:not([type='radio']):not([type='checkbox']), .filter-bar select { width: 100%; }
 
   .main-content .card > .table-container > table thead {
@@ -869,22 +1017,44 @@ tbody tr:hover > td.celda-estado, tbody tr > td.celda-estado { background: trans
     display: block;
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: var(--esp-2) var(--esp-4);
-    margin-bottom: var(--esp-2);
+    padding: var(--esp-1) var(--esp-4) var(--esp-2);
+    margin-bottom: var(--esp-3);
     background: var(--bg-card);
   }
+  /* Renglones compactos: son datos para leer, no objetivos táctiles (los controles mantienen 44 px). */
   .main-content .card > .table-container > table td {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: var(--esp-3);
-    padding: 8px 0;
+    padding: 6px 0;
     border-bottom: 1px solid var(--border-regla);
     text-align: right;
-    min-height: 40px;
+    min-height: 36px;
     height: auto;
     background: transparent;
+    overflow-wrap: anywhere;
   }
+  /* El ícono decorativo de la primera columna (vaca en Animales) no aporta en celular: se oculta.
+     Solo si la celda es un ícono suelto; con un control o con datos (VistaReporte) se respeta. */
+  .main-content .card > .table-container > table td:first-child:is([data-label=''], [data-label-fija]):not(:has(input, button, a, select)):has(> :is([role='img'], svg):only-child) { display: none; }
+  /* El primer dato de la fila es el título de la tarjeta: etiqueta chica arriba y valor grande,
+     alineado a la izquierda. Así el arete, código o fecha se encuentra de un vistazo al desplazar. */
+  .main-content .card > .table-container > table td:first-child:not([data-label='']):not([data-label-fija]):not([colspan]):not(:has(button, input, select)),
+  .main-content .card > .table-container > table td:first-child:is([data-label=''], [data-label-fija]):not(:has(input, button, a, select)):has(> :is([role='img'], svg):only-child) + td {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 0;
+    text-align: left;
+    padding: var(--esp-2) 0;
+    font-size: var(--texto-lg);
+    font-weight: 700;
+    border-bottom-color: var(--border);
+  }
+  /* Acciones: sin la etiqueta «Acciones» (no dice nada) y los botones a la derecha. */
+  .main-content .card > .table-container > table td:last-child:has(.btn-icon, .btn):not(:first-child) { justify-content: flex-end; padding-top: var(--esp-2); }
+  .main-content .card > .table-container > table td:last-child:has(.btn-icon, .btn):not(:first-child)::before { content: none; }
   .main-content .card > .table-container > table tr:hover > td { background: transparent; }
   .main-content .card > .table-container > table td:last-child { border-bottom: none; }
   .main-content .card > .table-container > table td[data-label]::before {
@@ -893,6 +1063,8 @@ tbody tr:hover > td.celda-estado, tbody tr > td.celda-estado { background: trans
     font-weight: 600;
     color: var(--text-secondary);
     text-align: left;
+    flex-shrink: 0;
+    max-width: 50%;
   }
   .main-content .card > .table-container > table td[data-label='']::before { content: none; }
   .main-content .card > .table-container > table td[colspan] { display: block; text-align: center; border: none; }
@@ -936,6 +1108,8 @@ tbody tr:hover > td.celda-estado, tbody tr > td.celda-estado { background: trans
   .btn-icon { min-width: var(--toque-min); min-height: var(--toque-min); }
   .btn-sm { min-height: var(--toque-min); }
   .opciones-radio input { width: 22px; height: 22px; }
+  /* Enlaces de texto en celdas (arete, código): el área táctil crece sin mover el texto. */
+  td a:not(.btn):not(.btn-icon) { display: inline-flex; align-items: center; min-height: var(--toque-min); }
   .tab { padding: 12px 18px; }
 }
 
@@ -1044,9 +1218,9 @@ tr.rp-fila-falta > td { background: var(--alerta-suave); }
 .imp-detalle ul { margin: 4px 0 0 18px; padding: 0; }
 .imp-guias { margin: var(--esp-4) 0; }
 .imp-guias h4 { display: flex; align-items: center; gap: var(--esp-2); margin: 0 0 var(--esp-2); }
-.imp-guia { border: 1px solid var(--border); border-left: 4px solid var(--acento, #2f6b3b); border-radius: var(--radius); padding: var(--esp-3); margin-bottom: var(--esp-2); display: grid; gap: 4px; }
+.imp-guia { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--esp-3); margin-bottom: var(--esp-2); display: grid; gap: 4px; background: var(--bg-sutil); font-size: var(--texto-sm); overflow-wrap: anywhere; }
 .imp-pegado { width: 100%; min-height: 120px; font-family: ui-monospace, Consolas, monospace; font-size: var(--texto-sm); padding: 8px; border: 1px solid var(--border-fuerte); border-radius: var(--radius); background: var(--bg-card); color: var(--text); margin-bottom: var(--esp-3); }
-.imp-input-arete { width: 9ch; min-height: 32px; padding: 2px 6px; font: inherit; font-weight: 700; text-transform: uppercase; border: 2px solid var(--alerta-borde, #d9a400); border-radius: var(--radius); }
+.imp-input-arete { width: 9ch; min-height: var(--toque-min); padding: 2px 6px; font: inherit; font-weight: 700; text-transform: uppercase; border: 2px solid var(--alerta-borde, #d9a400); border-radius: var(--radius); }
 .guia-encabezado { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--esp-3); margin-bottom: var(--esp-4); }
 .guia-firmas { display: none; }
 @media print {
@@ -1061,10 +1235,10 @@ tr.rp-fila-falta > td { background: var(--alerta-suave); }
 /* ── Fase 2: lectura por foto, alta rápida, selección múltiple ───────────── */
 .girando { animation: girar 0.9s linear infinite; }
 .lectura-foto { display: flex; flex-direction: column; gap: var(--esp-2); }
-.aviso-inline { border: 1px solid var(--border); border-left: 4px solid var(--info); border-radius: var(--radius); padding: var(--esp-3); background: var(--bg-card); }
+.aviso-inline { border: 1px solid #c3d4ee; border-radius: var(--radius); padding: var(--esp-3); background: var(--info-suave); }
 .aviso-inline p { margin: 0 0 var(--esp-2); }
-.aviso-inline.aviso-alerta { border-left-color: var(--alerta); background: var(--alerta-suave); }
-.aviso-inline.aviso-error { border-left-color: var(--error); background: var(--error-suave); }
+.aviso-inline.aviso-alerta { border-color: #f0d48a; background: var(--alerta-suave); }
+.aviso-inline.aviso-error { border-color: #f3c4bf; background: var(--error-suave); }
 .texto-dudoso { background: var(--alerta-suave); outline: 2px solid #f0d48a; border-radius: 3px; padding: 0 2px; }
 .transcripcion-dudas { display: flex; flex-wrap: wrap; gap: 6px; margin: var(--esp-2) 0; }
 .sel-filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--esp-3); align-items: end; }
@@ -1092,5 +1266,34 @@ tr.fila-seleccionada td { background: var(--info-suave, #e8f1fb); }
 
 /* Ligue manual a un animal (guía del MAG, documentos de custodia): arete + botones en una línea. */
 .ligar-animal { display: flex; flex-wrap: wrap; gap: var(--esp-2); align-items: center; }
-.ligar-animal input { width: 9rem; min-width: 0; padding: 4px 8px; border: 1px solid var(--border-fuerte); border-radius: var(--radius); background: var(--bg-card); color: var(--text); font: inherit; text-transform: uppercase; }
+.ligar-animal input { width: 9rem; min-width: 0; min-height: var(--control-alto); padding: 4px 8px; border: 1px solid var(--border-fuerte); border-radius: var(--radius); background: var(--bg-card); color: var(--text); font: inherit; text-transform: uppercase; }
 .lista-documentos { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--esp-2); }
+
+/* Guía del MAG y documentos de custodia (GuiasMovilizacion, DocumentosCustodia, ImportadorDocumentos):
+   mismas reglas del sistema — tokens en vez de estilos en línea, controles de 44/48 px y tablas que
+   en celular pasan a tarjetas (lo hace la regla general de .card > .table-container > table). */
+.aviso-linea { display: flex; align-items: flex-start; gap: var(--esp-1); color: var(--alerta); }
+.aviso-linea > svg { flex-shrink: 0; margin-top: 3px; }
+.codigo-chico { font-family: var(--fuente-mono); font-size: var(--texto-xs); overflow-wrap: anywhere; }
+.imp-documento-texto { margin-top: var(--esp-4); }
+.imp-documento-texto .imp-pegado { margin-top: var(--esp-2); }
+.ligar-documento { display: grid; gap: var(--esp-1); }
+.lista-documentos li { overflow-wrap: anywhere; }
+.lista-archivos li .btn-icon { min-width: var(--toque-min); min-height: var(--toque-min); }
+@media (pointer: coarse) {
+  .lista-documentos a { display: inline-flex; align-items: center; min-height: var(--toque-min); }
+}
+@media (max-width: 819.98px) {
+  /* El arete a ligar ocupa el ancho de la tarjeta y los botones quedan al lado, a 44 px. */
+  .ligar-animal { width: 100%; justify-content: flex-end; }
+  .ligar-animal input { flex: 1 1 8rem; min-height: var(--toque-min); }
+  /* Total del documento de custodia: también como tarjeta, debajo de las líneas. */
+  .main-content .card > .table-container > table.tabla-con-total tfoot { display: block; }
+  .main-content .card > .table-container > table.tabla-con-total tfoot tr {
+    display: block; border: 2px solid var(--border-fuerte); border-radius: var(--radius); padding: var(--esp-1) var(--esp-4) var(--esp-2); background: var(--bg-sutil);
+  }
+  .main-content .card > .table-container > table.tabla-con-total tfoot td {
+    display: flex; justify-content: space-between; align-items: center; gap: var(--esp-3); padding: 6px 0; border-bottom: 1px solid var(--border-regla); text-align: right;
+  }
+  .main-content .card > .table-container > table.tabla-con-total tfoot td:last-child { border-bottom: none; }
+}

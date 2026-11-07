@@ -11,6 +11,21 @@ const MARCA = '#b8184a';
 const TINTA = '#474745';
 const EJE = { texto: '#5f5f5c', linea: '#8e8e89', grilla: '#ececea', cursor: 'rgba(22, 22, 22, 0.05)' };
 
+// Indicador enlazado a su pantalla. Si pide atención, la tarjeta se marca y una línea de texto lo
+// dice (no solo el color).
+function Kpi({ to, icono: Icono, valor, etiqueta, alerta = false, aviso }) {
+  return (
+    <Link to={to} className={`stat-card ${alerta ? 'alerta' : ''}`}>
+      <div className="stat-icon"><Icono size={24} aria-hidden="true" /></div>
+      <div>
+        <div className="stat-value">{valor ?? 0}</div>
+        <div className="stat-label">{etiqueta}</div>
+        {alerta && aviso && <div className="stat-aviso">{aviso}</div>}
+      </div>
+    </Link>
+  );
+}
+
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -42,133 +57,78 @@ export default function Dashboard() {
         <h2>Resumen general</h2>
       </div>
 
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon green"><Cow size={24} /></div>
-          <div>
-            <div className="stat-value">{resumen.totalAnimales}</div>
-            <div className="stat-label">Animales Activos</div>
-          </div>
+      {/* Los indicadores van agrupados por etapa, en el mismo orden que el menú (Finca → Planta y
+          bodega), para que cada número se lea con su contexto y no como una grilla de 11 iguales. */}
+      <section className="seccion" aria-labelledby="resumen-finca">
+        <h3 className="seccion-titulo" id="resumen-finca">Finca</h3>
+        <div className="stats-grid">
+          <Kpi to="/animales" icono={Cow} valor={resumen.totalAnimales} etiqueta="Animales activos" />
+          <Kpi to="/potreros" icono={MapPin} valor={resumen.totalPotreros} etiqueta="Potreros activos" />
+          <Kpi to="/reproduccion" icono={Baby} valor={resumen.gestacionesActivas} etiqueta="Gestaciones activas" />
+          <Kpi to="/reproduccion" icono={Calendar} valor={resumen.nacimientosMes} etiqueta="Nacimientos este mes" />
         </div>
-        <div className="stat-card">
-          <div className="stat-icon blue"><MapPin size={24} /></div>
-          <div>
-            <div className="stat-value">{resumen.totalPotreros}</div>
-            <div className="stat-label">Potreros Activos</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon yellow"><Baby size={24} /></div>
-          <div>
-            <div className="stat-value">{resumen.gestacionesActivas}</div>
-            <div className="stat-label">Gestaciones Activas</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon red"><Calendar size={24} /></div>
-          <div>
-            <div className="stat-value">{resumen.nacimientosMes}</div>
-            <div className="stat-label">Nacimientos este Mes</div>
-          </div>
-        </div>
-      </div>
+      </section>
 
-      <div className="stats-grid" style={{ marginTop: 16 }}>
-        <Link to="/custodia" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div className="stat-icon blue"><Package size={24} /></div>
-          <div>
-            <div className="stat-value">{resumen.primalesEnCustodia ?? 0}</div>
-            <div className="stat-label">Primales en Custodia</div>
-          </div>
-        </Link>
-        <Link to="/maduracion" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div className="stat-icon yellow"><Clock size={24} /></div>
-          <div>
-            <div className="stat-value" style={{ color: vencidos.length > 0 ? '#dc2626' : undefined }}>{resumen.maduracionAlertasCount ?? 0}</div>
-            <div className="stat-label">Alertas de maduración</div>
-          </div>
-        </Link>
-        <Link to="/ordenes-salida" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div className="stat-icon green"><FileOutput size={24} /></div>
-          <div>
-            <div className="stat-value">{resumen.ordenesPendientes ?? 0}</div>
-            <div className="stat-label">Órdenes de salida pendientes</div>
-          </div>
-        </Link>
-        <Link to="/devoluciones" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div className="stat-icon red"><RotateCcw size={24} /></div>
-          <div>
-            <div className="stat-value">{resumen.devolucionesSinReprocesar ?? 0}</div>
-            <div className="stat-label">Devoluciones Sin Reprocesar</div>
-          </div>
-        </Link>
-      </div>
-
-      <div className="stats-grid" style={{ marginTop: 16 }}>
-        <Link to="/maduracion" className="stat-card" style={{ textDecoration: 'none', color: 'inherit', borderLeft: olvidados.length > 0 ? '4px solid #7f1d1d' : undefined }}>
-          <div className="stat-icon red"><AlertTriangle size={24} /></div>
-          <div>
-            <div className="stat-value" style={{ color: olvidados.length > 0 ? '#7f1d1d' : undefined }}>{resumen.olvidadosCount ?? 0}</div>
-            <div className="stat-label">Primales Olvidados (&gt;45d)</div>
-          </div>
-        </Link>
-        <Link to="/paqueteria" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div className="stat-icon yellow"><Utensils size={24} /></div>
-          <div>
-            <div className="stat-value">{resumen.paqueteriaEnProceso ?? 0}</div>
-            <div className="stat-label">Paquetería en Proceso</div>
-          </div>
-        </Link>
-        <Link to="/ordenes-entrada" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div className="stat-icon blue"><FileInput size={24} /></div>
-          <div>
-            <div className="stat-value">{resumen.ordenesEntradaPendientes ?? 0}</div>
-            <div className="stat-label">Órdenes de entrada pendientes</div>
-          </div>
-        </Link>
-      </div>
-
-      {maduracionAlertas.length > 0 && (
-        <div className="card" style={{ marginTop: 16, borderLeft: `4px solid ${vencidos.length ? '#dc2626' : urgentes.length ? '#f59e0b' : '#eab308'}` }}>
-          <div className="card-header">
-            <h3>
-              <AlertTriangle size={18} color={vencidos.length ? '#dc2626' : '#f59e0b'} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-              Alertas de maduración ({maduracionAlertas.length})
-            </h3>
-            <Link to="/maduracion" style={{ fontSize: '0.85rem' }}>Ver todos</Link>
-          </div>
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr><th>Código</th><th>Animal</th><th>Tipo</th><th>Marmoleo</th><th>Días</th><th>Nivel</th></tr>
-              </thead>
-              <tbody>
-                {maduracionAlertas.slice(0, 10).map(m => {
-                  const nivelBadge = m.nivel === 'vencido' ? 'badge-red' : m.nivel === 'urgente' ? 'badge-yellow' : 'badge-blue';
-                  return (
-                    <tr key={m.id}>
-                      <td><code>{m.codigo}</code></td>
-                      <td><Link to={`/animales/${m.animal_id || ''}`}>{m.numero_trazabilidad}</Link></td>
-                      <td>{m.tipo_primal}</td>
-                      <td>{m.marmoleo ? `BMS ${m.marmoleo}` : '-'}</td>
-                      <td><strong style={{ color: m.nivel === 'vencido' ? '#dc2626' : m.nivel === 'urgente' ? '#f59e0b' : '#0ea5e9' }}>{m.dias_maduracion}</strong></td>
-                      <td><span className={`badge ${nivelBadge}`}>{m.nivel}</span></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+      <section className="seccion" aria-labelledby="resumen-planta">
+        <h3 className="seccion-titulo" id="resumen-planta">Planta y bodega</h3>
+        <div className="stats-grid">
+          <Kpi to="/maduracion" icono={AlertTriangle} valor={resumen.olvidadosCount ?? 0} etiqueta="Primales olvidados (más de 45 d)"
+            alerta={olvidados.length > 0} aviso="Revisar hoy" />
+          <Kpi to="/maduracion" icono={Clock} valor={resumen.maduracionAlertasCount ?? 0} etiqueta="Alertas de maduración"
+            alerta={vencidos.length > 0} aviso="Hay primales vencidos" />
+          <Kpi to="/custodia" icono={Package} valor={resumen.primalesEnCustodia ?? 0} etiqueta="Primales en custodia" />
+          <Kpi to="/paqueteria" icono={Utensils} valor={resumen.paqueteriaEnProceso ?? 0} etiqueta="Paquetería en proceso" />
+          <Kpi to="/ordenes-entrada" icono={FileInput} valor={resumen.ordenesEntradaPendientes ?? 0} etiqueta="Órdenes de entrada pendientes" />
+          <Kpi to="/ordenes-salida" icono={FileOutput} valor={resumen.ordenesPendientes ?? 0} etiqueta="Órdenes de salida pendientes" />
+          <Kpi to="/devoluciones" icono={RotateCcw} valor={resumen.devolucionesSinReprocesar ?? 0} etiqueta="Devoluciones sin reprocesar" />
         </div>
-      )}
 
+        {maduracionAlertas.length > 0 && (
+          <div className={`card ${vencidos.length || urgentes.length ? 'card-alerta' : ''}`}>
+            <div className="card-header">
+              <h3 className="rp-subtitulo">
+                <AlertTriangle size={18} aria-hidden="true" className={vencidos.length ? 'texto-error' : 'texto-alerta'} />
+                Alertas de maduración ({maduracionAlertas.length})
+              </h3>
+              <Link to="/maduracion">Ver todas</Link>
+            </div>
+            <div className="table-container">
+              <table>
+                <thead>
+                  <tr><th>Código</th><th>Animal</th><th>Tipo</th><th>Marmoleo</th><th>Días</th><th>Nivel</th></tr>
+                </thead>
+                <tbody>
+                  {maduracionAlertas.slice(0, 10).map(m => {
+                    const nivelBadge = m.nivel === 'vencido' || m.nivel === 'olvidado' ? 'badge-red' : m.nivel === 'urgente' ? 'badge-yellow' : 'badge-blue';
+                    const diasClase = m.nivel === 'vencido' || m.nivel === 'olvidado' ? 'texto-error' : m.nivel === 'urgente' ? 'texto-alerta' : '';
+                    return (
+                      <tr key={m.id}>
+                        <td><code>{m.codigo}</code></td>
+                        <td><Link to={`/animales/${m.animal_id || ''}`}>{m.numero_trazabilidad}</Link></td>
+                        <td>{m.tipo_primal}</td>
+                        <td>{m.marmoleo ? `BMS ${m.marmoleo}` : '-'}</td>
+                        <td><strong className={diasClase}>{m.dias_maduracion}</strong></td>
+                        <td><span className={`badge ${nivelBadge}`}>{m.nivel}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="seccion" aria-labelledby="resumen-hato">
+        <h3 className="seccion-titulo" id="resumen-hato">Hato</h3>
       <div className="grid-2">
         <div className="card">
-          <div className="card-header"><h3>Animales por Potrero</h3></div>
+          <div className="card-header"><h3>Animales por potrero</h3></div>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={porPotrero} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
               <CartesianGrid vertical={false} stroke={EJE.grilla} />
-              <XAxis dataKey="nombre" fontSize={12} tick={{ fill: EJE.texto }} tickLine={false} axisLine={{ stroke: EJE.linea }} />
+              {/* interval={0}: mostrar todos los potreros; recharts escondía los que no cabían. */}
+              <XAxis dataKey="nombre" fontSize={12} tick={{ fill: EJE.texto }} tickLine={false} axisLine={{ stroke: EJE.linea }} interval={0} />
               <YAxis allowDecimals={false} fontSize={12} tick={{ fill: EJE.texto }} tickLine={false} axisLine={false} />
               <Tooltip cursor={{ fill: EJE.cursor }} />
               <Bar dataKey="total" name="Animales" fill={MARCA} radius={[3, 3, 0, 0]} maxBarSize={56} />
@@ -191,9 +151,9 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid-2" style={{ marginTop: 16 }}>
+      <div className="grid-2">
         <div className="card">
-          <div className="card-header"><h3>Pesajes Recientes</h3></div>
+          <div className="card-header"><h3>Pesajes recientes</h3></div>
           <div className="table-container">
             <table>
               <thead><tr><th>Animal</th><th>Peso (kg)</th><th>Fecha</th></tr></thead>
@@ -212,7 +172,7 @@ export default function Dashboard() {
         <div className="card">
           <div className="card-header">
             <h3>Próximos eventos de salud</h3>
-            <AlertTriangle size={18} color="#f59e0b" />
+            <AlertTriangle size={18} aria-hidden="true" className="texto-alerta" />
           </div>
           <div className="table-container">
             <table>
@@ -225,7 +185,7 @@ export default function Dashboard() {
                     <td>{formatDate(e.proxima_fecha)}</td>
                   </tr>
                 ))}
-                {eventosProximos.length === 0 && <tr><td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Sin eventos de salud en los próximos días</td></tr>}
+                {eventosProximos.length === 0 && <tr><td colSpan={3} className="empty-state">Sin eventos de salud en los próximos días</td></tr>}
               </tbody>
             </table>
           </div>
@@ -233,15 +193,15 @@ export default function Dashboard() {
       </div>
 
       {topGDP && topGDP.length > 0 && (
-        <div className="card" style={{ marginTop: 16 }}>
-          <div className="card-header"><h3>Top GDP (Ganancia Diaria de Peso)</h3></div>
+        <div className="card">
+          <div className="card-header"><h3>Mejor GDP (ganancia diaria de peso)</h3></div>
           <div className="table-container">
             <table>
               <thead>
                 <tr>
                   <th>Animal</th>
-                  <th>Peso Nacimiento (kg)</th>
-                  <th>Peso Actual (kg)</th>
+                  <th>Peso al nacer (kg)</th>
+                  <th>Peso actual (kg)</th>
                   <th>Días</th>
                   <th>GDP (kg/día)</th>
                 </tr>
@@ -265,6 +225,7 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+      </section>
     </div>
   );
 }
