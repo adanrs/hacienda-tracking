@@ -90,14 +90,14 @@ export default function ImportarGanaderoSg() {
         <h3 className="rp-subtitulo"><FileSpreadsheet size={20} aria-hidden="true" /> Reporte de Software GANADERO SG</h3>
         <p className="rp-nota">
           Exporte el reporte personalizado (Número, Sexo, F. Nto, Raza, # Madre, # Padre, Pot., I.E., U.Peso, FUV, UV, Fec. salida, Peso sal., Vendido a…)
-          y súbalo tal cual, con los títulos de arriba: la app encuentra sola la fila de encabezados. Acepta .xlsx, .csv y .xls exportado como texto.
+          y súbalo tal cual, con los títulos de arriba: la app encuentra sola la fila de encabezados. Acepta .xlsx, .csv, .xls exportado como texto y Word (.docx) con la tabla.
           Si solo tiene el reporte impreso, cárguelo por foto (una por página). Nada se guarda hasta que usted revise la vista previa y presione «Aplicar».
         </p>
         <div className="rp-acciones">
           <Boton variante="primario" icono={Upload} cargando={imp.cargando} disabled={!canEdit} onClick={() => refArchivo.current?.click()}>
             {archivo ? 'Elegir otro archivo…' : 'Elegir archivo…'}
           </Boton>
-          <input ref={refArchivo} type="file" accept=".xlsx,.xls,.csv,.txt" onChange={elegir} hidden />
+          <input ref={refArchivo} type="file" accept=".xlsx,.xls,.csv,.txt,.docx" onChange={elegir} hidden />
           {archivo && <span className="rp-tenue">{archivo.name}</span>}
         </div>
         <div className="form-group" style={{ marginTop: 'var(--esp-4)' }}>

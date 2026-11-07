@@ -28,6 +28,13 @@ class ErrorImportacion extends Error {
 }
 
 const sha256 = (x) => crypto.createHash('sha256').update(x).digest('hex');
+
+/**
+ * ¿El formato acepta esta extensión? Un .doc (Word viejo) donde se acepta .docx pasa: el lector
+ * responde con el mensaje claro («guárdelo como .docx o súbalo como PDF/foto») en vez de la lista
+ * genérica de extensiones.
+ */
+const aceptaExtension = (def, ext) => def.extensiones.includes(ext) || (ext === 'doc' && def.extensiones.includes('docx'));
 const NOMBRE_CANDADO = 'hacienda_importador';
 
 function definicion(formatoId) {
@@ -44,7 +51,7 @@ async function leerEntrada(entrada, def) {
   if (entrada.archivo) {
     const { buffer, nombre } = entrada.archivo;
     const ext = (String(nombre).match(/\.([a-z0-9]+)$/i) || [])[1]?.toLowerCase();
-    if (!def.extensiones.includes(ext)) {
+    if (!aceptaExtension(def, ext)) {
       throw new ErrorImportacion(400, `Este formato acepta archivos ${def.extensiones.map(e => `.${e}`).join(', ')}`);
     }
     try {
@@ -81,7 +88,7 @@ async function leerDocumentos(entrada, def) {
   const hash = crypto.createHash('sha256');
   for (const a of archivos) {
     const ext = (String(a.nombre).match(/\.([a-z0-9]+)$/i) || [])[1]?.toLowerCase();
-    if (!def.extensiones.includes(ext)) throw new ErrorImportacion(400, `«${a.nombre}»: este formato acepta ${def.extensiones.map(e => `.${e}`).join(', ')}`);
+    if (!aceptaExtension(def, ext)) throw new ErrorImportacion(400, `«${a.nombre}»: este formato acepta ${def.extensiones.map(e => `.${e}`).join(', ')}`);
     let texto = null;
     if (!def.leerCrudo) {
       try {

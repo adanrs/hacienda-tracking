@@ -1089,3 +1089,8 @@ tr.fila-seleccionada td { background: var(--info-suave, #e8f1fb); }
 .lectura-foto-avance { width: 100%; height: 8px; }
 .badge-foto { white-space: nowrap; }
 @media (max-width: 640px) { .lectura-foto-botones .btn { flex: 1 1 auto; justify-content: center; min-height: 44px; } }
+
+/* Ligue manual a un animal (guía del MAG, documentos de custodia): arete + botones en una línea. */
+.ligar-animal { display: flex; flex-wrap: wrap; gap: var(--esp-2); align-items: center; }
+.ligar-animal input { width: 9rem; min-width: 0; padding: 4px 8px; border: 1px solid var(--border-fuerte); border-radius: var(--radius); background: var(--bg-card); color: var(--text); font: inherit; text-transform: uppercase; }
+.lista-documentos { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--esp-2); }

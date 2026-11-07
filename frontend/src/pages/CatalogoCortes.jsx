@@ -229,7 +229,7 @@ function ImportarListado({ canEdit }) {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
         <label className="btn btn-secondary" style={{ cursor: canEdit ? 'pointer' : 'not-allowed' }}>
           <Upload size={16} aria-hidden="true" /> Subir Excel o CSV
-          <input type="file" accept=".xlsx,.csv,.txt" hidden disabled={!canEdit} onChange={elegir} />
+          <input type="file" accept=".xlsx,.csv,.txt,.docx" hidden disabled={!canEdit} onChange={elegir} />
         </label>
         <LecturaFoto formato="catalogo-cortes" deshabilitado={!canEdit} onTexto={(t, dudas) => { setTexto(t); setFoto({ dudosas: dudas }); }} />
       </div>
