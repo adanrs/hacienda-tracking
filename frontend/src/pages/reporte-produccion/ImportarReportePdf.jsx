@@ -11,7 +11,8 @@ import AltaRapidaCorte from '../../components/AltaRapidaCorte';
 
 /*
   Importar el Reporte de producción de CIISA: VARIOS PDF a la vez (cada PDF = un animal = un lote),
-  o el texto pegado, más la lista «lote → arete» del correo. La lista es el único sello canal ↔ arete:
+  o el texto pegado, más la lista «Lote CC → arete» del correo (por LOTE CC, el lote de deshuese de las
+  etiquetas; NO por «Num. Lote», que es el correlativo del PDF). La lista es el único sello canal ↔ arete:
   se valida contra los animales sacrificados con la regla estricta (propuesta editable y confirmación
   obligatoria; o «importar sin animal» si la planta no mandó el arete). Vista previa por reporte con
   kilos, cajas, rendimiento sobre el peso canal y avisos; el detalle de artículos se despliega.
@@ -63,19 +64,20 @@ export default function ImportarReportePdf({ canEdit, onAplicado }) {
   const confirmarArete = (f) => {
     const valor = (borradores[f.fila] ?? f.correccion?.propuesto ?? '').trim().toUpperCase();
     if (!valor) { aviso.error('Escriba el arete correcto'); return; }
-    const nuevas = { ...correcciones, [f.num_lote]: valor };
-    const sa = { ...sinAnimal }; delete sa[f.num_lote];
+    // Las correcciones y «sin animal» van por Lote CC (la llave de la lista del correo), no por Num. Lote.
+    const nuevas = { ...correcciones, [f.lote_clave]: valor };
+    const sa = { ...sinAnimal }; delete sa[f.lote_clave];
     setCorrecciones(nuevas); setSinAnimal(sa);
     imp.replanificar({ correcciones: nuevas, sin_animal: sa });
   };
   const importarSinAnimal = (f) => {
-    const sa = { ...sinAnimal, [f.num_lote]: true };
+    const sa = { ...sinAnimal, [f.lote_clave]: true };
     setSinAnimal(sa);
     imp.replanificar({ sin_animal: sa });
   };
   // El lote ya tenía otro arete cargado (a mano o por otra importación): reemplazarlo se confirma.
   const confirmarReemplazo = async (f) => {
-    const ok = await confirmar({ titulo: `¿Reemplazar el arete del lote ${f.num_lote}?`, mensaje: `Estaba cargado ${f.cambio_arete.antes}; quedará ${f.cambio_arete.despues}. El cambio va al reporte de discrepancias.`, textoConfirmar: 'Reemplazar' });
+    const ok = await confirmar({ titulo: `¿Reemplazar el arete del lote CC ${f.lote_clave}?`, mensaje: `Estaba cargado ${f.cambio_arete.antes}; quedará ${f.cambio_arete.despues}. El cambio va al reporte de discrepancias.`, textoConfirmar: 'Reemplazar' });
     if (!ok) return;
     const n = { ...reemplazos, [f.clave_lote]: true }; // llave fecha|lote CC (ver el procesador)
     setReemplazos(n);
@@ -111,7 +113,7 @@ export default function ImportarReportePdf({ canEdit, onAplicado }) {
   const COLUMNAS = [
     { titulo: 'Archivo', valor: f => <span title={f.documento}>{(f.documento || 'Texto pegado').slice(0, 28)}{f.parte ? ` (${f.parte})` : ''}</span> },
     { titulo: 'Producción', valor: f => fecha(f.fecha_produccion) },
-    { titulo: 'Lote', num: true, valor: f => f.num_lote || '—' },
+    { titulo: 'Lote CC', num: true, valor: f => f.lote_clave ? <span title={f.num_lote ? `Num. Lote ${f.num_lote} (correlativo del PDF)` : undefined}>{f.lote_clave}</span> : '—' },
     {
       titulo: 'Arete', valor: (f) => {
         if (f.requiere_vision) return <span className="badge badge-orange">PDF escaneado: tómele una foto a cada página con «Cargar por foto»</span>;
@@ -120,7 +122,7 @@ export default function ImportarReportePdf({ canEdit, onAplicado }) {
           return (
             <span className="imp-correccion">
               {f.arete_lista && <><s title="Como viene en la lista del correo">{f.arete_lista}</s>{' → '}</>}
-              <input aria-label={`Arete correcto del lote ${f.num_lote}`} className="imp-input-arete" placeholder="arete"
+              <input aria-label={`Arete correcto del lote CC ${f.lote_clave}`} className="imp-input-arete" placeholder="arete"
                 value={borradores[f.fila] ?? f.correccion?.propuesto ?? ''}
                 onChange={e => setBorradores(b => ({ ...b, [f.fila]: e.target.value.toUpperCase() }))} />
               <button type="button" className="btn btn-secondary btn-sm" disabled={imp.cargando} onClick={() => confirmarArete(f)}>Confirmar</button>
@@ -210,11 +212,11 @@ export default function ImportarReportePdf({ canEdit, onAplicado }) {
           </div>
         </div>
         <div className="card">
-          <h3>2. La lista lote → arete del correo</h3>
-          <p className="rp-tenue">Copie del correo la lista «2 225MLE, 3 348MLF…». Se valida contra los animales sacrificados: un arete mal escrito se propone y usted lo confirma.</p>
+          <h3>2. La lista Lote CC → arete del correo</h3>
+          <p className="rp-tenue">Copie del correo la tabla Lote CC → arete («35 279SKF, 36 255CKF…»): es el «Lote CC» del pie del PDF, no el «Num. Lote». Se valida contra los animales sacrificados: un arete mal escrito se propone y usted lo confirma.</p>
           <div className="form-group">
-            <label htmlFor="rp-mapa">Lista lote → arete</label>
-            <textarea id="rp-mapa" rows={8} value={mapa} onChange={e => setMapa(e.target.value)} placeholder={'2  225MLE\n3  348MLF\n4  81FLB'} />
+            <label htmlFor="rp-mapa">Lista Lote CC → arete</label>
+            <textarea id="rp-mapa" rows={8} value={mapa} onChange={e => setMapa(e.target.value)} placeholder={'35  279SKF\n36  255CKF\n37  599SKF'} />
           </div>
           <Boton variante="primario" icono={ListChecks} cargando={imp.cargando} disabled={!canEdit} onClick={() => { setCorrecciones({}); setSinAnimal({}); setBorradores({}); revisar({ correcciones: {}, sin_animal: {} }); }}>
             Ver vista previa

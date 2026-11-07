@@ -11,9 +11,9 @@
 | Campo | Ejemplo | Observación |
 |---|---|---|
 | Fecha de Producción | 21/09/26 | Día del deshuese |
-| Num. Lote | 3 | Significado por confirmar (§5, R1) |
+| Num. Lote | 3 | Correlativo del PDF dentro del día (1, 2, 3…). **Solo informativo: NO liga el arete** (07-nov-2026: el 19/03/26 el Num. Lote 1 era el Lote CC 35 = 279SKF) |
 | Tipo Producción | TEMPISQUE | Probablemente la cuenta dueña del producto (bodega 107 «EQTB Tempisque»); por confirmar (R2) |
-| Lote CC | 06 | Posición del animal en el deshuese del día. Es el n.º de 2 dígitos que va en las etiquetas |
+| Lote CC | 06 | Lote de deshuese del animal. Es el n.º que va en las etiquetas (2 dígitos en el primal, 4 en la caja: 0035), en el traslado de custodia («LOTE 35») y en la tabla de aretes del correo: **la llave para ligar el arete** |
 
 **Detalle:** una fila por artículo, ordenada por código: `Artículo | Descripción | Peso | Unidad | Cajas`. En el ejemplo hay 29 filas, unidad siempre KGS.
 

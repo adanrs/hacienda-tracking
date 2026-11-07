@@ -50,7 +50,7 @@ export default function PorAnimal({ irA }) {
             <thead>
               <tr>
                 <th><span className="sr-only">Detalle</span></th>
-                <th>Producción</th><th className="num">Lote</th><th>Arete</th><th>Trazabilidad</th><th>Canal</th>
+                <th>Producción</th><th className="num">Lote CC</th><th>Arete</th><th>Trazabilidad</th><th>Canal</th>
                 <th className="num">Kilos</th><th className="num">Cajas</th><th className="num">Peso canal</th><th className="num">Rend. %</th>
                 <th>Vence</th><th>PDF</th>
               </tr>
@@ -62,12 +62,12 @@ export default function PorAnimal({ irA }) {
                 <Fragment key={r.id}>
                   <tr className={r.trazabilidad === 'sin_trazabilidad' ? 'rp-fila-falta' : ''}>
                     <td>
-                      <button type="button" className="btn-icon" aria-expanded={Boolean(abiertos[r.id])} aria-label={`Ver artículos del lote ${r.num_lote || r.lote_cc}`} onClick={() => alternar(r)}>
+                      <button type="button" className="btn-icon" aria-expanded={Boolean(abiertos[r.id])} aria-label={`Ver artículos del lote CC ${r.lote_cc ?? r.num_lote}`} onClick={() => alternar(r)}>
                         {abiertos[r.id] ? <ChevronDown size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}
                       </button>
                     </td>
                     <td>{fecha(r.fecha_produccion)}</td>
-                    <td className="num">{r.num_lote || r.lote_cc}</td>
+                    <td className="num">{r.lote_cc ?? r.num_lote}</td>
                     <td>{r.animal_id ? <Link to={`/animales/${r.animal_id}`}><strong>{r.numero_trazabilidad}</strong></Link> : '—'}</td>
                     <td>{r.trazabilidad === 'con_arete' ? <span className="badge badge-green">Con arete</span> : <span className="badge badge-yellow">Lote sin animal</span>}
                       {r.lineas_pendientes > 0 && <span className="badge badge-orange" style={{ marginLeft: 4 }}>{r.lineas_pendientes} sin codificar</span>}</td>
@@ -77,7 +77,7 @@ export default function PorAnimal({ irA }) {
                     <td className="num">{kg(r.peso_canal)}</td>
                     <td className="num">{r.rendimiento == null ? '—' : <span style={r.rendimiento > 90 ? { color: 'var(--alerta)', fontWeight: 700 } : {}} title={r.rendimiento > 90 ? 'Más del 90 % del peso canal: ¿lote con varios animales?' : undefined}>{kg(r.rendimiento)}</span>}</td>
                     <td>{fecha(r.vencimiento)}</td>
-                    <td>{r.pdf_url ? <button type="button" className="btn-icon" aria-label={`Abrir el PDF del lote ${r.num_lote || r.lote_cc}`} onClick={() => api.abrirArchivo(r.pdf_url).catch(e => aviso.error(e.message))}><FileText size={16} aria-hidden="true" /></button> : '—'}</td>
+                    <td>{r.pdf_url ? <button type="button" className="btn-icon" aria-label={`Abrir el PDF del lote CC ${r.lote_cc ?? r.num_lote}`} onClick={() => api.abrirArchivo(r.pdf_url).catch(e => aviso.error(e.message))}><FileText size={16} aria-hidden="true" /></button> : '—'}</td>
                   </tr>
                   {abiertos[r.id] && (
                     <tr>

@@ -29,7 +29,7 @@
 //   reporte_produccion_escaneos       lote_cc = 9999 (el lote impreso en la etiqueta de la caja).
 //   inventario_planta_cargas.archivo  ARCHIVO ('PRUEBA-flujo-completo.xlsx'); las líneas caen por
 //                                     cascada. tarima = 'PRUEBA' en cada línea.
-//   Cajas CIISA (25 caracteres)       PPPPP GGGGG XXX DDMMAA 9999 07: lote 9999 (= Num. Lote del
+//   Cajas CIISA (25 caracteres)       PPPPP GGGGG XXX DDMMAA 9999 07: lote 9999 (= Lote CC del
 //                                     reporte de PRUEBA) y BMS 07 (= marmoleo AUS-MEAT 7 de la canal,
 //                                     así la comparación BMS ↔ marmoleo da «coincide»).
 //
@@ -61,7 +61,7 @@ const GUIA = 'PRUEBA-GT-001';
 const LOTE_SACRIFICIO = 'PRUEBA-SAC-001';
 const CANAL = 'PRUEBA';
 const LOTE_DESHUESE_APP = 'PRUEBA-DES-001';
-const LOTE = 9999; // Num. Lote del reporte = lote CC = lote impreso en la caja
+const LOTE = 9999; // Lote CC del reporte = lote impreso en la caja (el Num. Lote de PRUEBA se pone igual)
 const SOLICITUD_NUMERO = 0;
 const FINCA = 'PRUEBA finca';
 const COMPRADOR = 'PRUEBA';

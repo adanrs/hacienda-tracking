@@ -99,8 +99,13 @@ En cambio, la caja y el primal sí llevan la fecha del deshuese en el lote. Para
 
 - **Los 2 últimos dígitos del código de caja son el BMS** (marmoleo, 0 a 12). Ejemplo de JC:
   `2661700874xxx061125003511` = 26617 (producto) · 00874 (8.740 kg) · xxx (trazabilidad perdida) ·
-  061125 (fecha DDMMAA) · **0035 (lote de deshuese = «Num. Lote» del reporte de producción, traza al
+  061125 (fecha DDMMAA) · **0035 (lote de deshuese = «Lote CC» del reporte de producción, traza al
   arete)** · **11 = BMS**. `lib/etiquetas.js` lo devuelve como `marmoleo`; fuera de rango o no numérico
   es una advertencia y la caja queda sin BMS.
-- El lote de 4 dígitos ya se trataba como Num. Lote → arete: JC lo confirmó, sin cambios de lógica.
+- ~~El lote de 4 dígitos ya se trataba como Num. Lote → arete~~. **Corregido 07-nov-2026:** el lote de
+  la etiqueta es el **Lote CC**, no el Num. Lote. Evidencia: los 5 reportes del deshuese del 19/03/26
+  (`backend/test/fixtures/deshuese-19-03-2026/`) traen Num. Lote 1, 2, 3, 5, 6 y Lote CC 35, 36, 37, 39,
+  40; la lista de JC liga Lote CC 35 → 279SKF, 36 → 255CKF, 37 → 599SKF, 39 → 1SKC, 40 → 477AKF; el
+  traslado de custodia 1824 dice «LOTE 35» y las etiquetas traen 35 (primal) / 0035 (caja). El Num. Lote
+  es solo el correlativo del PDF en el día y queda como dato informativo.
 - En el **primal** las posiciones 24–25 siguen como `sufijo` crudo: no está confirmado que sean el BMS.

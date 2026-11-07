@@ -15,18 +15,41 @@
 //   Articulo  Peso  Unidad  Cajas
 //   11163  BEEF TRIMMINGS  27.22  KGS  1   … (una línea por artículo)
 //   Total de Cajas por el Lote #  2  Libras 773.42  Kilos 350.82  31
+//
+// Formato REAL del PDF de CIISA (deshuese del 19-mar-2026, 5 PDF en test/fixtures/deshuese-19-03-2026):
+// pdf-parse lo saca POR COLUMNAS y con las etiquetas después del valor:
+//   Fecha de Produccion:\n19/03/26
+//   1Num. LoteTEMPISQUETipo Produccion:\n34        ← Num. Lote 1, tipo TEMPISQUE, 34 = total de cajas
+//   11163\n21114\n… Articulo  BEEF TRIMMINGS\n…  133.06\n… Peso  KGS\n… Unidad  5\n… Cajas
+//   Total de Cajas por el Lote # 1\n 35Lote CC\n 893.97 405.50KilosLibras   ← Lote CC 35, lb y kg
+// OJO: «Num. Lote» es el correlativo del PDF dentro del día (1, 2, 3…) y «Lote CC» es el lote de
+// deshuese: el que viene impreso en las etiquetas (2 dígitos en el primal, 4 en la caja: 0035), en
+// el traslado de custodia («LOTE 35») y en la tabla Lote CC → arete del correo. El arete se liga por
+// Lote CC; Num. Lote queda solo como dato informativo.
 
 const { parsearFecha } = require('./texto');
 
 const RE_TITULO = /REPORTE\s+DIARIO\s+DE\s+PRODUCCI[OÓ]N/i;
 const RE_FECHA = /Fecha\s+de\s+Producci[oó]n\s*:?\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})/i;
-const RE_NUM_LOTE = /Num\.?\s*Lote\s*:?\s*(\d{1,4})/i;
-const RE_TIPO = /Tipo\s+Producci[oó]n\s*:?\s*([A-ZÁÉÍÓÚÑ0-9 ]+?)\s*(?:$|\n|Lote\s+CC)/i;
-const RE_LOTE_CC = /Lote\s*CC\s*:?\s*(\d{1,4})/i;
+// Cada etiqueta del encabezado se busca con el número DESPUÉS («Num. Lote 2», «Lote CC02») y, si no,
+// ANTES («1Num. Lote», « 35Lote CC», como sale el PDF real). El número de después no puede ser parte
+// de un decimal: en el PDF real a «Lote CC» le sigue la línea de libras («Lote CC\n 893.97»).
+const RE_NUM_LOTE = /Num\.?\s*Lote\s*:?\s*(\d{1,4})(?![\d.,])/i;
+const RE_NUM_LOTE_ANTES = /(?<![\d.,])(\d{1,4})[ \t]*Num\.?\s*Lote/i;
+const RE_LOTE_CC = /Lote\s*CC\s*:?\s*(\d{1,4})(?![\d.,])/i;
+const RE_LOTE_CC_ANTES = /(?<![\d.,#])(\d{1,4})[ \t]*Lote\s*CC/i;
+// El tipo empieza con letra (si no, en el PDF real tomaría el total de cajas de la línea siguiente).
+const RE_TIPO = /Tipo\s+Producci[oó]n[ \t]*:?[ \t]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ0-9 ]*?)[ \t]*(?:$|\n|Lote\s+CC)/i;
+const RE_TIPO_ANTES = /Lote[ \t]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ0-9 ]*?)[ \t]*Tipo\s+Producci[oó]n/;
 // Línea de artículo: 5 dígitos, descripción, peso con 2 decimales (miles con coma opcional), unidad, cajas.
 const RE_LINEA = /^\s*(\d{5})\s*(.*?)\s*(\d{1,3}(?:,\d{3})*\.\d{2}|\d+\.\d{2})\s*(KGS|KG|KILOS)\s*(\d{1,4})\s*$/i;
 // Pie: «Total de Cajas por el Lote # 2 Libras 773.42 Kilos 350.82 31».
 const RE_PIE = /Total\s+de\s+Cajas\s+por\s+el\s+Lote\s*#?\s*(\d{1,4})\s*Libras\s*([\d,]*\d\.\d{2})\s*Kilos\s*([\d,]*\d\.\d{2})\s*(\d{1,5})/i;
+// Pie del PDF real: «Total de Cajas por el Lote # 1 35Lote CC 893.97 405.50KilosLibras» (con los saltos
+// como espacios). Las cajas no vienen aquí sino tras «Tipo Produccion:» (RE_CAJAS_COLUMNAS).
+const RE_PIE_COLUMNAS = /Total\s+de\s+Cajas\s+por\s+el\s+Lote\s*#?\s*(\d{1,4})\s*(?:\d{1,4}\s*Lote\s*CC\s*)?([\d,]*\d\.\d{2})\s+([\d,]*\d\.\d{2})\s*Kilos\s*Libras/i;
+const RE_CAJAS_COLUMNAS = /Tipo\s+Producci[oó]n\s*:?[ \t]*\n\s*(\d{1,5})\s*\n/i;
+const RE_PESO = /^(\d{1,3}(?:,\d{3})*\.\d{2}|\d+\.\d{2})$/;
 
 const numero = (s) => Number(String(s).replace(/,/g, ''));
 
@@ -36,6 +59,43 @@ function bloques(texto) {
   const partes = t.split(RE_TITULO);
   if (partes.length <= 1) return t.trim() ? [t] : [];
   return partes.slice(1).filter((p) => p.trim());
+}
+
+/**
+ * Líneas del PDF real, que pdf-parse saca por columnas: N códigos, «Articulo», N descripciones,
+ * N pesos, «Peso», N unidades, «Unidad», N cajas, «Cajas». Devuelve null si el texto no tiene esa
+ * forma, o { lineas } / { error } si la tiene (columnas descuadradas = error, nunca se adivina).
+ */
+function lineasEnColumnas(texto) {
+  const L = texto.split('\n').map((x) => x.trim());
+  const iArt = L.findIndex((x) => /^Art[ií]culo$/i.test(x));
+  if (iArt < 0) return null;
+  const codigos = [];
+  for (let i = iArt - 1; i >= 0 && /^\d{5}$/.test(L[i]); i--) codigos.unshift(L[i]);
+  const n = codigos.length;
+  if (!n) return null;
+  const tramo = (desde) => L.slice(desde, desde + n);
+  const desc = tramo(iArt + 1);
+  let k = iArt + 1 + n;
+  const pesos = tramo(k); k += n;
+  const okPeso = L[k] === 'Peso'; k += 1;
+  const unidades = tramo(k); k += n;
+  const okUnidad = L[k] === 'Unidad'; k += 1;
+  const cajas = tramo(k); k += n;
+  const okCajas = L[k] === 'Cajas';
+  if (!okPeso || !okUnidad || !okCajas || !pesos.every((p) => RE_PESO.test(p))
+    || !unidades.every((u) => /^(KGS|KG|KILOS)$/i.test(u)) || !cajas.every((c) => /^\d{1,4}$/.test(c))) {
+    return { error: `Las columnas del PDF no cuadran (${n} códigos de artículo): revise el reporte o cárguelo por foto` };
+  }
+  return {
+    lineas: codigos.map((c, i) => ({
+      articulo_codigo: c,
+      descripcion: desc[i].replace(/\s+/g, ' ').trim() || null,
+      peso_kg: numero(pesos[i]),
+      unidad: 'KGS',
+      cajas: Number(cajas[i]),
+    })),
+  };
 }
 
 /**
@@ -52,10 +112,12 @@ function leerBloque(texto) {
     const f = parsearFecha(mFecha[1], 'dmy');
     if (typeof f === 'string') fecha = f; else errores.push(`Fecha de producción «${mFecha[1]}» inválida`);
   }
-  const mLote = RE_NUM_LOTE.exec(texto);
-  const mCC = RE_LOTE_CC.exec(texto);
-  const mTipo = RE_TIPO.exec(texto);
-  if (!mLote && !mCC) errores.push('No se encontró «Num. Lote» ni «Lote CC»');
+  const mLote = RE_NUM_LOTE.exec(texto) || RE_NUM_LOTE_ANTES.exec(texto);
+  const mCC = RE_LOTE_CC.exec(texto) || RE_LOTE_CC_ANTES.exec(texto);
+  const mTipo = RE_TIPO.exec(texto) || RE_TIPO_ANTES.exec(texto);
+  // Sin Lote CC no se puede ligar el arete (ni guardar el reporte, cuya llave es fecha + Lote CC):
+  // ya NO se toma el Num. Lote en su lugar, que es justo lo que ligaba al animal equivocado.
+  if (!mCC) errores.push('No se encontró el «Lote CC» (lote de deshuese): sin él no se puede ligar el arete');
 
   const lineas = [];
   for (const linea of texto.split('\n')) {
@@ -70,18 +132,34 @@ function leerBloque(texto) {
       cajas: Number(m[5]),
     });
   }
-  if (!lineas.length) errores.push('No se encontraron líneas de artículos (código de 5 dígitos, peso, KGS, cajas)');
+  if (!lineas.length) {
+    const col = lineasEnColumnas(texto);
+    if (col && col.error) errores.push(col.error);
+    else if (col) lineas.push(...col.lineas);
+    else errores.push('No se encontraron líneas de artículos (código de 5 dígitos, peso, KGS, cajas)');
+  }
 
   // El pie puede venir partido en dos líneas al pegar: se busca sobre el texto con los saltos como espacios.
-  const mPie = RE_PIE.exec(texto.replace(/\n/g, ' '));
-  const pie = mPie ? { lote: mPie[1], libras: numero(mPie[2]), kilos: numero(mPie[3]), cajas: Number(mPie[4]) } : null;
+  const plano = texto.replace(/\n/g, ' ');
+  const mPie = RE_PIE.exec(plano);
+  let pie = mPie ? { lote: mPie[1], libras: numero(mPie[2]), kilos: numero(mPie[3]), cajas: Number(mPie[4]) } : null;
+  if (!pie) {
+    const mCol = RE_PIE_COLUMNAS.exec(plano);
+    const mCajas = RE_CAJAS_COLUMNAS.exec(texto);
+    if (mCol && mCajas) {
+      // Las etiquetas salen «KilosLibras» pero los valores en otro orden: las libras son siempre el mayor.
+      const a = numero(mCol[2]);
+      const b = numero(mCol[3]);
+      pie = { lote: mCol[1], libras: Math.max(a, b), kilos: Math.min(a, b), cajas: Number(mCajas[1]) };
+    }
+  }
   if (!pie) errores.push('No se encontró el pie «Total de Cajas por el Lote» (libras, kilos y cajas)');
 
   return {
     fecha,
     fecha_texto: mFecha ? mFecha[1] : null,
     num_lote: mLote ? String(Number(mLote[1])) : (pie ? String(Number(pie.lote)) : null),
-    lote_cc: mCC ? Number(mCC[1]) : (mLote ? Number(mLote[1]) : null),
+    lote_cc: mCC ? Number(mCC[1]) : null,
     tipo_produccion: mTipo ? mTipo[1].trim().slice(0, 60) : null,
     lineas,
     pie,
@@ -95,9 +173,10 @@ function leerReportes(texto) {
 }
 
 /**
- * Lista lote → arete del correo («2 225MLE», «3	348MLF», «Lote 4: 81FLB»). Ignora saludos y
+ * Lista Lote CC → arete del correo («06 225MLE», «07	348MLF», «Lote 8: 81FLB»): la clave es el
+ * LOTE CC del reporte (el lote de deshuese de las etiquetas), NO el Num. Lote. Ignora saludos y
  * líneas que no tengan exactamente un número de lote y un arete.
- * @returns {{ mapa: Map<string,string>, repetidos: string[] }}  clave = n.º de lote sin ceros a la izquierda
+ * @returns {{ mapa: Map<string,string>, repetidos: string[] }}  clave = Lote CC sin ceros a la izquierda
  */
 function leerMapaLotes(texto) {
   const mapa = new Map();
