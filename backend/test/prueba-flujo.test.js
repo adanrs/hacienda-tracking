@@ -3,7 +3,7 @@
 //     -e MYSQL_USER=hacienda_admin -e MYSQL_PASSWORD=hacienda_pass -p 33061:3306 mysql:8.0
 //   TEST_MYSQL_HOST=127.0.0.1 TEST_MYSQL_PORT=33061 node --test test/prueba-flujo.test.js
 // Verifica: (1) sembrar dos veces no duplica nada; (2) la cadena traza: cada caja del inventario 107
-// llega al arete PRUEBA por fecha + lote, con BMS = 2 últimos dígitos; (3) borrar deja cero filas
+// llega al arete PRUEBA por fecha + lote, con BMS = marmoleo de la canal (no el sufijo); (3) borrar deja cero filas
 // PRUEBA y un segundo borrado no falla; (4) ni el seed ni el borrado tocan datos que no son de prueba.
 //
 // Una sola initDB (no dos): el seed deja una carga del inventario 107 viva mientras corre y la
@@ -25,6 +25,7 @@ if (HOST) {
 
 // Arete «real» de la prueba (4): no es un marcador PRUEBA y tiene que sobrevivir a todo.
 const ARETE_REAL = 'REALPF1';
+const MARMOLEO_CANAL = 7; // = MARMOLEO del seed (DMs AUS-MEAT de la canal PRUEBA)
 
 // Las dos pruebas comparten el pool del módulo database: se cierra una sola vez, al final.
 if (HOST) test.after(() => require('../src/models/database').pool.end());
@@ -91,7 +92,7 @@ test('MySQL real: seed de PRUEBA del flujo completo (idempotente, traza, se borr
     assert.equal(d.campos.fecha, fechas.deshuese);
     assert.equal(d.campos.loteDeshuese, LOTE);
     assert.equal(caja.codigo_barras.length, 25);
-    assert.equal(caja.bms, Number(caja.codigo_barras.slice(-2)), 'BMS = 2 últimos dígitos');
+    assert.equal(caja.bms, MARMOLEO_CANAL, 'BMS de la caja = marmoleo AUS-MEAT del animal');
     assert.ok(['con_arete', 'recuperada'].includes(caja.trazabilidad), caja.trazabilidad);
     assert.equal(caja.arete, ARETE);
     assert.equal(caja.animal_id, ids.animal);
@@ -114,7 +115,7 @@ test('MySQL real: seed de PRUEBA del flujo completo (idempotente, traza, se borr
         AND DATE_FORMAT(rp.fecha_produccion, '%d%m%y') = SUBSTRING(l.codigo_barras, 14, 6)`, [ARCHIVO]);
   assert.equal(traza.length, 4);
   assert.ok(traza.every((x) => x.arete === ARETE && x.sacrificio_id === ids.sacrificio && x.guia === GUIA));
-  // BMS de la caja (07) = marmoleo AUS-MEAT de la canal.
+  // BMS de la caja = marmoleo AUS-MEAT de la canal (el sufijo de la caja no se usa).
   assert.ok(traza.every((x) => Number(x.marmoleo) === r1.cajas[0].bms));
   const [[sol]] = await pool.query(
     `SELECT s.estado, DATE_FORMAT(s.fecha_sacrificio, '%Y-%m-%d') AS f FROM solicitudes_deshuese s

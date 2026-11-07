@@ -18,6 +18,7 @@ const { crearFirmaServicio } = require('../middleware/firmaServicio');
 const { sha256hex } = require('../lib/integracion/firma');
 const { validarSobre } = require('../lib/integracion/eventos');
 const { decodificar, normalizar } = require('../lib/etiquetas');
+const { bmsVivo } = require('../lib/bmsCaja');
 const { aplicarTrasladoRecibido, ErrorEvento } = require('../lib/integracion/procesadorTraslado');
 
 // Tipos con procesador: en «encendido» y «pruebas» se aplican en la misma transacción que el registro.
@@ -90,8 +91,13 @@ function etiquetaDeSticker(s) {
   };
 }
 
-/** Línea de una caja CIISA de la planta tal como la ve la tienda: código + lectura de la caja. */
-function lineaCajaCiisa(it) {
+/**
+ * Línea de una caja CIISA de la planta tal como la ve la tienda: código + lectura de la caja.
+ * `bms` = marmoleo medido del animal de la caja (lo calcula bmsVivo al despachar) o null. NUNCA los
+ * 2 últimos dígitos del código de caja: son un sufijo de la caja de deshuese, no el BMS (Juan
+ * Carlos, 07-nov-2026). Tampoco `it.bms`: las órdenes armadas antes guardaron ahí ese sufijo.
+ */
+function lineaCajaCiisa(it, bms = null) {
   const codigo = normalizar(it.codigo_barras);
   const dec = decodificar(codigo);
   const ok = dec.tipo === 'caja' && dec.errores.length === 0;
@@ -107,7 +113,7 @@ function lineaCajaCiisa(it) {
     codigo_articulo: it.codigo_articulo || (ok ? c.codigoProducto : null),
     lote: it.lote || (ok ? c.loteTexto || null : null),
     fecha: ok ? c.fecha || null : null,
-    bms: it.bms !== null && it.bms !== undefined ? Number(it.bms) : (ok ? c.marmoleo ?? null : null),
+    bms: bms == null ? null : Number(bms),
     arete: it.arete || null,
     etiquetas: [],
   };
@@ -157,12 +163,13 @@ router.get('/despachos', async (req, res) => {
     if (ids.length) {
       [items] = await pool.query(`
         SELECT i.id, i.orden_id, i.caja_id, i.primal_id, i.cantidad, i.peso_kg,
-               i.codigo_barras, i.codigo_articulo, i.descripcion AS item_descripcion, i.lote, i.bms, i.arete,
+               i.codigo_barras, i.codigo_articulo, i.descripcion AS item_descripcion, i.lote, i.arete, il.animal_id,
                c.codigo AS caja_codigo, c.tipo_corte AS caja_tipo_corte, c.peso_total_kg AS caja_peso_kg,
                pr.codigo AS primal_codigo, pr.tipo_primal, pr.peso_kg AS primal_peso_kg
         FROM ordenes_salida_items i
         LEFT JOIN cajas c ON c.id = i.caja_id
         LEFT JOIN primales pr ON pr.id = i.primal_id
+        LEFT JOIN inventario_planta_lineas il ON il.id = i.inventario_linea_id
         WHERE i.orden_id IN (?)
         ORDER BY i.orden_id, i.id
       `, [ids]);
@@ -182,13 +189,16 @@ router.get('/despachos', async (req, res) => {
       if (!stickersPorCaja.has(s.caja_id)) stickersPorCaja.set(s.caja_id, []);
       stickersPorCaja.get(s.caja_id).push(etiquetaDeSticker(s));
     }
+    // BMS de las cajas CIISA: marmoleo medido de su animal (una consulta para toda la página).
+    const conCodigo = items.filter((it) => it.codigo_barras);
+    const bmsCajas = new Map((await bmsVivo(pool, conCodigo)).map((b, k) => [conCodigo[k].id, b.bms]));
     const itemsPorOrden = new Map();
     for (const it of items) {
       if (!itemsPorOrden.has(it.orden_id)) itemsPorOrden.set(it.orden_id, []);
       if (it.codigo_barras) {
         // Caja del inventario de la planta (traslado 107 → WC-01, routes/traslados-tienda.js): la
         // tienda la recibe por su código CIISA de 25, sin abrirla (JC, 06-nov-2026).
-        itemsPorOrden.get(it.orden_id).push(lineaCajaCiisa(it));
+        itemsPorOrden.get(it.orden_id).push(lineaCajaCiisa(it, bmsCajas.get(it.id)));
         continue;
       }
       const esCaja = Boolean(it.caja_id);
@@ -387,3 +397,4 @@ router.use((err, req, res, next) => {
 module.exports = router;
 module.exports.decodificarCursor = decodificarCursor;
 module.exports.codificarCursor = codificarCursor;
+module.exports.lineaCajaCiisa = lineaCajaCiisa;

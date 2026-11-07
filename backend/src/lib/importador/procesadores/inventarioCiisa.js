@@ -28,9 +28,10 @@
 //       sin_trazabilidad  no se llega a un animal (con «xxx» va con advertencia; NUNCA se toma el
 //                         «xxx» como arete);
 //       na                sin código de barras ni lote legible («SIN CODIGO DE BARRAS»);
-//   - BMS: los 2 últimos dígitos del código (caja o bolsa) son el BMS 0–12 (Juan Carlos, 06-nov-2026);
-//     se guarda en `bms` y, si la línea trazó a un animal con marmoleo medido (cámara AUS-MEAT), se
-//     compara: si no cuadra es un aviso, no un error (lib/bmsCaja.js);
+//   - BMS (lib/bmsCaja.js): en la BOLSA es el impreso (pos. 27–28) y se compara con el marmoleo
+//     medido del animal (si no cuadra es un aviso, no un error). En la CAJA es el marmoleo medido del
+//     animal al que trazó la línea, o null: los 2 últimos dígitos de la caja son un sufijo, NO el
+//     BMS (Juan Carlos, 07-nov-2026). Se guarda en `bms`;
 //   - código fuera del catálogo de cortes → advertencia (la pantalla ofrece el alta rápida);
 //   - peso vacío, no numérico o ≤ 0 → error: esa línea no entra al snapshot.
 // Totales por hoja: piezas (líneas), kg (solo medida Kilos o sin medida: «Caja» y «UND» son conteos),
@@ -40,7 +41,7 @@ const crypto = require('crypto');
 const ExcelJS = require('exceljs');
 const { decodificar, esSinTrazabilidad, interpretarFecha } = require('../../etiquetas');
 const { recuperarPorReporte } = require('../../trazabilidadEtiqueta');
-const { compararBmsCaja, marmoleosDe, marmoleoDeLinea } = require('../../bmsCaja');
+const { bmsDeLinea, marmoleosDe, marmoleoDeLinea } = require('../../bmsCaja');
 const { parsearFecha } = require('../texto');
 const { marcas, fechaTexto } = require('../comun');
 
@@ -294,8 +295,6 @@ function evaluarEtiqueta(l) {
   }
   const avisos = [];
   for (const e of d.errores || []) avisos.push(`Código de barras: ${e.mensaje}`);
-  // BMS ilegible en la caja (pos. 24–25): advertencia del decodificador, la línea queda sin BMS.
-  for (const e of d.advertencias || []) if (e.codigo === 'marmoleo_invalido') avisos.push(`Código de barras: ${e.mensaje}`);
   const c = d.campos || {};
   if (d.tipo === 'desconocida') return { decodificado: compacto(d), puente: null, sinArete: false, motivo: 'Código de barras ilegible', avisos };
   if (c.codigoProducto && l.codigo && c.codigoProducto !== l.codigo) avisos.push(`El código de barras dice producto ${c.codigoProducto} y la columna Código ${l.codigo}`);
@@ -458,22 +457,20 @@ async function planificar(conn, _tabla, opciones = {}, { lectura }) {
     }
   }
 
-  // 3b. BMS (2 últimos dígitos del código, Juan Carlos 06-nov-2026) y comparación con el marmoleo
-  //     medido del animal al que trazó la línea. Si no cuadra es un aviso: la línea igual entra.
+  // 3b. BMS: bolsa → el impreso (comparado con el animal); caja/primal/maduración → marmoleo
+  //     medido del animal al que trazó la línea, o null. El sufijo de la caja NO es el BMS
+  //     (Juan Carlos, 07-nov-2026). Una sola consulta de marmoleos para todo el archivo.
+  const conAnimal = lineas.filter((l) => l.animal_id != null || l.arete);
+  const m = conAnimal.length ? await marmoleosDe(conn, { animalIds: conAnimal.map((l) => l.animal_id), aretes: conAnimal.map((l) => l.arete) }) : null;
   for (const l of lineas) {
-    const dec = l.decodificado;
-    l.bms = dec && (dec.tipo === 'caja' || dec.tipo === 'paquete') && dec.marmoleo != null ? dec.marmoleo : null;
-  }
-  const conBms = lineas.filter((l) => l.bms != null && (l.animal_id != null || l.arete));
-  if (conBms.length) {
-    const m = await marmoleosDe(conn, { animalIds: conBms.map((l) => l.animal_id), aretes: conBms.map((l) => l.arete) });
-    for (const l of conBms) {
-      const comp = compararBmsCaja(l.bms, marmoleoDeLinea(m, l));
-      if (!comp) continue;
-      l.bms_animal = comp.marmoleo_animal;
-      l.bms_estado = comp.estado;
-      if (comp.estado === 'no_cuadra') l.avisos.push(`BMS ${l.bms} de la etiqueta distinto del marmoleo medido del animal ${l.arete || ''} (AUS-MEAT ${comp.marmoleo_animal})`.replace('  ', ' '));
-    }
+    const r = bmsDeLinea(l.codigo_barras, m ? marmoleoDeLinea(m, l) : null);
+    l.bms = r.bms;
+    l.bms_origen = r.origen;
+    const comp = r.comparacion;
+    if (!comp) continue;
+    l.bms_animal = comp.marmoleo_animal;
+    l.bms_estado = comp.estado;
+    if (comp.estado === 'no_cuadra') l.avisos.push(`BMS ${l.bms} de la bolsa distinto del marmoleo medido del animal ${l.arete || ''} (AUS-MEAT ${comp.marmoleo_animal})`.replace('  ', ' '));
   }
 
   // 4. Snapshot ya cargado (mismo contenido) y comparación contra el último.

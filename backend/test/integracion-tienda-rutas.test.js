@@ -19,6 +19,9 @@ const dup = () => Object.assign(new Error('Duplicate entry'), { code: 'ER_DUP_EN
 
 // Paquete de 28 real (test/etiquetas.test.js): arete 34GKAE, artículo 26632, 0,416 kg.
 const PAQ = '34GKAE266322309243300416F101';
+// Cajas CIISA de 25 reales (test/etiquetas.test.js) que terminan en «11».
+const CAJA11 = '2661700874XXX061125003511';
+const CAJA11_TORTAS = '2664901321XXX290125003911';
 
 async function responder(sql, params = []) {
   llamadas.push({ sql, params });
@@ -52,8 +55,16 @@ async function responder(sql, params = []) {
     return [resto.slice(0, limite)];
   }
   if (/FROM ordenes_salida_items i/.test(s)) {
-    return [[{ id: 1, orden_id: 3, caja_id: 21, primal_id: null, cantidad: 1, peso_kg: null, caja_codigo: 'CJ-1', caja_tipo_corte: 'NEW YORK', caja_peso_kg: '10.500', primal_codigo: null, tipo_primal: null, primal_peso_kg: null }]];
+    return [[
+      { id: 1, orden_id: 3, caja_id: 21, primal_id: null, cantidad: 1, peso_kg: null, caja_codigo: 'CJ-1', caja_tipo_corte: 'NEW YORK', caja_peso_kg: '10.500', primal_codigo: null, tipo_primal: null, primal_peso_kg: null },
+      // Cajas CIISA del inventario 107 que terminan en «11» (sufijo, NO el BMS: JC 07-nov-2026). `bms`
+      // guardado = 11 como lo dejaban las órdenes armadas antes del fix: no se tiene que usar.
+      { id: 2, orden_id: 4, caja_id: null, primal_id: null, cantidad: 1, peso_kg: '8.740', codigo_barras: CAJA11, codigo_articulo: '26617', item_descripcion: 'NEW YORK', lote: '0611250035', bms: 11, arete: 'ANIM06', animal_id: 606 },
+      { id: 3, orden_id: 4, caja_id: null, primal_id: null, cantidad: 1, peso_kg: '1.000', codigo_barras: CAJA11_TORTAS, codigo_articulo: '26649', item_descripcion: 'TORTAS', lote: '2901250039', bms: 11, arete: null, animal_id: null },
+    ]];
   }
+  // Marmoleo AUS-MEAT medido de la canal del animal 606 (arete ANIM06).
+  if (/FROM sacrificios s JOIN animales a/.test(s)) return [params.includes(606) || params.includes('ANIM06') ? [{ animal_id: 606, arete: 'ANIM06', marmoleo: 6 }] : []];
   if (/FROM stickers s/.test(s)) return [[{ caja_id: 21, codigo_barras: PAQ.toLowerCase(), peso_kg: '1.234' }, { caja_id: 21, codigo_barras: 'STK-0001', peso_kg: '0.900' }]];
   return [[]];
 }
@@ -303,6 +314,12 @@ test('despachos: paginado por cursor, con las etiquetas de cada caja', async () 
 
   const p2 = await pedir('GET', `${R}/despachos?limite=1&cursor=${p1.body.siguiente_cursor}`);
   assert.deepEqual(p2.body.despachos.map(x => x.numero), ['OS-20261105-002']); // mismo instante, id mayor
+  // BMS que viaja a la tienda: el marmoleo del animal (6), nunca el «11» del código ni el guardado.
+  const [conAnimal, sinAnimal] = p2.body.despachos[0].lineas;
+  assert.equal(conAnimal.formato, 'ciisa_caja');
+  assert.equal(conAnimal.bms, 6);
+  assert.equal(sinAnimal.codigo, CAJA11_TORTAS);
+  assert.equal(sinAnimal.bms, null, 'caja «…11» sin animal con marmoleo → sin BMS');
   assert.equal(p2.body.hay_mas, false);
   // p2 terminó (hay_mas = false): la consulta siguiente relee 60 s hacia atrás y vuelven a salir
   // los dos; la tienda los deduplica por número.

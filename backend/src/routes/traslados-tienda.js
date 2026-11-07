@@ -23,6 +23,7 @@ const { idsNumericos } = require('../lib/params');
 const { pool } = require('../models/database');
 const { numeroDiario } = require('../lib/consecutivos');
 const { decodificar, normalizar } = require('../lib/etiquetas');
+const { bmsVivo } = require('../lib/bmsCaja');
 const { WC01, B107 } = require('../lib/bodegasV10');
 
 idsNumericos(router);
@@ -102,10 +103,14 @@ router.get('/:id', envolver(async (req, res) => {
     WHERE o.id = ?`, [req.params.id]);
   if (!orden || orden.destino_codigo !== WC01) return res.status(404).json({ error: 'Traslado no encontrado' });
   const [items] = await pool.query(`
-    SELECT i.id, i.codigo_barras, i.codigo_articulo, i.descripcion, i.peso_kg, i.lote, i.bms, i.arete, i.inventario_linea_id,
-           i.caja_id, c.codigo AS caja_codigo
+    SELECT i.id, i.codigo_barras, i.codigo_articulo, i.descripcion, i.peso_kg, i.lote, i.arete, i.inventario_linea_id,
+           i.caja_id, c.codigo AS caja_codigo, il.animal_id
     FROM ordenes_salida_items i LEFT JOIN cajas c ON c.id = i.caja_id
+    LEFT JOIN inventario_planta_lineas il ON il.id = i.inventario_linea_id
     WHERE i.orden_id = ? ORDER BY i.codigo_articulo, i.id`, [orden.id]);
+  // BMS vivo (lib/bmsCaja.js): marmoleo medido del animal de la caja, o null. No se usa `i.bms`:
+  // las órdenes armadas antes del 07-nov-2026 guardaron ahí el sufijo de la caja, que no es el BMS.
+  const bmsItems = await bmsVivo(pool, items);
   const [recepciones] = await pool.query(`
     SELECT id, evento_clave, recepcion_tienda, estado, recibida_por,
            DATE_FORMAT(cerrada_en, '%Y-%m-%d %H:%i') AS cerrada_en, DATE_FORMAT(registrada_en, '%Y-%m-%d %H:%i') AS registrada_en,
@@ -118,7 +123,7 @@ router.get('/:id', envolver(async (req, res) => {
       FROM recepciones_tienda_cajas WHERE recepcion_id IN (?) ORDER BY id`, [recepciones.map(r => r.id)]);
   }
   const salida = { ...orden, es_prueba: Boolean(orden.es_prueba) };
-  const itemsSalida = items.map(i => ({ ...i, peso_kg: num(i.peso_kg), bms: num(i.bms) }));
+  const itemsSalida = items.map(({ animal_id: _a, ...i }, k) => ({ ...i, peso_kg: num(i.peso_kg), bms: bmsItems[k].bms }));
   res.json({
     ...salida,
     items: itemsSalida,
@@ -148,7 +153,7 @@ router.post('/', envolver(async (req, res) => {
     if (!b107 || !wc01) return res.status(503).json({ error: 'Faltan las bodegas 107 o WC-01 (migración v10)' });
     await conn.beginTransaction();
     const [lineas] = await conn.query(`
-      SELECT l.id, l.carga_id, l.hoja, l.codigo_barras, l.codigo, l.descripcion, l.peso, l.lote, l.bms, l.arete, l.medida
+      SELECT l.id, l.carga_id, l.hoja, l.codigo_barras, l.codigo, l.descripcion, l.peso, l.lote, l.arete, l.animal_id, l.medida
       FROM inventario_planta_lineas l WHERE l.id IN (?) FOR UPDATE`, [ids]);
     if (lineas.length !== ids.length) { await conn.rollback(); return res.status(404).json({ error: 'Alguna caja ya no está en el inventario cargado' }); }
     const cargas = new Set(lineas.map(l => l.carga_id));
@@ -177,7 +182,7 @@ router.post('/', envolver(async (req, res) => {
     }
     // El mismo código en una orden viva de otra semana: casi seguro es la misma caja que la planta
     // todavía reporta (su inventario va con atraso). Es aviso, no bloqueo: dos cajas idénticas
-    // (mismo producto, gramos, fecha, lote y BMS) son raras pero posibles.
+    // (mismo producto, peso, fecha, lote y sufijo) son raras pero posibles.
     const codigos = lineas.map(l => normalizar(l.codigo_barras));
     const [repetidos] = await conn.query(`
       SELECT i.codigo_barras, o.numero FROM ordenes_salida_items i JOIN ordenes_salida o ON o.id = i.orden_id
@@ -190,14 +195,17 @@ router.post('/', envolver(async (req, res) => {
       VALUES (?, COALESCE(?, CURDATE()), ?, 'Tienda Wagyu Cross (WC-01)', ?, ?, 'pendiente', ?, ?)`,
     [numero, fecha, solicitante, b107, wc01, notas, esPrueba]);
     const ordenId = ins.insertId;
-    for (const l of lineas) {
+    // BMS de cada caja = marmoleo medido de su animal al armar la orden (el sufijo de la caja NO es
+    // el BMS, JC 07-nov-2026). La integración con la tienda lo vuelve a calcular al despachar.
+    const bmsLineas = await bmsVivo(conn, lineas);
+    for (const [k, l] of lineas.entries()) {
       const codigo = normalizar(l.codigo_barras);
       const dec = decodificar(codigo);
       const articulo = l.codigo || (dec.campos && dec.campos.codigoProducto) || null;
       await conn.query(`
         INSERT INTO ordenes_salida_items (orden_id, cantidad, peso_kg, inventario_linea_id, codigo_barras, codigo_articulo, descripcion, lote, bms, arete)
         VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [ordenId, l.peso, l.id, codigo, articulo, l.descripcion, l.lote, l.bms, l.arete]);
+      [ordenId, l.peso, l.id, codigo, articulo, l.descripcion, l.lote, bmsLineas[k].bms, l.arete]);
     }
     await conn.commit();
     res.status(201).json({ id: ordenId, numero, cajas: lineas.length, kg: lineas.reduce((s, l) => s + Number(l.peso || 0), 0), avisos });

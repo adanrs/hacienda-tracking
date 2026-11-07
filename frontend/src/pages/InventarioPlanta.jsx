@@ -63,8 +63,11 @@ function Totales({ totales }) {
 
 // BMS de la caja (2 últimos dígitos del código, Juan Carlos 06-nov-2026) y, si la línea trazó a un
 // animal con marmoleo medido en la canal, si cuadra. «No cuadra» es un aviso, no frena nada.
-function Bms({ bms, estado, animal, aviso }) {
+// BMS de la línea (backend lib/bmsCaja.js): en la bolsa el impreso; en la caja el marmoleo medido del
+// animal (los 2 últimos dígitos de la caja son un sufijo, no el BMS: Juan Carlos, 07-nov-2026).
+function Bms({ bms, estado, animal, aviso, origen }) {
   if (bms == null) return '—';
+  if (origen === 'animal') return <span title="Marmoleo AUS-MEAT medido en la canal del animal">{bms}</span>;
   if (estado === 'no_cuadra') {
     return (
       <span title={aviso || `El animal tiene marmoleo AUS-MEAT ${animal}`}>
@@ -86,7 +89,7 @@ const COLUMNAS_PLAN = [
   { titulo: 'Lote / caja', valor: f => `${f.lote || '—'}${f.caja ? ` · caja ${f.caja}` : ''}` },
   { titulo: 'Vence', valor: f => <span style={f.vencido ? { color: 'var(--error-fuerte)', fontWeight: 600 } : {}}>{fecha(f.fecha_vencimiento)}{f.vencido ? ' (vencido)' : ''}</span> },
   { titulo: 'Trazabilidad', valor: f => <span><BadgeTraz estado={f.trazabilidad} titulo={f.traz_motivo} />{f.arete ? ` ${f.arete}` : ''}</span> },
-  { titulo: 'BMS', num: true, valor: f => <Bms bms={f.bms} estado={f.bms_estado} animal={f.bms_animal} /> },
+  { titulo: 'BMS', num: true, valor: f => <Bms bms={f.bms} estado={f.bms_estado} animal={f.bms_animal} origen={f.bms_origen} /> },
 ];
 
 function CargarInventario({ onAplicado }) {
@@ -365,7 +368,7 @@ function Snapshot({ recarga }) {
                   <td style={{ fontFamily: 'ui-monospace, Consolas, monospace', fontSize: 'var(--texto-sm)' }}>{l.caja ? `caja ${l.caja}` : l.codigo_barras || 'sin código'}</td>
                   <td style={l.vencido ? { color: 'var(--error-fuerte)', fontWeight: 600 } : {}}>{fecha(l.fecha_vencimiento)}{l.vencido ? ' (vencido)' : ''}</td>
                   <td><BadgeTraz estado={l.trazabilidad} />{l.arete ? ` ${l.arete}` : ''}</td>
-                  <td className="num"><Bms bms={l.bms} estado={l.bms_estado} animal={l.bms_animal} aviso={l.bms_aviso} /></td>
+                  <td className="num"><Bms bms={l.bms} estado={l.bms_estado} animal={l.bms_animal} aviso={l.bms_aviso} origen={l.bms_origen} /></td>
                   <td>{[l.estatus, l.despacho, l.pedido_por, l.orden].filter(Boolean).join(' · ') || '—'}</td>
                   <td>{l.traslado_numero ? <span className="badge badge-blue">{l.traslado_numero}</span> : '—'}</td>
                 </tr>
