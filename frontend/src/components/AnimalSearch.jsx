@@ -31,9 +31,9 @@ export default function AnimalSearch({ value, onChange, filter }) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const handleSearch = (q) => {
-    setQuery(q);
-    setOpen(true);
+  // Lista filtrada calculada aquí (no leída del estado): el handler de teclado la necesita en el
+  // mismo evento en que abre la lista, antes de que React actualice `results`.
+  const filtrar = (q) => {
     const lower = q.toLowerCase();
     let filtered = animales.filter(a =>
       a.numero_trazabilidad.toLowerCase().includes(lower) ||
@@ -41,8 +41,16 @@ export default function AnimalSearch({ value, onChange, filter }) {
       (a.raza && a.raza.toLowerCase().includes(lower))
     );
     if (filter) filtered = filtered.filter(filter);
-    setResults(filtered.slice(0, 15));
+    return filtered.slice(0, 15);
+  };
+
+  const handleSearch = (q) => {
+    const lista = filtrar(q);
+    setQuery(q);
+    setOpen(true);
+    setResults(lista);
     setActivo(-1);
+    return lista;
   };
 
   const select = (animal) => {
@@ -58,7 +66,12 @@ export default function AnimalSearch({ value, onChange, filter }) {
   };
 
   const onTecla = (e) => {
-    if (e.key === 'ArrowDown') { e.preventDefault(); if (!open) handleSearch(query); setActivo(i => Math.min(results.length - 1, i + 1)); }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      // Con la lista cerrada, la primera flecha la abre y resalta el primer resultado.
+      if (!open) { const lista = handleSearch(query); setActivo(lista.length ? 0 : -1); }
+      else setActivo(i => Math.min(results.length - 1, i + 1));
+    }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActivo(i => Math.max(0, i - 1)); }
     else if (e.key === 'Enter' && open && results.length) {
       // Enter elige la resaltada, o la única si la búsqueda dejó una sola: no envía el formulario.

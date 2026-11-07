@@ -25,7 +25,7 @@ const FORMATOS = {
     nombre: 'Ganadero SG · salida de animales',
     descripcion: 'Reporte personalizado de Software GANADERO SG (Sistematización de Hatos)',
     procesador: 'ganaderoSg',
-    extensiones: ['xlsx', 'xls', 'csv', 'txt', 'html', 'htm'],
+    extensiones: ['xlsx', 'xls', 'csv', 'txt', 'html', 'htm', 'docx'],
     minimoColumnas: 6,
     // F. Nto y Fec. salida vienen m/d/aaaa (3/14/2024, 10/15/2026); si una columna trae un día
     // > 12 en la primera posición, el lector la cambia sola a d/m/aaaa (ver ordenFechaColumna).
@@ -67,7 +67,7 @@ const FORMATOS = {
     nombre: 'Sacrificio CIISA (correo de la planta)',
     descripcion: 'Tabla del correo «Sacrificio Wagyu dd-mm-aa» de CIISA El Arreo',
     procesador: 'sacrificioCiisa',
-    extensiones: ['msg', 'eml', 'html', 'htm', 'txt', 'csv', 'xlsx'],
+    extensiones: ['msg', 'eml', 'html', 'htm', 'txt', 'csv', 'xlsx', 'docx'],
     minimoColumnas: 5,
     ordenFechas: 'dmy',
     columnas: [
@@ -101,7 +101,7 @@ const FORMATOS = {
     nombre: 'Marmoleo · cámara de canales',
     descripcion: 'Tabla de la cámara (Taken at, Body no., DMs AUSMEAT…) pegada desde la página o exportada',
     procesador: 'marmoleoCamara',
-    extensiones: ['csv', 'txt', 'xlsx', 'html', 'htm'],
+    extensiones: ['csv', 'txt', 'xlsx', 'html', 'htm', 'docx'],
     minimoColumnas: 2,
     ordenFechas: 'dmy',
     guardarDesconocidas: true,
@@ -128,7 +128,7 @@ const FORMATOS = {
     descripcion: 'Uno o varios PDF «REPORTE DIARIO DE PRODUCCION» más la lista lote → arete del correo',
     procesador: 'reporteProduccionCiisa',
     modo: 'documentos',
-    extensiones: ['pdf', 'txt'],
+    extensiones: ['pdf', 'txt', 'docx'],
     columnas: [],
     metadatos: [],
   },
@@ -139,7 +139,7 @@ const FORMATOS = {
     nombre: 'Catálogo de cortes (listado completo)',
     descripcion: 'Código de 5 dígitos y descripción; tipo, unidad y activo opcionales',
     procesador: 'catalogoCortes',
-    extensiones: ['xlsx', 'csv', 'txt', 'html', 'htm'],
+    extensiones: ['xlsx', 'csv', 'txt', 'html', 'htm', 'docx'],
     minimoColumnas: 2,
     ordenFechas: 'dmy',
     columnas: [
@@ -181,6 +181,34 @@ const FORMATOS = {
     leerCrudo: true,
     maxMB: 10,
     extensiones: ['xlsx'],
+    columnas: [],
+    metadatos: [],
+  },
+
+  // Guía de movilización del MAG/SENASA (formulario FTZ-02, p. ej. EH0204095): número, fecha,
+  // origen → destino y los bovinos con su DIIO. Cada archivo (o la foto leída, o el texto pegado) es
+  // una guía; se pueden subir varias. El DIIO se liga al animal por su I.E. de Ganadero SG: ver
+  // procesadores/guiaMovilizacion.js. Un PDF escaneado va por «Cargar por foto».
+  'guia-movilizacion': {
+    nombre: 'Guía de movilización del MAG (FTZ-02)',
+    descripcion: 'PDF de la guía del SENASA, Word, foto o texto pegado: número, fecha, origen → destino y DIIO de cada bovino',
+    procesador: 'guiaMovilizacion',
+    modo: 'documentos',
+    extensiones: ['pdf', 'docx', 'txt'],
+    columnas: [],
+    metadatos: [],
+  },
+
+  // Documentos de custodia de CIISA (bodega 107): «Ajuste de salida en custodia» (ASE) y «Traslado
+  // de inventario en custodia» (TRE). Encabezado, Observaciones con LOTE / RES y artículos con cajas
+  // y kg. Normalmente llegan por foto; también PDF, Word, Excel o texto pegado. Ver
+  // procesadores/custodiaCiisa.js.
+  'custodia-ciisa': {
+    nombre: 'Documentos de custodia CIISA (ajuste de salida / traslado)',
+    descripcion: 'ASE «Ajuste de salida en custodia» y TRE «Traslado de inventario en custodia» de la bodega 107',
+    procesador: 'custodiaCiisa',
+    modo: 'documentos',
+    extensiones: ['pdf', 'docx', 'xlsx', 'txt'],
     columnas: [],
     metadatos: [],
   },

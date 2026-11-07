@@ -13,7 +13,7 @@ const vectores = require('./fixtures/integracion-firma-vectores.json');
 const { compararRecepcion } = require('../src/lib/integracion/procesadorTraslado');
 const { firmar } = require('../src/lib/integracion/firma');
 
-// Caja real del ejemplo de JC: 26617 · 8.740 kg · XXX · 06-11-25 · lote 0035 · BMS 11.
+// Caja real del ejemplo de JC: 26617 · 8.740 kg · XXX · 06-11-25 · lote 0035 · sufijo 11.
 const CAJA_A = '2661700874XXX061125003511';
 const CAJA_B = '2661701050XXX061125003511';
 const CAJA_C = '2661700990XXX061125003509';
@@ -147,7 +147,35 @@ test('MySQL real: inventario 107 → orden → despacho → recepción firmada p
   assert.ok(despacho, 'la orden despachada aparece en /despachos');
   assert.equal(despacho.prueba, false);
   assert.deepEqual(despacho.lineas.map(l => [l.codigo, l.formato, l.codigo_articulo, l.lote, l.bms]),
-    [[CAJA_A, 'ciisa_caja', '26617', '0035', 11], [CAJA_B, 'ciisa_caja', '26617', '0035', 11], [CAJA_C, 'ciisa_caja', '26617', '0035', 11]]);
+    [[CAJA_A, 'ciisa_caja', '26617', '0035', null], [CAJA_B, 'ciisa_caja', '26617', '0035', null], [CAJA_C, 'ciisa_caja', '26617', '0035', null]]);
+  // El sufijo «11» de la caja NO es BMS (JC, 07-nov-2026): las 3 cajas no tienen animal → bms null.
+
+  // Caso positivo: una caja ligada a un animal cuyo sacrificio tiene marmoleo medido → ese
+  // marmoleo viaja como bms a /despachos (lib/bmsCaja.js, bmsVivo).
+  const areteBms = `TR-BMS-${Date.now()}`;
+  const [animalBms] = await pool.query("INSERT INTO animales (numero_trazabilidad, tipo, sexo, estado) VALUES (?, 'bovino', 'macho', 'sacrificado')", [areteBms]);
+  await pool.query("INSERT INTO sacrificios (animal_id, fecha, marmoleo) VALUES (?, '2026-10-20 08:00:00', 7)", [animalBms.insertId]);
+  const CAJA_D = '2661700650XXX061125003611';
+  const [lBms] = await pool.query(
+    "INSERT INTO inventario_planta_lineas (carga_id, hoja, codigo_barras, codigo, descripcion, peso, lote, bms, trazabilidad, arete, animal_id) VALUES (?, 'general', ?, '26617', 'RIBEYE', 6.5, '0036', 11, 'con_arete', ?, ?)",
+    [carga.insertId, CAJA_D, areteBms.slice(0, 20), animalBms.insertId]);
+  const conBms = await json('POST', '/api/traslados-tienda', { linea_ids: [lBms.insertId], solicitante: 'Carolina' });
+  assert.equal(conBms.status, 201, JSON.stringify(conBms.json));
+  assert.equal((await json('POST', `/api/ordenes-salida/${conBms.json.id}/despachar`)).status, 200);
+  await pool.query('UPDATE ordenes_salida SET despachada_en = NOW(3) - INTERVAL 10 SECOND WHERE id = ?', [conBms.json.id]);
+  let despachoBms = null;
+  cursor = '';
+  for (let i = 0; i < 50 && !despachoBms; i++) {
+    const r = await firmado('GET', `/api/integracion/tienda/despachos?limite=200${cursor ? `&cursor=${cursor}` : ''}`);
+    despachoBms = r.json.despachos.find(d => d.numero === conBms.json.numero) || null;
+    if (!r.json.hay_mas) break;
+    cursor = r.json.siguiente_cursor;
+  }
+  assert.ok(despachoBms, 'la orden con la caja ligada aparece en /despachos');
+  assert.deepEqual(despachoBms.lineas.map(l => [l.codigo, l.bms]), [[CAJA_D, 7]]);
+  await pool.query('DELETE FROM ordenes_salida WHERE id = ?', [conBms.json.id]);
+  await pool.query('DELETE FROM inventario_planta_lineas WHERE id = ?', [lBms.insertId]);
+  await pool.query('DELETE FROM animales WHERE id = ?', [animalBms.insertId]);
 
   // Recepción en la tienda: A con otro peso, B faltante, C bien, X sobrante devuelta.
   const recepcionId = `R${Date.now()}`;

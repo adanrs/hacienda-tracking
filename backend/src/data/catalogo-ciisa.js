@@ -202,6 +202,18 @@ const CODIGOS_INTERNOS_PREVIOS = Object.freeze([
   '21019', '21020', '21021', '21022', '21023', '21024', '21025', '21026', '30001', '30002', '30003',
 ]);
 
+/**
+ * Equivalencias de código que se conocen en los documentos de custodia de CIISA (ajuste de salida
+ * y traslado de la bodega 107): el BCH y el trimming Wagyu salen con su código de custodia y son el
+ * mismo producto que el código de planta del reporte de producción. No van en `codigo_equivalente`
+ * del catálogo (ese campo es la pareja F1 ↔ FB y lo usa el seed): solo se anotan en la línea del
+ * documento para poder cruzarla.
+ *   25000 BCH WAGYU      ↔ 22229 CH-Chuck res (BCH carnes rojas)
+ *   25002 TRIMMING WAGYU ↔ 11163 Beef trimmings
+ */
+const EQUIVALENCIAS_CUSTODIA = Object.freeze({ 25000: '22229', 22229: '25000', 25002: '11163', 11163: '25002' });
+
 module.exports = {
   CATALOGO_CIISA, CATALOGO_POR_CODIGO, CODIGOS_ANTERIORES, CODIGOS_INTERNOS_PREVIOS, VIDA_CONGELADO, VIDA_FRESCO,
+  EQUIVALENCIAS_CUSTODIA,
 };

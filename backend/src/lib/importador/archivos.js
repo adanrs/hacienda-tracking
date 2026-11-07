@@ -9,6 +9,9 @@
 //   .eml               → mailparser: cuerpo HTML (o texto) y asunto
 //   .msg (Outlook)     → @kenjiuno/msgreader: HTML, o el RTF comprimido con el HTML encapsulado
 //   .pdf con texto     → pdf-parse (para el reporte de producción de CIISA)
+//   .docx (Word)       → jszip lee word/document.xml: cada tabla de Word es una hoja y los párrafos
+//                        quedan como textos sueltos (y como texto corrido, para los documentos).
+//                        Un .doc viejo (Word 97-2003) no: se pide guardarlo como .docx o subir PDF/foto.
 // Texto pegado: si el portapapeles trae HTML (Outlook/Gmail/Excel lo ponen) se usan sus tablas;
 // si no, el texto plano.
 
@@ -238,6 +241,119 @@ async function leerPdf(buffer) {
   return { ...desdeTexto(texto), texto };
 }
 
+// ── Word (.docx) ─────────────────────────────────────────────────────────────
+// Por qué jszip y no mammoth: el .docx es un zip con el documento en word/document.xml; lo único que
+// se necesita son las tablas y los párrafos, sin formato. jszip ya viene con exceljs (sin binarios
+// nativos) y leer el XML directo evita convertir a HTML y volver a leerlo.
+const MENSAJE_DOC = 'Este .doc es del formato viejo de Word (97-2003): ábralo en Word y guárdelo como .docx, o súbalo como PDF o foto.';
+// El document.xml de un Word de varias páginas pesa unos cientos de KB; 10 MB descomprimido ya es
+// un archivo armado para gastar memoria (zip bomb).
+const MAX_DOCX_XML = 10 * 1024 * 1024;
+
+/**
+ * XML de Word → { hojas, textos, texto }. No es un parser XML completo: recorre en orden las
+ * etiquetas que importan (w:tbl, w:tr, w:tc, w:p, w:t, w:tab, w:br). Una tabla dentro de otra (Word
+ * la usa para maquetar) se aplana dentro de la celda que la contiene.
+ *   hojas  → una por tabla de Word (filas de celdas), como las tablas de un correo HTML.
+ *   textos → los párrafos fuera de tablas (título, número, fecha del documento).
+ *   texto  → todo en orden de lectura; las filas de tabla, con las celdas por tabulador. Es lo que
+ *            reciben los formatos de «documentos» (guía del MAG, documentos de custodia).
+ */
+function desdeDocxXml(xml) {
+  const hojas = [];
+  const lineas = [];
+  const textos = [];
+  const pila = [];
+  let parrafo = '';
+  let filasTotales = 0;
+  const actual = () => pila[pila.length - 1];
+  const agregar = (t) => {
+    const tb = actual();
+    if (tb && tb.celda != null) tb.celda += t; else parrafo += t;
+  };
+  // `[^<>]*` no cruza otra etiqueta: lineal aunque el XML venga roto.
+  const re = /<w:t(?:\s[^<>]*)?>([^<]*)<\/w:t>|<w:(tab|br|cr)\b[^<>]*\/>|<(\/?)w:(tbl|tr|tc|p)\b([^<>]*?)(\/?)>/g;
+  let m;
+  while ((m = re.exec(xml))) {
+    const [, texto, salto, cierre, etiqueta, , vacia] = m;
+    if (texto != null) { agregar(decodificarEntidades(texto)); continue; }
+    if (salto) { agregar(salto === 'tab' ? '\t' : '\n'); continue; }
+    const tb = actual();
+    if (etiqueta === 'p') {
+      if (!cierre && !vacia) continue;
+      if (tb && tb.celda != null) {
+        if (tb.celda && !tb.celda.endsWith('\n')) tb.celda += '\n';
+      } else {
+        for (const l of parrafo.split('\n').map(x => x.replace(/[  ]+/g, ' ').trim()).filter(Boolean)) { lineas.push(l); textos.push(l); }
+        parrafo = '';
+      }
+    } else if (etiqueta === 'tbl') {
+      if (!cierre) { pila.push({ filas: [], fila: null, celda: null }); continue; }
+      const t = pila.pop();
+      if (!t) continue;
+      cerrarCelda(t); cerrarFila(t);
+      const padre = actual();
+      if (padre && padre.celda != null) padre.celda += t.filas.map(f => f.join(' ')).join('\n');
+      else if (t.filas.length) {
+        hojas.push({ nombre: `Tabla ${hojas.length + 1}`, filas: t.filas });
+        for (const f of t.filas) lineas.push(f.map(c => c.replace(/\s*\n\s*/g, ' ')).join('\t'));
+      }
+    } else if (!tb) {
+      continue;
+    } else if (etiqueta === 'tr') {
+      cerrarCelda(tb); cerrarFila(tb);
+      if (!cierre) {
+        tb.fila = [];
+        if (++filasTotales > MAX_FILAS_HOJA) throw new ErrorArchivo(`El documento tiene más de ${MAX_FILAS_HOJA} filas de tabla`);
+      }
+    } else if (etiqueta === 'tc') {
+      cerrarCelda(tb);
+      if (!cierre) { if (!tb.fila) tb.fila = []; tb.celda = ''; }
+    }
+  }
+  for (const l of parrafo.split('\n').map(x => x.trim()).filter(Boolean)) { lineas.push(l); textos.push(l); }
+  const texto = lineas.join('\n');
+  // Sin tablas (alguien pegó el reporte como texto en Word): las líneas se parten como un pegado.
+  if (!hojas.length && texto) {
+    const { filas, comaDecimal } = filasDesdeTexto(texto);
+    hojas.push({ nombre: 'Texto', filas, comaDecimal });
+  }
+  return { hojas, textos, texto };
+}
+
+async function leerDocx(buffer) {
+  if (buffer[0] === 0xd0 && buffer[1] === 0xcf) throw new ErrorArchivo(MENSAJE_DOC); // .doc renombrado
+  if (buffer[0] !== 0x50 || buffer[1] !== 0x4b) throw new ErrorArchivo('El archivo no es un Word .docx válido');
+  const JSZip = require('jszip');
+  let zip;
+  try { zip = await JSZip.loadAsync(buffer); } catch (_) {
+    throw new ErrorArchivo('No se pudo leer el Word. Ábralo y guárdelo de nuevo como .docx, o súbalo como PDF.');
+  }
+  const doc = zip.file('word/document.xml');
+  if (!doc) throw new ErrorArchivo('El archivo no es un documento de Word (.docx) válido');
+  // El tamaño que declara el zip se revisa ANTES de descomprimir (y el real, después).
+  const declarado = doc._data && Number(doc._data.uncompressedSize);
+  const MUY_GRANDE = 'El documento de Word es demasiado grande: guarde solo las páginas que necesita';
+  if (declarado > MAX_DOCX_XML) throw new ErrorArchivo(MUY_GRANDE);
+  // El encabezado del zip puede mentir: se descomprime por partes y se corta al pasar el tope, así
+  // un .docx armado (5 MB que se inflan a GB) no se come la memoria del servidor.
+  const xml = await new Promise((ok, mal) => {
+    const partes = [];
+    let total = 0;
+    const flujo = doc.internalStream('uint8array');
+    flujo.on('data', (parte) => {
+      total += parte.length;
+      if (total > MAX_DOCX_XML) { flujo.pause(); mal(new ErrorArchivo(MUY_GRANDE)); return; }
+      partes.push(Buffer.from(parte));
+    }).on('error', () => mal(new ErrorArchivo('No se pudo leer el Word. Ábralo y guárdelo de nuevo como .docx, o súbalo como PDF.')))
+      .on('end', () => ok(Buffer.concat(partes).toString('utf8')))
+      .resume();
+  });
+  const r = desdeDocxXml(xml);
+  if (!r.texto.trim()) throw new ErrorArchivo('El Word no trae texto (¿es una foto pegada?): use «Cargar por foto»');
+  return r;
+}
+
 const MAX_RTF = 5 * 1024 * 1024;
 /** Encabezado del RTF comprimido: CompSize (bytes tras ese campo) y RawSize (descomprimido). */
 function rtfComprimidoSeguro(rtf) {
@@ -283,6 +399,8 @@ async function leerArchivo(buffer, nombre) {
     case 'eml': return leerEml(buffer);
     case 'msg': return leerMsg(buffer);
     case 'pdf': return leerPdf(buffer);
+    case 'docx': return leerDocx(buffer);
+    case 'doc': throw new ErrorArchivo(MENSAJE_DOC);
     default: throw new ErrorArchivo(`Tipo de archivo .${ext || '?'} no soportado`);
   }
 }
@@ -298,5 +416,5 @@ function leerPegado({ html, texto } = {}) {
 
 module.exports = {
   leerArchivo, leerPegado, tablasDesdeHtml, textoDesdeHtml, filasDesdeTexto, extension, ErrorArchivo,
-  rtfComprimidoSeguro, MAX_HTML,
+  rtfComprimidoSeguro, MAX_HTML, desdeDocxXml, MENSAJE_DOC,
 };

@@ -1,0 +1,21 @@
+CENTRO INTERNACIONAL DE INVERSIONES S.A                                   No.      1824
+Sistema de Control de Inventario                                                inv_rpt_doc
+                         TRASLADO DE INVENTARIO EN CUSTODIA
+Bodega de Origen  :  107  EQTB TEMPISQUE                        Estado :   Listo
+Bodega de Destino :  08   PAQUETERIA-MATERIA PRIMA              Lote :
+Fecha  :  24-04-2026 16:04:48
+Observaciones
+Articulo         CORTES FINOS LOTE 35 / RES 5094                                       Peso
+                 Descripcion                     Und.Alm.   Unidades   Und.Pes.
+22140   CESINA DE RES LIMPIA CP                  CAJ        1.00       KGS        3.66
+3.66
+22219   CACHO DE PALETA SCT DE RES CP            CAJ        1.00       KGS        3.96
+3.96
+22224   CARNE DE RES QUITITENA CS                CAJ        1.00       KGS        5.76
+5.76
+22228   POSTA DE PECHO  RRS.                     CAJ        1.00       KGS        19.10
+19.10
+40141   SERV.MAN DIAFRAGMA (OUTSIDE SKIRT)       CAJ        1.00       KGS        1.24
+1.24
+Entregado Por     Recibido Por     Liquidador de Ruter                 20.00              147.80
+JORGE.CARMONA

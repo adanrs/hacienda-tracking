@@ -67,6 +67,8 @@ app.use('/api/potreros', protegida, require('./routes/potreros'));
 app.use('/api/dashboard', protegida, require('./routes/dashboard'));
 app.use('/api/transporte', protegida, require('./routes/transporte'));
 app.use('/api/guias-transporte', protegida, require('./routes/guias-transporte'));
+app.use('/api/guias-movilizacion', protegida, require('./routes/guias-movilizacion'));
+app.use('/api/documentos-custodia', protegida, require('./routes/documentos-custodia'));
 app.use('/api/sacrificio', protegida, require('./routes/sacrificio'));
 app.use('/api/marmoleo', protegida, require('./routes/marmoleo'));
 app.use('/api/cortes', protegida, require('./routes/cortes'));

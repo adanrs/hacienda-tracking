@@ -375,6 +375,13 @@ export const api = {
   getGuiasTransporte: (params = {}) => request(`/guias-transporte${qs(params)}`),
   getGuiaTransporte: (id) => request(`/guias-transporte/${id}`),
   updateGuiaTransporte: (id, data) => request(`/guias-transporte/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  // Guías de movilización del MAG (FTZ-02) y documentos de custodia de CIISA (ASE/TRE)
+  getGuiasMovilizacion: () => request('/guias-movilizacion'),
+  getGuiaMovilizacion: (id) => request(`/guias-movilizacion/${id}`),
+  ligarDiioGuia: (id, lineaId, arete) => request(`/guias-movilizacion/${id}/animales/${lineaId}`, { method: 'PUT', body: JSON.stringify({ arete }) }),
+  getDocumentosCustodia: (params = {}) => request(`/documentos-custodia${qs(params)}`),
+  getDocumentoCustodia: (id) => request(`/documentos-custodia/${id}`),
+  ligarDocumentoCustodia: (id, arete) => request(`/documentos-custodia/${id}/animal`, { method: 'PUT', body: JSON.stringify({ arete }) }),
   getPendientesSacrificio: (fecha) => request(`/guias-transporte/pendientes-sacrificio${qs({ fecha })}`),
   getMarmoleoFechas: () => request('/marmoleo/fechas'),
   getMarmoleo: (fecha) => request(`/marmoleo${qs({ fecha })}`),

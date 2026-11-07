@@ -1218,7 +1218,7 @@ tr.rp-fila-falta > td { background: var(--alerta-suave); }
 .imp-detalle ul { margin: 4px 0 0 18px; padding: 0; }
 .imp-guias { margin: var(--esp-4) 0; }
 .imp-guias h4 { display: flex; align-items: center; gap: var(--esp-2); margin: 0 0 var(--esp-2); }
-.imp-guia { border: 1px solid var(--border-fuerte); border-radius: var(--radius); padding: var(--esp-3); margin-bottom: var(--esp-2); display: grid; gap: 4px; }
+.imp-guia { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--esp-3); margin-bottom: var(--esp-2); display: grid; gap: 4px; background: var(--bg-sutil); font-size: var(--texto-sm); overflow-wrap: anywhere; }
 .imp-pegado { width: 100%; min-height: 120px; font-family: ui-monospace, Consolas, monospace; font-size: var(--texto-sm); padding: 8px; border: 1px solid var(--border-fuerte); border-radius: var(--radius); background: var(--bg-card); color: var(--text); margin-bottom: var(--esp-3); }
 .imp-input-arete { width: 9ch; min-height: var(--toque-min); padding: 2px 6px; font: inherit; font-weight: 700; text-transform: uppercase; border: 2px solid var(--alerta-borde, #d9a400); border-radius: var(--radius); }
 .guia-encabezado { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--esp-3); margin-bottom: var(--esp-4); }
@@ -1263,3 +1263,37 @@ tr.fila-seleccionada td { background: var(--info-suave, #e8f1fb); }
 .lectura-foto-avance { width: 100%; height: 8px; }
 .badge-foto { white-space: nowrap; }
 @media (max-width: 640px) { .lectura-foto-botones .btn { flex: 1 1 auto; justify-content: center; min-height: 44px; } }
+
+/* Ligue manual a un animal (guía del MAG, documentos de custodia): arete + botones en una línea. */
+.ligar-animal { display: flex; flex-wrap: wrap; gap: var(--esp-2); align-items: center; }
+.ligar-animal input { width: 9rem; min-width: 0; min-height: var(--control-alto); padding: 4px 8px; border: 1px solid var(--border-fuerte); border-radius: var(--radius); background: var(--bg-card); color: var(--text); font: inherit; text-transform: uppercase; }
+.lista-documentos { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--esp-2); }
+
+/* Guía del MAG y documentos de custodia (GuiasMovilizacion, DocumentosCustodia, ImportadorDocumentos):
+   mismas reglas del sistema — tokens en vez de estilos en línea, controles de 44/48 px y tablas que
+   en celular pasan a tarjetas (lo hace la regla general de .card > .table-container > table). */
+.aviso-linea { display: flex; align-items: flex-start; gap: var(--esp-1); color: var(--alerta); }
+.aviso-linea > svg { flex-shrink: 0; margin-top: 3px; }
+.codigo-chico { font-family: var(--fuente-mono); font-size: var(--texto-xs); overflow-wrap: anywhere; }
+.imp-documento-texto { margin-top: var(--esp-4); }
+.imp-documento-texto .imp-pegado { margin-top: var(--esp-2); }
+.ligar-documento { display: grid; gap: var(--esp-1); }
+.lista-documentos li { overflow-wrap: anywhere; }
+.lista-archivos li .btn-icon { min-width: var(--toque-min); min-height: var(--toque-min); }
+@media (pointer: coarse) {
+  .lista-documentos a { display: inline-flex; align-items: center; min-height: var(--toque-min); }
+}
+@media (max-width: 819.98px) {
+  /* El arete a ligar ocupa el ancho de la tarjeta y los botones quedan al lado, a 44 px. */
+  .ligar-animal { width: 100%; justify-content: flex-end; }
+  .ligar-animal input { flex: 1 1 8rem; min-height: var(--toque-min); }
+  /* Total del documento de custodia: también como tarjeta, debajo de las líneas. */
+  .main-content .card > .table-container > table.tabla-con-total tfoot { display: block; }
+  .main-content .card > .table-container > table.tabla-con-total tfoot tr {
+    display: block; border: 2px solid var(--border-fuerte); border-radius: var(--radius); padding: var(--esp-1) var(--esp-4) var(--esp-2); background: var(--bg-sutil);
+  }
+  .main-content .card > .table-container > table.tabla-con-total tfoot td {
+    display: flex; justify-content: space-between; align-items: center; gap: var(--esp-3); padding: 6px 0; border-bottom: 1px solid var(--border-regla); text-align: right;
+  }
+  .main-content .card > .table-container > table.tabla-con-total tfoot td:last-child { border-bottom: none; }
+}

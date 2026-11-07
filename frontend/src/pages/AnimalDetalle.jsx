@@ -12,7 +12,7 @@ const saludBadge = { vacunacion: 'badge-green', desparasitacion: 'badge-blue', t
 // Colores de gráfico alineados con los tokens de index.css (recharts necesita valores, no var()).
 const MARCA = '#b8184a';
 const EJE = { texto: '#5f5f5c', linea: '#8e8e89', grilla: '#ececea' };
-const timelineBadgeClass = { pesaje: 'badge-green', vacunacion: 'badge-blue', movimiento: 'badge-yellow', sacrificio: 'badge-red', corte: 'badge-purple', transporte: 'badge-orange', deshuese: 'badge-blue', primal: 'badge-blue', custodia: 'badge-gray', maduracion: 'badge-yellow', porcionado: 'badge-purple', sticker: 'badge-gray' };
+const timelineBadgeClass = { pesaje: 'badge-green', vacunacion: 'badge-blue', movimiento: 'badge-yellow', sacrificio: 'badge-red', corte: 'badge-purple', transporte: 'badge-orange', deshuese: 'badge-blue', primal: 'badge-blue', custodia: 'badge-gray', maduracion: 'badge-yellow', porcionado: 'badge-purple', sticker: 'badge-gray', guia_movilizacion: 'badge-orange', custodia_ciisa: 'badge-gray' };
 
 export default function AnimalDetalle() {
   const { id } = useParams();
@@ -104,6 +104,30 @@ export default function AnimalDetalle() {
               <Line type="monotone" dataKey="peso" stroke={MARCA} strokeWidth={2} dot={{ r: 4, fill: MARCA }} activeDot={{ r: 6, fill: MARCA }} />
             </LineChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {(animal.guias_movilizacion?.length > 0 || animal.documentos_custodia?.length > 0) && (
+        // Documentos del MAG y de la planta donde aparece el animal (guía por DIIO; ASE/TRE por Lote CC / RES).
+        <div className="card">
+          <div className="card-header"><h3>Documentos</h3></div>
+          <ul className="lista-documentos">
+            {(animal.guias_movilizacion || []).map(g => (
+              <li key={`g${g.id}`}>
+                <Link to={`/guias-movilizacion/${g.id}`}><strong>Guía de movilización MAG {g.numero}</strong></Link>
+                {' · '}{formatDate(g.fecha)} · DIIO <code>{g.diio}</code>{g.destino_establecimiento ? ` · a ${g.destino_establecimiento}` : ''}
+                {g.vinculo === 'manual' && <span className="rp-tenue"> · ligado a mano</span>}
+              </li>
+            ))}
+            {(animal.documentos_custodia || []).map(d => (
+              <li key={`d${d.id}`}>
+                <Link to={`/documentos-custodia/${d.id}`}><strong>{d.tipo === 'traslado' ? `Traslado de custodia TRE ${d.numero}` : `Ajuste de salida ASE ${d.numero}`}</strong></Link>
+                {' · '}{formatDate(d.fecha)}{d.bodega_destino_nombre ? ` · a ${d.bodega_destino_nombre}` : ''}
+                {d.total_kg != null ? ` · ${Number(d.total_kg).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg` : ''}
+                {d.vinculo === 'manual' && <span className="rp-tenue"> · ligado a mano</span>}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
