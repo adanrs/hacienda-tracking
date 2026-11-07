@@ -10,7 +10,9 @@
 //   catalogo_cortes_bitacora    → quién creó, cambió, desactivó o reasignó cada código y qué cambió.
 //   catalogo_cortes (datos)     → siembra los códigos del archivo que FALTEN (no pisa lo editado en
 //                                 pantalla), el genérico 99 «Corte pendiente de codificar», y pasa
-//                                 11163 y 22229 a trimming (materia prima de molida).
+//                                 11163 y 22229 a trimming (materia prima de molida). Desde el
+//                                 07-nov-2026 también apunta Porterhouse/T-Bone F1 a sus FB reales
+//                                 (26682/26683) y marca 26345/26347 como código anterior.
 //   reporte_produccion          → origen 'pdf', totales del pie tal como los imprime CIISA, archivo
 //                                 PDF guardado e importación que lo cargó.
 //   reporte_produccion_lineas   → codigo_informado: el código que traía la planta cuando la línea
@@ -20,7 +22,7 @@
 //                                 código (Grasa rinodada, Lengua…).
 //   solicitudes_deshuese.estado → suma 'con_reporte' (todas sus canales tienen reporte de producción).
 
-const { CATALOGO_CIISA } = require('../data/catalogo-ciisa');
+const { CATALOGO_CIISA, CATALOGO_POR_CODIGO, CODIGOS_ANTERIORES } = require('../data/catalogo-ciisa');
 const { CODIGO_PENDIENTE, NOMBRE_PENDIENTE } = require('../lib/catalogoCortes');
 
 const TIPOS_CORTE = ['primal', 'subprimal', 'hueso', 'subproducto', 'trimming', 'retail', 'grasa', 'trim', 'bch', 'otro'];
@@ -76,6 +78,23 @@ async function migrarProduccionCatalogo(conn) {
     await conn.query(
       `UPDATE catalogo_cortes SET tipo = 'trimming' WHERE (codigo = '11163' AND tipo = 'trim') OR (codigo = '22229' AND tipo = 'bch')`,
     );
+    // Porterhouse / T-Bone FB (JC, 07-nov-2026): la planta usa 26682 / 26683, no 26345 / 26347 del
+    // v10. Las filas ya sembradas tienen la equivalencia vieja y el INSERT IGNORE de arriba no la
+    // corrige. Solo se tocan si siguen con el valor del v10 (respeta lo editado en pantalla) y no se
+    // borra nada: 26345 / 26347 quedan activos como código anterior.
+    for (const [anterior, vigente] of Object.entries(CODIGOS_ANTERIORES)) {
+      const actual = CATALOGO_POR_CODIGO[vigente];
+      await conn.query(
+        'UPDATE catalogo_cortes SET codigo_equivalente = ? WHERE codigo = ? AND codigo_equivalente = ?',
+        [vigente, actual.codigo_equivalente, anterior],
+      );
+      await conn.query(
+        `UPDATE catalogo_cortes
+            SET codigo_equivalente = NULL, notas = ?
+          WHERE codigo = ? AND codigo_equivalente = ?`,
+        [CATALOGO_POR_CODIGO[anterior].notas, anterior, actual.codigo_equivalente],
+      );
+    }
   } catch (e) {
     console.error(`[initDB produccion/catalogo] ${e.code || 'ERROR'}: ${e.message} — ${SIN_CATALOGO}`);
   }

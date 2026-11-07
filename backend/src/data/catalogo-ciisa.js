@@ -7,7 +7,9 @@
  * Reglas del documento:
  *  - Todos los códigos los abre CIISA; son los mismos en CIISA, EQTBL y Enlace.
  *  - F1 = serie 266xx, FB = serie 263xx correlativa. La equivalencia F1↔FB se toma
- *    de la tabla C1, NO se calcula (hay FB fuera de serie: 26676, 26680, 26684).
+ *    de la tabla C1, NO se calcula (hay FB fuera de serie: 26676, 26680, 26682, 26683, 26684).
+ *  - 07-nov-2026 (JC): la planta usa 26682 (Porterhouse FB) y 26683 (T-Bone FB), no los 26345 y
+ *    26347 del v10. Los del v10 quedan como «código anterior» (ver CODIGOS_ANTERIORES).
  *  - Vida útil por defecto: congelado 12 meses desde la fecha de etiqueta; primal fresco 90 días.
  *  - Ventanas: cortes 30–90 días tras deshuese; carne molida ≤ 7; chorizo ≤ 90.
  *
@@ -41,9 +43,11 @@ const C1 = [
   ['Denver Steak', '26632', '26341'],
   ['Full Brisket', '26633', '26342'],
   ['Outside Skirt Steak', '26639', '26343', 'Descripción FB en Enlace sin «FB»'],
-  ['Porterhouse', '26643', '26345', 'FB nuevo · crear en Enlace'],
+  // Porterhouse y T-Bone FB: el v10 decía 26345 / 26347, pero la planta etiqueta con 26682 / 26683
+  // (JC, 07-nov-2026). Los del v10 siguen abajo como código anterior para no perder lo ya registrado.
+  ['Porterhouse', '26643', '26682', null, 'FB fuera de la serie 263xx (la planta lo usa en vez del 26345 del v10)'],
   ['Tenderloin Butt (cabeza de lomito)', '26646', '26346', 'FB nuevo · crear en Enlace'],
-  ['T-Bone', '26644', '26347', 'FB nuevo · crear en Enlace'],
+  ['T-Bone', '26644', '26683', null, 'FB fuera de la serie 263xx (la planta lo usa en vez del 26347 del v10)'],
   ['Ribeye Filet', '26554', '26676', null, 'FB fuera de la serie 263xx'],
   ['Osobuco', '26640', '26680', null, 'FB fuera de la serie 263xx'],
   ['Cowboy Steak', '26645', '26684', null, 'FB fuera de la serie 263xx'],
@@ -54,6 +58,20 @@ for (const [nombre, f1, fb, notaEnlaceFB = null, notaFB = null] of C1) {
   const comun = { ...base, nombre, nombre_en: nombre, tipo: 'retail', ventana_min_dias: 30, ventana_max_dias: 90, grupo: 'C1' };
   cortesC1.push({ ...comun, codigo: f1, serie: 'F1', genetica: 'F1', codigo_equivalente: fb });
   cortesC1.push({ ...comun, codigo: fb, serie: 'FB', genetica: 'FB', codigo_equivalente: f1, nota_enlace: notaEnlaceFB, notas: notaFB });
+}
+
+// Códigos FB del documento v10 que la planta NO usa. Se conservan (no se borran: puede haber
+// etiquetas, stickers o líneas de reporte con ellos) como «código anterior» del mismo producto.
+// Sin codigo_equivalente: la pareja F1↔FB es una sola (26643↔26682), si no la equivalencia
+// dejaría de ser simétrica. `codigo_vigente` no es columna de la base: lo usa el decodificador.
+const CODIGOS_ANTERIORES = Object.freeze({ 26345: '26682', 26347: '26683' });
+for (const [anterior, vigente] of Object.entries(CODIGOS_ANTERIORES)) {
+  const actual = cortesC1.find((c) => c.codigo === vigente);
+  cortesC1.push({
+    ...actual, codigo: anterior, codigo_equivalente: null, codigo_vigente: vigente,
+    nota_enlace: 'FB nuevo · crear en Enlace (v10)',
+    notas: `Código anterior (documento v10): la planta usa ${vigente}`,
+  });
 }
 
 // ── C2 · Solo F1 y especiales (sin equivalente FB) ──────────────────────────
@@ -71,6 +89,9 @@ const cortesC2 = [
   c2('26652', 'Country Style Ribs'),
   c2('26660', 'Half Rack of Ribs'),
   c2('26662', 'Delmonico / Chuck Eye', { notas: 'Delmonico/Chuck Eye (EQTBL)' }),
+  // Confirmado por JC 07-nov-2026 como producto terminado de la planta. No figura en el v10;
+  // F1 por la serie 266xx (no hay equivalente FB conocido).
+  c2('26641', 'New York Bone In', { notas: 'Producto terminado CIISA confirmado por JC 07-nov-2026' }),
   // Primales o piezas enteras sin porcionar (AG = entero)
   c2('26553', 'Ribeye Roll', { tipo: 'primal', notas: 'Primal / pieza entera sin porcionar' }),
   c2('26665', 'Ribeye AG', { tipo: 'primal', notas: 'AG = entero, sin porcionar' }),
@@ -122,6 +143,14 @@ const cortesC4 = [
   c4('22229', 'CH-Chuck res (BCH carnes rojas)', 'trimming', NOTA_PROCESO),
   c4('25000', 'BCH Wagyu', 'bch'),
   c4('25002', 'Trimmings', 'trim', 'Se prorratean por peso canal; bolsa granel 60 lb = 27.22 kg nominal'),
+  // BCH de paquetería: recortes que se recuperan al porcionar en paquetería (JC, 07-nov-2026).
+  // Serie F1 por la convención 266xx, pero la genética queda vacía: el recorte puede mezclar
+  // animales. No es un corte de venta; solo tiene que reconocerse en inventario y traslados.
+  // JC está revisando si se sigue usando: el código existe igual.
+  {
+    ...base, codigo: '26674', nombre: 'BCH paquetería', tipo: 'bch', serie: 'F1', grupo: 'C4',
+    notas: 'Recortes recuperados del porcionado de paquetería; no se vende como corte (JC revisa si se sigue usando)',
+  },
   // Primales y postas
   c4('21114', 'Faldilla FLS', 'primal'),
   c4('21115', 'Posta punta solomo', 'primal'),
@@ -173,4 +202,6 @@ const CODIGOS_INTERNOS_PREVIOS = Object.freeze([
   '21019', '21020', '21021', '21022', '21023', '21024', '21025', '21026', '30001', '30002', '30003',
 ]);
 
-module.exports = { CATALOGO_CIISA, CATALOGO_POR_CODIGO, CODIGOS_INTERNOS_PREVIOS, VIDA_CONGELADO, VIDA_FRESCO };
+module.exports = {
+  CATALOGO_CIISA, CATALOGO_POR_CODIGO, CODIGOS_ANTERIORES, CODIGOS_INTERNOS_PREVIOS, VIDA_CONGELADO, VIDA_FRESCO,
+};
