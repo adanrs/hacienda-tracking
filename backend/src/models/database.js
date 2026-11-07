@@ -847,18 +847,12 @@ async function initDB() {
     // Traslados 107 → tienda (WC-01) desde el inventario de la planta y su recepción: ver models/trasladosTienda.js.
     await migrarTrasladosTienda(conn);
 
-    // BMS de la caja (Juan Carlos, 06-nov-2026): los 2 últimos dígitos del código de caja son el
-    // BMS (0–12). Las cajas escaneadas antes lo tienen guardado crudo en `sufijo`: se copia una sola
-    // vez (solo donde `bms` está vacío y el sufijo es un BMS válido; correrlo de nuevo no cambia
-    // nada). En el primal `sufijo` sigue siendo crudo: no está confirmado que sea el BMS.
-    try { await conn.query("ALTER TABLE reporte_produccion_escaneos ADD COLUMN bms TINYINT UNSIGNED NULL COMMENT 'BMS de la caja (pos. 24–25 del código, 0–12)' AFTER sufijo"); } catch (e) {}
-    try {
-      await conn.query(
-        `UPDATE reporte_produccion_escaneos SET bms = CAST(sufijo AS UNSIGNED)
-          WHERE bms IS NULL AND tipo = 'caja' AND sufijo REGEXP '^[0-9]{2}$' AND CAST(sufijo AS UNSIGNED) <= 12`);
-    } catch (e) {
-      console.error(`[initDB bms escaneos] ${e.code || 'ERROR'}: ${e.message}`);
-    }
+    // Columna `bms` de los escaneos (06-nov-2026). Desde el 07-nov-2026 queda vacía: los 2 últimos
+    // dígitos de la caja son un sufijo, NO el BMS (Juan Carlos); el BMS se calcula al leer con el
+    // marmoleo del animal del lote (routes/reporte-produccion.js). Se quitó el UPDATE que copiaba el
+    // sufijo a `bms` al arrancar: volvería a llenar lo que se corrija. Datos viejos:
+    // migraciones/2026-11-07-diagnostico-bms-sufijo-caja.sql.
+    try { await conn.query("ALTER TABLE reporte_produccion_escaneos ADD COLUMN bms TINYINT UNSIGNED NULL COMMENT 'Sin uso desde 07-nov-2026: el sufijo de la caja no es el BMS' AFTER sufijo"); } catch (e) {}
 
     console.log('Database tables initialized');
   } finally {

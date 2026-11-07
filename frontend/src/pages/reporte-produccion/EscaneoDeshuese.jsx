@@ -40,7 +40,7 @@ export default function EscaneoDeshuese({ fecha, setFecha, canEdit }) {
       titulo: `${r.descripcion || r.articulo_codigo} · ${fmtKg(r.peso_kg)} kg`,
       detalle: `${r.tipo === 'caja' ? 'Caja' : 'Primal'} del lote CC ${lote2(r.lote_cc)}${r.arete ? ` (arete ${r.arete})` : ''} · deshuese ${fechaCorta(r.fecha_deshuese)} · `
         + `en este lote van ${r.lote.cajas} cajas, ${fmtKg(r.lote.kg)} kg${r.fecha_ambigua ? ' · Revise la fecha: el día es ≤ 12' : ''}`
-        + `${r.bms != null ? ` · BMS ${r.bms}` : ''}${r.bms_comparacion?.estado === 'no_cuadra' ? ` · Ojo: ${r.bms_comparacion.aviso}` : ''}`,
+        + `${r.bms != null ? ` · BMS ${r.bms} (marmoleo del animal)` : ''}`,
     };
   };
 
@@ -168,9 +168,9 @@ export default function EscaneoDeshuese({ fecha, setFecha, canEdit }) {
                   <td>{l.descripcion || '—'}{l.copia > 1 ? ` (caja repetida ${l.copia})` : ''}</td>
                   <td className="num">{fmtKg(l.peso_kg)}</td>
                   <td>{l.tipo === 'caja' ? 'Caja' : 'Primal'}</td>
-                  <td className="num" title={l.bms_comparacion?.aviso || undefined}>
+                  {/* BMS = marmoleo medido del animal del lote; el sufijo de la caja no es el BMS (JC, 07-nov-2026). */}
+                  <td className="num" title={l.bms != null ? 'Marmoleo AUS-MEAT medido en la canal del animal del lote' : 'Sin marmoleo medido del animal'}>
                     {l.bms ?? '—'}
-                    {l.bms_comparacion?.estado === 'no_cuadra' && <> <span className="badge badge-orange">≠ animal {l.bms_comparacion.marmoleo_animal}</span></>}
                   </td>
                   <td>{l.escaneado_por || '—'}</td>
                   {canEdit && <td><button type="button" className="btn-icon" aria-label={`Quitar lectura ${l.articulo_codigo} ${fmtKg(l.peso_kg)} kg`} onClick={() => quitar(l)}><Trash2 size={16} aria-hidden="true" /></button></td>}

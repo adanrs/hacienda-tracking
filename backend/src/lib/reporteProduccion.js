@@ -493,8 +493,10 @@ function etiquetaParaReporte(codigo, tipoElegido) {
       lote_cc: c.loteDeshuese,
       fecha_ambigua: Boolean(c.fechaAmbigua),
       box_codigo: c.box || null,
-      sufijo: c.sufijo || null, // solo primal (crudo); en la caja esas posiciones son el BMS
-      bms: lectura.tipo === 'caja' && c.marmoleo != null ? c.marmoleo : null,
+      // Pos. 24–25 de caja y primal: sufijo crudo, NO es el BMS (Juan Carlos, 07-nov-2026). La
+      // columna `bms` queda vacía: el BMS de la caja es el marmoleo del animal y se calcula al leer.
+      sufijo: c.sufijo || null,
+      bms: null,
       decodificado: { tipo: lectura.tipo, campos: c, advertencias: lectura.advertencias },
     },
   };

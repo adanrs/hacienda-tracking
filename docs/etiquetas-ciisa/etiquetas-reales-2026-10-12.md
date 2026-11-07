@@ -84,7 +84,7 @@ En cambio, la caja y el primal sí llevan la fecha del deshuese en el lote. Para
 | Campo | Lo que se observa | Pregunta |
 |---|---|---|
 | «XXX» de la caja (pos. 11–13) | Literal `XXX` en las 3 cajas conocidas (2 reales + ejemplo v10) | ¿Es un campo sin usar (relleno) o algo que alguna vez cambia? (A1) |
-| Sufijo de la caja (pos. 24–25) | `11` en las 3 cajas | **Resuelto 06-nov-2026 (Juan Carlos): es el BMS** (marmoleo 0–12) de la caja. |
+| Sufijo de la caja (pos. 24–25) | `11` en las 3 cajas | ~~06-nov: es el BMS~~. **Corregido 07-nov-2026 (Juan Carlos): NO es el BMS**, es un sufijo de la caja de deshuese de significado desconocido; se guarda crudo. |
 | Sufijo del primal (pos. 24–25) | `10` en los 2 primales (real + ejemplo v10) | ¿Constante o dígito de control? (A2) |
 | `F1` + `11` final del paquete | El cliente dice F1/FB = contenido racial y 11 = marmoleo | Confirmar si el F1 de un producto FB es un error de impresión de CIISA (A16) |
 | N.º de deshuese 24 / 31 / 07 | Según el cliente es la **posición** del animal en el deshuese del día. El mismo número en dos fechas no es el mismo animal | Las 4 etiquetas son de fechas distintas (2023–2025), así que no se pueden cruzar con la tabla posición → arete del 21/09/26 |
@@ -97,15 +97,19 @@ En cambio, la caja y el primal sí llevan la fecha del deshuese en el lote. Para
 
 ## Actualización 06-nov-2026 (respuestas de Juan Carlos por WhatsApp)
 
-- **Los 2 últimos dígitos del código de caja son el BMS** (marmoleo, 0 a 12). Ejemplo de JC:
-  `2661700874xxx061125003511` = 26617 (producto) · 00874 (8.740 kg) · xxx (trazabilidad perdida) ·
-  061125 (fecha DDMMAA) · **0035 (lote de deshuese = «Lote CC» del reporte de producción, traza al
-  arete)** · **11 = BMS**. `lib/etiquetas.js` lo devuelve como `marmoleo`; fuera de rango o no numérico
-  es una advertencia y la caja queda sin BMS.
+- ~~Los 2 últimos dígitos del código de caja son el BMS~~. **Corregido 07-nov-2026 (Juan Carlos):** son
+  un **sufijo** de la caja de deshuese cuyo significado no se conoce, NO el BMS. Evidencia: en INV WAGYU
+  #10, 246 de 310 cajas terminan en «11», incluidas molida y tortas sin marmoleo; «10» en primales y
+  51–56 en BCH/trimming. Ejemplo de JC: `2661700874xxx061125003511` = 26617 (producto) · 00874
+  (8.740 kg) · xxx (trazabilidad perdida) · 061125 (fecha DDMMAA) · **0035 (lote de deshuese = «Lote
+  CC» del reporte de producción, traza al arete)** · 11 = sufijo. `lib/etiquetas.js` lo devuelve crudo
+  en `sufijo` y nunca `marmoleo`. El **BMS de una caja** es el marmoleo AUS-MEAT medido en la canal del
+  animal al que traza el lote (fecha de deshuese + Lote CC), o queda vacío (`lib/bmsCaja.js`). En la
+  bolsa de 28 el BMS sigue en las posiciones 27–28.
 - ~~El lote de 4 dígitos ya se trataba como Num. Lote → arete~~. **Corregido 07-nov-2026:** el lote de
   la etiqueta es el **Lote CC**, no el Num. Lote. Evidencia: los 5 reportes del deshuese del 19/03/26
   (`backend/test/fixtures/deshuese-19-03-2026/`) traen Num. Lote 1, 2, 3, 5, 6 y Lote CC 35, 36, 37, 39,
   40; la lista de JC liga Lote CC 35 → 279SKF, 36 → 255CKF, 37 → 599SKF, 39 → 1SKC, 40 → 477AKF; el
   traslado de custodia 1824 dice «LOTE 35» y las etiquetas traen 35 (primal) / 0035 (caja). El Num. Lote
   es solo el correlativo del PDF en el día y queda como dato informativo.
-- En el **primal** las posiciones 24–25 siguen como `sufijo` crudo: no está confirmado que sean el BMS.
+- En el **primal** las posiciones 24–25 siguen como `sufijo` crudo (tampoco son el BMS).

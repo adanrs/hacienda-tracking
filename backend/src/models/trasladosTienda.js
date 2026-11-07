@@ -42,7 +42,7 @@ async function migrarTrasladosTienda(conn) {
   await columna(conn, "ALTER TABLE ordenes_salida_items ADD COLUMN codigo_articulo VARCHAR(10) NULL COMMENT 'Código de producto CIISA de la caja'");
   await columna(conn, "ALTER TABLE ordenes_salida_items ADD COLUMN descripcion VARCHAR(150) NULL");
   await columna(conn, "ALTER TABLE ordenes_salida_items ADD COLUMN lote VARCHAR(20) NULL");
-  await columna(conn, "ALTER TABLE ordenes_salida_items ADD COLUMN bms TINYINT UNSIGNED NULL COMMENT 'BMS de la caja (2 últimos dígitos del código)'");
+  await columna(conn, "ALTER TABLE ordenes_salida_items ADD COLUMN bms TINYINT UNSIGNED NULL COMMENT 'BMS de la caja = marmoleo del animal (nunca los 2 últimos dígitos del código)'");
   await columna(conn, "ALTER TABLE ordenes_salida_items ADD COLUMN arete VARCHAR(20) NULL COMMENT 'Arete al que traza la caja (nunca el xxx literal)'");
   await columna(conn, 'ALTER TABLE ordenes_salida_items ADD INDEX idx_osi_codigo_barras (codigo_barras)');
   await columna(conn, 'ALTER TABLE ordenes_salida_items ADD CONSTRAINT fk_osi_inv_linea FOREIGN KEY (inventario_linea_id) REFERENCES inventario_planta_lineas(id) ON DELETE SET NULL');

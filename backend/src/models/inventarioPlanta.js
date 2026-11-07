@@ -70,22 +70,12 @@ async function migrarInventarioPlanta(conn) {
   } catch (e) {
     console.error(`[initDB inventario planta] ${e.code || 'ERROR'}: ${e.message} — la carga del inventario de la planta NO va a funcionar hasta corregirlo`);
   }
-  // BMS de la línea (Juan Carlos, 06-nov-2026): los 2 últimos dígitos del código de caja (o de la
-  // bolsa) son el BMS, 0–12. Columna aparte para filtrar y comparar con el marmoleo del animal; el
-  // JSON `decodificado` lo sigue trayendo. Las líneas cargadas antes lo tienen como `sufijo` (caja)
-  // o `marmoleo` (bolsa) en ese JSON: se copia una sola vez donde `bms` está vacío.
-  try { await conn.query("ALTER TABLE inventario_planta_lineas ADD COLUMN bms TINYINT UNSIGNED NULL COMMENT 'BMS de la caja o bolsa (2 últimos dígitos del código, 0–12)' AFTER decodificado"); } catch (e) {}
-  try {
-    await conn.query(
-      `UPDATE inventario_planta_lineas
-          SET bms = CAST(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(decodificado, '$.marmoleo')), JSON_UNQUOTE(JSON_EXTRACT(decodificado, '$.sufijo'))) AS UNSIGNED)
-        WHERE bms IS NULL
-          AND JSON_UNQUOTE(JSON_EXTRACT(decodificado, '$.tipo')) IN ('caja', 'paquete')
-          AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(decodificado, '$.marmoleo')), JSON_UNQUOTE(JSON_EXTRACT(decodificado, '$.sufijo'))) REGEXP '^[0-9]{1,2}$'
-          AND CAST(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(decodificado, '$.marmoleo')), JSON_UNQUOTE(JSON_EXTRACT(decodificado, '$.sufijo'))) AS UNSIGNED) <= 12`);
-  } catch (e) {
-    console.error(`[initDB inventario planta bms] ${e.code || 'ERROR'}: ${e.message}`);
-  }
+  // BMS de la línea (lib/bmsCaja.js): en la bolsa el impreso, en la caja el marmoleo medido del
+  // animal (los 2 últimos dígitos de la caja son un sufijo, NO el BMS: Juan Carlos, 07-nov-2026).
+  // Se quitó el UPDATE que copiaba `sufijo`/`marmoleo` del JSON a `bms` al arrancar: volvería a
+  // llenar con el sufijo lo que se corrija. Las pantallas calculan el BMS al leer; datos viejos:
+  // migraciones/2026-11-07-diagnostico-bms-sufijo-caja.sql.
+  try { await conn.query("ALTER TABLE inventario_planta_lineas ADD COLUMN bms TINYINT UNSIGNED NULL COMMENT 'BMS: impreso en la bolsa o marmoleo del animal (nunca el sufijo de la caja)' AFTER decodificado"); } catch (e) {}
 }
 
 module.exports = { migrarInventarioPlanta };

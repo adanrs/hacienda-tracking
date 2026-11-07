@@ -10,7 +10,7 @@
 // línea expone su id estable dentro del snapshot. Todo valor del request va por `?`.
 
 const router = require('express').Router();
-const { compararBmsCaja, marmoleosDe, marmoleoDeLinea } = require('../lib/bmsCaja');
+const { bmsVivo } = require('../lib/bmsCaja');
 const { pool } = require('../models/database');
 const { totalesDe, agrupar, diferencia } = require('../lib/importador/procesadores/inventarioCiisa');
 
@@ -84,11 +84,14 @@ router.get('/lineas', envolver(async (req, res) => {
      ORDER BY l.hoja, CAST(l.tarima AS UNSIGNED), l.tarima, l.fila LIMIT ${MAX_LINEAS + 1}`, params);
   const truncado = lineas.length > MAX_LINEAS;
   if (truncado) lineas.pop();
-  // BMS de cada caja contra el marmoleo medido del animal (aviso, ver lib/bmsCaja.js).
-  const m = await marmoleosDe(pool, { animalIds: lineas.filter((l) => l.bms != null).map((l) => l.animal_id), aretes: lineas.filter((l) => l.bms != null).map((l) => l.arete) });
-  const salida = lineas.map((l) => {
-    const comp = compararBmsCaja(l.bms, marmoleoDeLinea(m, l));
-    return { ...l, peso: l.peso == null ? null : Number(l.peso), vencido: Boolean(l.vencido), bms: l.bms == null ? null : Number(l.bms),
+  // BMS vivo (lib/bmsCaja.js): bolsa → el impreso comparado con el animal; caja → marmoleo medido
+  // del animal o null. No se usa `l.bms` guardado: los snapshots cargados antes del 07-nov-2026
+  // traen ahí el sufijo de la caja, que NO es el BMS.
+  const bmsLineas = await bmsVivo(pool, lineas);
+  const salida = lineas.map((l, i) => {
+    const b = bmsLineas[i];
+    const comp = b.comparacion;
+    return { ...l, peso: l.peso == null ? null : Number(l.peso), vencido: Boolean(l.vencido), bms: b.bms, bms_origen: b.origen,
       bms_animal: comp ? comp.marmoleo_animal : null, bms_estado: comp ? comp.estado : null, bms_aviso: comp ? comp.aviso : null };
   });
   // Tarimas y códigos del snapshot completo, para los filtros de la pantalla.

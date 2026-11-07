@@ -281,8 +281,10 @@ TEST_MYSQL_HOST=127.0.0.1 TEST_MYSQL_PORT=33061 npm test
 - Si el peso no cuadra o los productos no coinciden, la tienda **devuelve en el mismo transporte** o
   **avisa a la planta**. En el evento va en cada diferencia: `accion` = `devolver_mismo_transporte` |
   `avisar_planta`, con `motivo` obligatorio cuando viene `accion` (opcional para los eventos de antes).
-- La caja trae su **BMS** en los 2 últimos dígitos del código (0–12): la tienda lo lee con el mismo
-  decodificador (`wagyu-demo/src/lib/etiqueta.ts`).
+- **BMS de la caja** (`lineas[].bms`, corregido 07-nov-2026): es el marmoleo AUS-MEAT medido en la canal
+  del animal al que traza la caja (fecha de deshuese + Lote CC → arete), calculado al despachar; `null`
+  si no traza o el animal no tiene marmoleo medido. Los 2 últimos dígitos del código de caja NO son el
+  BMS (sufijo de la caja de deshuese, Juan Carlos): ni ganadería ni la tienda los interpretan.
 - La tienda ya tiene la pantalla «Traslados por recibir» (`wagyu-demo`, `docs/integracion-ganaderia.md`).
 
 ### Cómo se pide y cómo vuelve (06-nov-2026)

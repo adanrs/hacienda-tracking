@@ -12,7 +12,7 @@
 // Todo valor del request va por `?`; los nombres de tabla/columna son fijos en el código.
 
 const router = require('express').Router();
-const { compararBmsCaja, marmoleosDe, marmoleoDeLinea } = require('../lib/bmsCaja');
+const { marmoleosDe, marmoleoDeLinea } = require('../lib/bmsCaja');
 const multer = require('multer');
 const { idsNumericos, SOLO_DIGITOS } = require('../lib/params');
 const { pool } = require('../models/database');
@@ -529,16 +529,22 @@ router.get('/escaneos', envolver(async (req, res) => {
      LIMIT 2000`,
     lote ? [fecha, lote] : [fecha],
   );
-  // BMS de cada caja contra el marmoleo del animal de su lote (una consulta para toda la lista).
+  // BMS de cada caja = marmoleo medido del animal de su lote (fecha de deshuese + Lote CC → arete),
+  // una consulta para toda la lista. NO se usa `e.bms`: hasta el 07-nov-2026 guardó el sufijo de la
+  // caja (2 últimos dígitos), que no es el BMS (Juan Carlos). Sin animal o sin marmoleo → null.
   const m = await marmoleosDe(pool, { animalIds: filas.map((f) => f.animal_id), aretes: filas.map((f) => f.arete) });
-  res.json(filas.map(({ escaneado_ts: ts, animal_id: _a, ...f }) => ({
-    ...f,
-    escaneado: horaCR(ts),
-    peso_kg: Number(f.peso_kg),
-    lote_cc: Number(f.lote_cc),
-    bms: f.bms == null ? null : Number(f.bms),
-    bms_comparacion: compararBmsCaja(f.bms, marmoleoDeLinea(m, { animal_id: _a, arete: f.arete })),
-  })));
+  res.json(filas.map(({ escaneado_ts: ts, animal_id: _a, bms: _guardado, ...f }) => {
+    const bms = marmoleoDeLinea(m, { animal_id: _a, arete: f.arete });
+    return {
+      ...f,
+      escaneado: horaCR(ts),
+      peso_kg: Number(f.peso_kg),
+      lote_cc: Number(f.lote_cc),
+      bms,
+      bms_origen: bms == null ? null : 'animal',
+      bms_comparacion: null,
+    };
+  }));
 }));
 
 // POST /api/reporte-produccion/escaneos
@@ -603,14 +609,15 @@ router.post('/escaneos', envolver(async (req, res) => {
     [e.fecha_deshuese, e.lote_cc],
   );
   const [aretes] = await pool.query('SELECT arete, animal_id FROM lotes_cc_aretes WHERE fecha_deshuese = ? AND lote_cc = ?', [e.fecha_deshuese, e.lote_cc]);
-  // BMS de la caja contra el marmoleo medido del animal del lote: aviso, nunca bloquea.
-  let bmsComparacion = null;
-  if (e.bms != null && aretes.length) {
+  // BMS de la caja = marmoleo medido del animal del lote (el sufijo de la etiqueta NO es el BMS,
+  // Juan Carlos 07-nov-2026). Solo informativo: si la consulta falla, el escaneo igual queda.
+  let bmsAnimal = null;
+  if (aretes.length) {
     try {
       const m = await marmoleosDe(pool, { animalIds: [aretes[0].animal_id], aretes: [aretes[0].arete] });
-      bmsComparacion = compararBmsCaja(e.bms, marmoleoDeLinea(m, aretes[0]));
+      bmsAnimal = marmoleoDeLinea(m, aretes[0]);
     } catch (err) {
-      console.error('[reporte-produccion] comparación de BMS', err.message);
+      console.error('[reporte-produccion] marmoleo del animal', err.message);
     }
   }
   res.status(201).json({
@@ -625,8 +632,9 @@ router.post('/escaneos', envolver(async (req, res) => {
     fecha_ambigua: e.fecha_ambigua,
     escaneado: horaCR(Math.floor(Date.now() / 1000)),
     arete: aretes.length ? aretes[0].arete : null,
-    bms: e.bms,
-    bms_comparacion: bmsComparacion,
+    bms: bmsAnimal,
+    bms_origen: bmsAnimal == null ? null : 'animal',
+    bms_comparacion: null,
     lote: { cajas: Number(resumen.cajas), kg: Number(resumen.kg) },
   });
 }));

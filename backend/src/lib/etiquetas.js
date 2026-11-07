@@ -20,14 +20,16 @@
  *      11–13 campo «XXX» (significado por confirmar con CIISA; se guarda crudo)
  *      14–19 fecha DDMMAA (base del vencimiento)
  *      20–23 lote de deshuese (4 dígitos) = «Lote CC» del reporte de producción
- *      24–25 BMS (marmoleo, 00–12). Juan Carlos lo confirmó el 06-nov-2026: los 2 últimos
- *            dígitos son el BMS de la caja (antes se guardaban crudos como «sufijo»). Fuera de
- *            rango o no numérico → advertencia y `marmoleo: null`; NO es error, para no cambiar
- *            la desambiguación caja / primal.
+ *      24–25 sufijo de la caja de deshuese, CRUDO: NO es el BMS. Juan Carlos lo corrigió el
+ *            07-nov-2026 (el 06-nov se había tomado como BMS): en INV WAGYU #10, 246 de 310 cajas
+ *            terminan en «11», incluidas molida y tortas sin marmoleo; «10» en primales, 51–56 en
+ *            BCH/trimming. Se guarda en `sufijo` sin interpretar ni validar. El BMS de una caja
+ *            es el marmoleo de la canal del animal (cámara AUS-MEAT, `sacrificios.marmoleo`) al
+ *            que traza su lote (fecha de deshuese + Lote CC): ver lib/bmsCaja.js.
  *      Texto legible «Lote 2201250031» = posiciones 14–23. Ejemplo real de JC:
  *      «2661700874xxx061125003511» = 26617 · 8.74 kg · xxx (trazabilidad perdida) · 06-11-25 ·
  *      lote 0035 (= «Lote CC» del reporte de producción → arete; NO el «Num. Lote», que es el
- *      correlativo del PDF en el día) · BMS 11.
+ *      correlativo del PDF en el día) · sufijo 11 (no es el BMS).
  *
  *  C · Primal (25 dígitos, Code 39)
  *      1–5   código Arreo del primal
@@ -35,7 +37,7 @@
  *      11–15 peso neto en centésimas de kg
  *      16–21 fecha de empaque MMDDAA (¡mes primero!)
  *      22–23 lote de deshuese (2 dígitos) = «Lote CC» del reporte de producción
- *      24–25 sufijo (se guarda crudo: en el primal NO está confirmado que sea el BMS)
+ *      24–25 sufijo (crudo, igual que en la caja: NO es el BMS; los primales suelen traer «10»)
  *      Texto legible «Lot 03112620» = posiciones 16–23.
  *
  * Desambiguación por estructura (antes de interpretar nada):
@@ -88,13 +90,13 @@ const BMS_MIN = 0;
 const BMS_MAX = 12;
 
 /**
- * BMS de los 2 últimos dígitos de la etiqueta: «11» → 11, «00» → 0; «13», «xx», «1» → null con
+ * BMS de los 2 últimos dígitos de la etiqueta de BOLSA (la caja no trae BMS): «11» → 11, «00» → 0; «13», «xx», «1» → null con
  * el error listo. Mismo rango que la tienda (wagyu-demo, lib/bms.ts): 0–12.
  */
 function bmsDesdeTexto(texto, campo = 'marmoleo') {
   const n = /^\d{2}$/.test(texto) ? Number(texto) : NaN;
   if (Number.isInteger(n) && n >= BMS_MIN && n <= BMS_MAX) return { bms: n, error: null };
-  return { bms: null, error: error('marmoleo_invalido', campo, `BMS «${texto}» fuera de rango 00–12: la caja queda sin BMS`) };
+  return { bms: null, error: error('marmoleo_invalido', campo, `BMS «${texto}» fuera de rango 00–12: la bolsa queda sin BMS`) };
 }
 
 /** Quita espacios y saltos de línea (conserva guiones) y pasa a mayúsculas. */
@@ -348,9 +350,6 @@ function leerCaja(s) {
     advertencias.push(error('fecha_ambigua', 'fecha',
       'Día ≤ 12: la fecha podría leerse como DDMMAA o MMDDAA; validar contra la fecha registrada del lote'));
   }
-  // 24–25 = BMS (ver cabecera). Inválido → advertencia, no error.
-  const bms = bmsDesdeTexto(pos(s, 24, 25));
-  if (bms.error) advertencias.push(bms.error);
   const campoXXX = pos(s, 11, 13);
   const sinArete = esSinTrazabilidad(campoXXX);
   if (sinArete) {
@@ -375,7 +374,8 @@ function leerCaja(s) {
       // Lote de 10 dígitos = fecha del deshuese DDMMAA + LOTE DE DESHUESE de 4 dígitos (el «Lote CC»
       // del reporte de producción de CIISA). Con «xxx» la trazabilidad se recupera por ese puente:
       // ver lib/trazabilidadEtiqueta.js.
-      marmoleo: bms.bms,
+      // 24–25: sufijo crudo, NO es el BMS (ver cabecera). La caja nunca trae `marmoleo`.
+      sufijo: pos(s, 24, 25),
     },
     errores,
     advertencias,

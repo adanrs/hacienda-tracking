@@ -30,8 +30,9 @@
 //   inventario_planta_cargas.archivo  ARCHIVO ('PRUEBA-flujo-completo.xlsx'); las líneas caen por
 //                                     cascada. tarima = 'PRUEBA' en cada línea.
 //   Cajas CIISA (25 caracteres)       PPPPP GGGGG XXX DDMMAA 9999 07: lote 9999 (= Lote CC del
-//                                     reporte de PRUEBA) y BMS 07 (= marmoleo AUS-MEAT 7 de la canal,
-//                                     así la comparación BMS ↔ marmoleo da «coincide»).
+//                                     reporte de PRUEBA) y sufijo 07. El sufijo NO es el BMS (JC,
+//                                     07-nov-2026): el BMS de la caja sale del marmoleo AUS-MEAT 7 de
+//                                     la canal. Se deja en 07 para no cambiar los códigos ya sembrados.
 //
 // Fechas: el deshuese es «hace 3 días» (hora de Costa Rica) la PRIMERA vez que se corre; después
 // se reutilizan las fechas de lo ya sembrado (si no, las cajas del día siguiente ya no trazarían al
@@ -67,7 +68,7 @@ const FINCA = 'PRUEBA finca';
 const COMPRADOR = 'PRUEBA';
 const TARIMA = 'PRUEBA';
 const MARMOLEO = 7; // DMs AUS-MEAT de la canal (0–9)
-const BMS = 7; // 2 últimos dígitos de cada caja
+const SUFIJO = 7; // 2 últimos dígitos de cada caja: sufijo crudo, NO el BMS
 
 // Cajas de la hoja «INV GENERAL». Códigos reales del catálogo CIISA (data/catalogo-ciisa.js):
 // 3 cortes por kilo y 1 producto que la tienda vende por unidad (tortas, que la planta controla por
@@ -96,10 +97,10 @@ function sumarDias(iso, n) {
 /** AAAA-MM-DD → DDMMAA (fecha de la caja CIISA). */
 const ddmmaa = (iso) => `${iso.slice(8, 10)}${iso.slice(5, 7)}${iso.slice(2, 4)}`;
 
-/** Código de barras de caja CIISA: producto 5 · peso en centésimas 5 · XXX 3 · DDMMAA · lote 4 · BMS 2. */
+/** Código de barras de caja CIISA: producto 5 · peso en centésimas 5 · XXX 3 · DDMMAA · lote 4 · sufijo 2. */
 function codigoCaja(c, fechaDeshuese) {
   const centesimas = String(Math.round(c.kg * 100)).padStart(5, '0');
-  return `${c.codigo}${centesimas}${c.xxx}${ddmmaa(fechaDeshuese)}${String(LOTE).padStart(4, '0')}${String(BMS).padStart(2, '0')}`;
+  return `${c.codigo}${centesimas}${c.xxx}${ddmmaa(fechaDeshuese)}${String(LOTE).padStart(4, '0')}${String(SUFIJO).padStart(2, '0')}`;
 }
 
 // ── Utilidades de base ───────────────────────────────────────────────────────

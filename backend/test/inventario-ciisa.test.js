@@ -147,10 +147,15 @@ test('plan (conn falso): ambos libros completos con advertencias, sin errores', 
   assert.ok(rec.length > 0);
   assert.ok(rec.every((f) => f.lote === '2903260039' && f.arete === 'INV107A' && f.animal_id === 77));
   assert.ok(rec[0].avisos.some((a) => /Trazabilidad recuperada/.test(a)));
-  // BMS de la caja (2 últimos dígitos, «…003911» → 11) guardado en la línea y comparado con el
-  // marmoleo del animal: AUS-MEAT 5 contra BMS 11 no es comparable sin tabla de conversión (sin aviso).
-  assert.ok(rec.every((f) => f.bms === 11 && f.bms_animal === 5 && f.bms_estado === 'no_comparable'));
+  // BMS de la caja = marmoleo medido del animal al que trazó (AUS-MEAT 5), NO los 2 últimos dígitos
+  // del código («…003911»: sufijo de la caja, Juan Carlos 07-nov-2026). Sin comparación ni aviso.
+  assert.ok(rec.every((f) => f.codigo_barras.endsWith('11') && f.bms === 5 && f.bms_origen === 'animal' && f.bms_estado === undefined));
   assert.ok(!rec[0].avisos.some((a) => /BMS/.test(a)));
+  // Las cajas que no trazan a un animal con marmoleo quedan SIN BMS, aunque terminen en «11».
+  const cajas11 = plan41.filas.filter((f) => f.codigo_barras && f.codigo_barras.length === 25 && f.codigo_barras.endsWith('11'));
+  assert.ok(cajas11.length > 100, `cajas que terminan en 11: ${cajas11.length}`);
+  assert.ok(cajas11.filter((f) => f.animal_id !== 77).every((f) => f.bms === null), 'caja «…11» sin animal → sin BMS');
+  assert.ok(!plan41.filas.some((f) => f.bms === 11), 'ninguna línea toma el 11 del sufijo como BMS');
   assert.equal(plan41.totales.general.trazabilidad.recuperada, rec.length);
   assert.equal(plan41.totales.maduracion.piezas, 399);
   // El nombre del archivo no cambia la huella del contenido.
