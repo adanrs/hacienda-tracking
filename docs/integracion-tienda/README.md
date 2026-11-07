@@ -330,7 +330,7 @@ TEST_MYSQL_HOST=127.0.0.1 TEST_MYSQL_PORT=33061 npm test
 ### Datos de prueba de punta a punta
 
 - `backend/src/seeds/prueba-flujo.js` es idempotente. Crea el animal PRUEBA con su guía, sacrificio,
-  marmoleo, solicitud de deshuese, deshuese, reporte de producción (Num. Lote 9999) y 4 cajas en
+  marmoleo, solicitud de deshuese, deshuese, reporte de producción (Lote CC 9999) y 4 cajas en
   la 107 (snapshot «PRUEBA-flujo-completo.xlsx»). Todo queda marcado PRUEBA.
 - `backend/src/seeds/borrar-prueba-flujo.js` lo borra por esos marcadores y borra también las
   órdenes `es_prueba = 1` con sus recepciones y sus eventos.

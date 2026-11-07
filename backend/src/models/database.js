@@ -682,8 +682,8 @@ async function initDB() {
       CREATE TABLE IF NOT EXISTS reporte_produccion (
         id INT AUTO_INCREMENT PRIMARY KEY,
         fecha_produccion DATE NOT NULL COMMENT 'Fecha de Producción del reporte CIISA (día del deshuese)',
-        lote_cc SMALLINT UNSIGNED NOT NULL COMMENT 'Lote CC = posición del animal en el deshuese del día (06)',
-        num_lote VARCHAR(20) NULL COMMENT 'Num. Lote del encabezado CIISA (significado por confirmar, R1)',
+        lote_cc SMALLINT UNSIGNED NOT NULL COMMENT 'Lote CC = lote de deshuese del animal (06), el impreso en cajas y primales: llave del arete',
+        num_lote VARCHAR(20) NULL COMMENT 'Num. Lote del encabezado CIISA: correlativo del PDF en el día, solo informativo (el arete se liga por lote_cc)',
         tipo_produccion VARCHAR(60) NULL COMMENT 'Tipo Producción (TEMPISQUE; por confirmar, R2)',
         origen ENUM('excel_csv','manual','pegado','json') NOT NULL DEFAULT 'manual' COMMENT 'Cómo se capturó',
         archivo_nombre VARCHAR(255) NULL COMMENT 'Archivo importado, si vino de Excel/CSV',

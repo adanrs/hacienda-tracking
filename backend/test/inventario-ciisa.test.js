@@ -116,7 +116,7 @@ function connFalso(estado) {
     async query(sql, params = []) {
       if (/FROM catalogo_cortes WHERE codigo IN/.test(sql)) return [params.filter((c) => c !== '26687').map((codigo) => ({ codigo, activo: 1 }))];
       if (/FROM reporte_produccion rp/.test(sql)) {
-        return [params[0] === '2026-03-29' && params[1] === '39' ? [{ reporte_id: 5, fecha_produccion: '2026-03-29', num_lote: '39', lote_cc: 39, arete: 'INV107A', animal_id: 77 }] : []];
+        return [params[0] === '2026-03-29' && Number(params[1]) === 39 ? [{ reporte_id: 5, fecha_produccion: '2026-03-29', num_lote: '39', lote_cc: 39, arete: 'INV107A', animal_id: 77 }] : []];
       }
       if (/WHERE contenido_sha256 = \?/.test(sql)) return [estado.cargado ? [{ id: 9, fecha_carga: '2026-11-05 10:00' }] : []];
       if (/FROM inventario_planta_cargas (WHERE es_prueba = 0 )?ORDER BY id DESC LIMIT 1/.test(sql)) return [[]];

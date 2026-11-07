@@ -2,7 +2,11 @@
 //
 // Cada PDF es UN animal: El Arreo normalmente deshuesa corridas de 30–60 animales por lote, pero a
 // Wagyu Cross le hace el favor de tratar cada animal suyo como un lote independiente. El único sello
-// canal ↔ arete es la lista del correo («2 → 225MLE, 3 → 348MLF…», por Num. Lote). Como es un
+// canal ↔ arete es la tabla del correo «Lote CC → arete» («35 → 279SKF, 36 → 255CKF…»). La llave es
+// el LOTE CC (el lote de deshuese impreso en las etiquetas y en el traslado de custodia), NO el
+// «Num. Lote», que es solo el correlativo del PDF en el día (1, 2, 3…): el 19-mar-2026 el Num. Lote 1
+// era el Lote CC 35 (279SKF). Ligar por Num. Lote amarraba el reporte al animal equivocado. Las
+// opciones correcciones[lote] y sin_animal[lote] también van por Lote CC. Como es un
 // acuerdo y no una garantía:
 //   - si los kilos del reporte superan el 90 % del peso canal del animal se avisa «posible lote con
 //     varios animales» (el rendimiento normal de deshuese ronda 70–84 %);
@@ -128,8 +132,10 @@ async function planificar(conn, _tabla, opciones = {}, { lectura }) {
   const vistos = new Map();
 
   // Primero los aretes exactos, para que las propuestas solo usen los que quedan libres.
+  // Llave de la lista y de las opciones: el Lote CC sin ceros a la izquierda («035» → «35»).
   for (const r of reportes) {
-    const lote = r.num_lote;
+    r.loteClave = r.lote_cc != null ? String(Number(r.lote_cc)) : null;
+    const lote = r.loteClave;
     const corr = lote != null ? correcciones[lote] : null;
     r.areteLista = lote != null ? mapa.get(lote) || null : null;
     r.areteBuscado = corr != null && String(corr).trim() ? claveArete(corr) : (r.areteLista ? claveArete(r.areteLista) : null);
@@ -138,18 +144,16 @@ async function planificar(conn, _tabla, opciones = {}, { lectura }) {
   }
 
   reportes.forEach((r, i) => {
-    const etiquetaLote = r.num_lote ? `lote ${r.num_lote}` : 'lote ?';
+    const etiquetaLote = r.loteClave ? `lote CC ${r.loteClave}` : 'lote CC ?';
+    const nombreLote = `Lote CC ${r.loteClave || '?'}${r.num_lote ? ` (Num. Lote ${r.num_lote})` : ''}`;
     const f = {
       fila: i + 1, entidad: 'reporte', documento: r.documento, parte: r.parte,
       clave: `${r.fecha || '?'} · ${etiquetaLote}`, accion: 'nuevo', errores: [...r.errores], avisos: [], cambios: [],
-      fecha_produccion: r.fecha, num_lote: r.num_lote, lote_cc: r.lote_cc, tipo_produccion: r.tipo_produccion,
+      fecha_produccion: r.fecha, num_lote: r.num_lote, lote_cc: r.lote_cc, lote_clave: r.loteClave, tipo_produccion: r.tipo_produccion,
       arete_lista: r.areteLista, kilos: null, cajas: null, rendimiento: null, peso_canal: null,
       vencimiento: r.fecha ? vencimientoDe(r.fecha) : null, trazabilidad: 'sin_trazabilidad',
     };
     filas.push(f);
-    if (r.lote_cc && r.num_lote && Number(r.num_lote) !== Number(r.lote_cc)) {
-      f.avisos.push(`Num. Lote ${r.num_lote} y Lote CC ${r.lote_cc} no coinciden: el mapa de aretes usa el Num. Lote`);
-    }
 
     // Duplicado dentro de la tanda.
     const k = `${r.fecha}|${r.lote_cc}`;
@@ -191,11 +195,11 @@ async function planificar(conn, _tabla, opciones = {}, { lectura }) {
       const libras = r2(kilos * LIBRAS_POR_KG);
       if (Math.abs(libras - r.pie.libras) > TOLERANCIA_PIE) f.errores.push(`La suma en libras da ${libras.toFixed(2)} y el pie dice ${r.pie.libras.toFixed(2)}`);
       if (cajas !== r.pie.cajas) f.errores.push(`La suma de cajas da ${cajas} y el pie dice ${r.pie.cajas}`);
-      if (r.num_lote && String(Number(r.pie.lote)) !== r.num_lote) f.avisos.push(`El pie dice lote ${r.pie.lote} y el encabezado ${r.num_lote}`);
+      if (r.num_lote && String(Number(r.pie.lote)) !== r.num_lote) f.avisos.push(`El pie dice Num. Lote ${r.pie.lote} y el encabezado ${r.num_lote}`);
     }
 
     // Animal: lista lote → arete validada contra la guía (sacrificios).
-    const quiereSinAnimal = r.num_lote != null && sinAnimal[r.num_lote];
+    const quiereSinAnimal = r.loteClave != null && sinAnimal[r.loteClave];
     let animal = r.animal;
     if (!animal && r.areteBuscado && !quiereSinAnimal) {
       const libres = cand.filter((c) => !usados.has(c.clave) && !c.reporte);
@@ -205,20 +209,20 @@ async function planificar(conn, _tabla, opciones = {}, { lectura }) {
         usados.add(p.clave);
         f.correccion = { informado: r.areteLista, propuesto: p.numero_trazabilidad, distancia: props[0].d };
         f.errores.push(`El arete ${r.areteLista} de la lista no está entre los sacrificados: ¿es ${p.numero_trazabilidad}? Confírmelo o impórtelo sin animal`);
-        discrepancias.push(`Lote ${r.num_lote} del ${fechaTexto(r.fecha)}: el arete ${r.areteLista} no está en la guía; corresponde a ${p.numero_trazabilidad} (posible error de digitación).`);
+        discrepancias.push(`${nombreLote} del ${fechaTexto(r.fecha)}: el arete ${r.areteLista} no está en la guía; corresponde a ${p.numero_trazabilidad} (posible error de digitación).`);
       } else {
         f.errores.push(`El arete ${r.areteLista || r.areteBuscado} no está entre los animales sacrificados los ${DIAS_SACRIFICIO} días previos${props.length > 1 ? ` (¿${props.filter((x) => x.d === props[0].d).map((x) => x.c.numero_trazabilidad).join(' o ')}?)` : ''}: escriba el correcto o impórtelo sin animal`);
-        discrepancias.push(`Lote ${r.num_lote} del ${fechaTexto(r.fecha)}: el arete ${r.areteLista} no corresponde a ningún animal sacrificado.`);
+        discrepancias.push(`${nombreLote} del ${fechaTexto(r.fecha)}: el arete ${r.areteLista} no corresponde a ningún animal sacrificado.`);
       }
     }
-    if (!animal && !r.areteLista && !quiereSinAnimal && !(r.num_lote && correcciones[r.num_lote])) {
-      f.avisos.push(`El lote ${r.num_lote || '?'} no viene en la lista lote → arete: se importa como LOTE SIN ANIMAL (sin trazabilidad)`);
-      discrepancias.push(`Lote ${r.num_lote || '?'} del ${fechaTexto(r.fecha)}: falta el arete en la lista del correo (sin trazabilidad).`);
+    if (!animal && !r.areteLista && !quiereSinAnimal && !(r.loteClave && correcciones[r.loteClave])) {
+      f.avisos.push(`El ${etiquetaLote} no viene en la lista Lote CC → arete: se importa como LOTE SIN ANIMAL (sin trazabilidad)`);
+      discrepancias.push(`${nombreLote} del ${fechaTexto(r.fecha)}: falta el arete en la lista del correo (sin trazabilidad).`);
     }
     if (quiereSinAnimal) {
       animal = null;
       f.avisos.push('Se importa como LOTE SIN ANIMAL por decisión del usuario (sin trazabilidad)');
-      discrepancias.push(`Lote ${r.num_lote} del ${fechaTexto(r.fecha)}: importado sin animal (arete informado ${r.areteLista || 'ninguno'}).`);
+      discrepancias.push(`${nombreLote} del ${fechaTexto(r.fecha)}: importado sin animal (arete informado ${r.areteLista || 'ninguno'}).`);
     }
     if (animal) {
       if (animal.reporte && !(animal.reporte.fecha === r.fecha && Number(animal.reporte.lote_cc) === Number(r.lote_cc))) {
@@ -233,14 +237,14 @@ async function planificar(conn, _tabla, opciones = {}, { lectura }) {
       f.trazabilidad = r.confirmadoAMano ? 'confirmada_a_mano' : 'con_arete';
       if (r.confirmadoAMano) {
         f.avisos.push(`Arete confirmado a mano: la lista dice ${r.areteLista || '—'}, es ${animal.numero_trazabilidad}`);
-        discrepancias.push(`Lote ${r.num_lote} del ${fechaTexto(r.fecha)}: la lista dice ${r.areteLista || '—'}, corresponde a ${animal.numero_trazabilidad}.`);
+        discrepancias.push(`${nombreLote} del ${fechaTexto(r.fecha)}: la lista dice ${r.areteLista || '—'}, corresponde a ${animal.numero_trazabilidad}.`);
       }
       if (r.fecha && animal.fecha_sacrificio > r.fecha) f.errores.push(`La producción (${fechaTexto(r.fecha)}) es anterior al sacrificio (${fechaTexto(animal.fecha_sacrificio)})`);
       if (animal.peso_canal) {
         f.rendimiento = r2((kilos / animal.peso_canal) * 100);
         if (f.rendimiento > RENDIMIENTO_MAX) {
           f.avisos.push(`Rendimiento ${f.rendimiento} % del peso canal (${animal.peso_canal} kg): posible lote con varios animales, revise`);
-          discrepancias.push(`Lote ${r.num_lote} del ${fechaTexto(r.fecha)} (${animal.numero_trazabilidad}): ${kilos} kg de deshuese sobre ${animal.peso_canal} kg de canal (${f.rendimiento} %), ¿lote con varios animales?`);
+          discrepancias.push(`${nombreLote} del ${fechaTexto(r.fecha)} (${animal.numero_trazabilidad}): ${kilos} kg de deshuese sobre ${animal.peso_canal} kg de canal (${f.rendimiento} %), ¿lote con varios animales?`);
         } else if (f.rendimiento < RENDIMIENTO_MIN) {
           f.avisos.push(`Rendimiento ${f.rendimiento} % del peso canal: muy bajo, ¿falta producto o es otro animal?`);
         }
@@ -251,12 +255,12 @@ async function planificar(conn, _tabla, opciones = {}, { lectura }) {
     const mapeo = mapeosPrevios.find((m) => m.fecha === r.fecha && Number(m.lote_cc) === Number(r.lote_cc));
     if (mapeo && f.arete && claveArete(mapeo.arete) !== claveArete(f.arete)) {
       // La confirmación es por fecha + Lote CC (la misma llave del arete cargado): dos PDF con el mismo
-      // Num. Lote en fechas distintas no se confirman juntos.
+      // Lote CC en fechas distintas no se confirman juntos.
       f.clave_lote = `${r.fecha}|${r.lote_cc}`;
       f.cambio_arete = { antes: mapeo.arete, despues: f.arete };
       if (reemplazarArete[f.clave_lote]) {
         f.avisos.push(`Se reemplaza el arete ${mapeo.arete} que ya estaba cargado para este lote por ${f.arete} (confirmado)`);
-        discrepancias.push(`Lote ${r.num_lote} del ${fechaTexto(r.fecha)}: estaba cargado con ${mapeo.arete} y se cambió a ${f.arete}.`);
+        discrepancias.push(`${nombreLote} del ${fechaTexto(r.fecha)}: estaba cargado con ${mapeo.arete} y se cambió a ${f.arete}.`);
       } else {
         f.errores.push(`Este lote ya tenía el arete ${mapeo.arete} cargado; la lista dice ${f.arete}. Confirme el reemplazo para continuar`);
       }
@@ -283,7 +287,7 @@ async function planificar(conn, _tabla, opciones = {}, { lectura }) {
   }
 
   // Animales de la lista que no vinieron en ningún PDF.
-  const lotesLeidos = new Set(reportes.map((r) => r.num_lote));
+  const lotesLeidos = new Set(reportes.map((r) => r.loteClave));
   const faltantes = [...mapa.entries()].filter(([lote]) => !lotesLeidos.has(lote)).map(([lote, arete]) => ({ lote, arete }));
   if (faltantes.length) discrepancias.push(`La lista trae lotes sin PDF en esta tanda: ${faltantes.map((x) => `${x.lote} (${x.arete})`).join(', ')}.`);
 
@@ -357,7 +361,7 @@ async function aplicar(conn, plan, { importacionId, usuarioId, registrar }) {
           `INSERT INTO deshuese (numero_lote, sacrificio_id, animal_id, fecha, peso_entrada, responsable, pdf_url, estado, notas)
            VALUES (?, ?, ?, ?, ?, 'CIISA', ?, 'cerrado', ?)`,
           [base, f.sacrificio_id, f.animal_id, `${f.fecha_produccion} 00:00:00`, f.peso_canal, pdfUrl,
-            `Reporte de producción CIISA lote ${f.num_lote} (${f.kilos} kg, ${f.cajas} cajas)`]);
+            `Reporte de producción CIISA lote CC ${f.lote_cc}${f.num_lote ? ` (Num. Lote ${f.num_lote})` : ''} (${f.kilos} kg, ${f.cajas} cajas)`]);
         deshueseId = d.insertId;
         res.deshueses++;
       }
@@ -368,7 +372,7 @@ async function aplicar(conn, plan, { importacionId, usuarioId, registrar }) {
       animales.push(f.animal_id);
     }
     registrar(f.fila, 'reporte_produccion', reporteId, 'creado', {
-      lote: f.num_lote, fecha: f.fecha_produccion, arete: f.arete || null, kilos: f.kilos, cajas: f.cajas,
+      lote: f.lote_cc, num_lote: f.num_lote, fecha: f.fecha_produccion, arete: f.arete || null, kilos: f.kilos, cajas: f.cajas,
       trazabilidad: f.trazabilidad, correccion: f.correccion || null, avisos: f.avisos,
     });
     res.reportes_nuevos++;

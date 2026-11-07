@@ -142,7 +142,8 @@ test('MySQL real: fase 2 (reporte de producción, catálogo, trazabilidad, lotes
   assert.equal(catalogoCortes.buscar('88802').nombre, 'Hueso de prueba'); // caché recargado
 
   // 7. Trazabilidad recuperada: caja real «2661700874xxx061125003511» = 06/11/25 + lote de deshuese 0035.
-  await pool.query("INSERT INTO reporte_produccion (fecha_produccion, lote_cc, num_lote, origen) VALUES ('2025-11-06', 35, '35', 'manual')");
+  // El 0035 es el LOTE CC del reporte (el Num. Lote es el correlativo del PDF: aquí 1, como el 19/03/26).
+  await pool.query("INSERT INTO reporte_produccion (fecha_produccion, lote_cc, num_lote, origen) VALUES ('2025-11-06', 35, '1', 'manual')");
   await pool.query("INSERT INTO lotes_cc_aretes (fecha_deshuese, lote_cc, arete, animal_id) VALUES ('2025-11-06', 35, 'F2X001', ?)", [ids.F2X001]);
   const caja = decodificar('2661700874xxx061125003511');
   assert.equal(caja.tipo, 'caja');
@@ -158,14 +159,23 @@ test('MySQL real: fase 2 (reporte de producción, catálogo, trazabilidad, lotes
   rec = await recuperarPorReporte(pool, caja);
   assert.equal(rec.estado, 'recuperada');
   assert.equal(rec.arete, 'F2X001');
-  // Se compara SOLO el Num. Lote: un reporte con Lote CC 35 pero Num. Lote 9 no calza.
+  // Se compara SOLO el Lote CC: un reporte con Num. Lote 35 pero Lote CC 9 NO calza (antes del fix,
+  // que comparaba el Num. Lote, ligaba la caja a este animal equivocado).
   await pool.query("INSERT INTO reporte_produccion (fecha_produccion, lote_cc, num_lote, origen) VALUES ('2025-11-06', 9, '35', 'manual')");
   await pool.query("INSERT INTO lotes_cc_aretes (fecha_deshuese, lote_cc, arete, animal_id) VALUES ('2025-11-06', 9, 'F2X003', ?)", [ids.F2X003]);
-  // Ambiguo: dos reportes del 06/11/25 con Num. Lote 35 → nunca se liga solo, con la lista de candidatos.
   rec = await recuperarPorReporte(pool, caja);
+  assert.equal(rec.estado, 'recuperada');
+  assert.equal(rec.arete, 'F2X001');
+  assert.equal(rec.lote_cc, 35);
+  assert.equal(rec.num_lote, '1');
+  // Sin reporte para ese Lote CC → sin trazabilidad (nunca se cae al Num. Lote).
+  rec = await recuperarPorReporte(pool, decodificar('2661700874xxx061125003611'));
   assert.equal(rec.estado, 'sin_trazabilidad');
-  assert.match(rec.motivo, /Ambiguo/);
-  assert.deepEqual(rec.candidatos.map((c) => c.arete).sort(), ['F2X001', 'F2X003']);
+  assert.match(rec.motivo, /Lote CC 36/);
+  // Se borran estos reportes de mentira: con el puente por Lote CC el 06/11/25 + 35 ya no es ambiguo y
+  // ligaría cajas reales de los libros de inventario-ciisa.test.js (misma base de pruebas).
+  await pool.query("DELETE FROM reporte_produccion WHERE fecha_produccion IN ('2025-11-06','2025-06-11')");
+  await pool.query("DELETE FROM lotes_cc_aretes WHERE fecha_deshuese IN ('2025-11-06','2025-06-11')");
 
   // 7b. Un arete ya cargado para el lote no se pisa sin confirmar.
   await pool.query("UPDATE lotes_cc_aretes SET arete = 'F2X009', animal_id = NULL WHERE fecha_deshuese = '2026-10-19' AND lote_cc = 2");

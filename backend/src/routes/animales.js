@@ -223,7 +223,7 @@ router.get('/:id/timeline', async (req, res) => {
       events.push({
         fecha: r.fecha_produccion,
         tipo: 'reporte_produccion',
-        descripcion: `Reporte de producción CIISA lote ${r.num_lote || r.lote_cc}: ${Number(r.kilos || 0).toFixed(2)} kg en ${Number(r.cajas || 0)} cajas`,
+        descripcion: `Reporte de producción CIISA lote CC ${r.lote_cc}${r.num_lote ? ` (Num. Lote ${r.num_lote})` : ''}: ${Number(r.kilos || 0).toFixed(2)} kg en ${Number(r.cajas || 0)} cajas`,
         data: r
       });
     }

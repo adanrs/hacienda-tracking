@@ -19,21 +19,22 @@
  *      6–10  peso neto en centésimas de kg
  *      11–13 campo «XXX» (significado por confirmar con CIISA; se guarda crudo)
  *      14–19 fecha DDMMAA (base del vencimiento)
- *      20–23 lote de deshuese (4 dígitos)
+ *      20–23 lote de deshuese (4 dígitos) = «Lote CC» del reporte de producción
  *      24–25 BMS (marmoleo, 00–12). Juan Carlos lo confirmó el 06-nov-2026: los 2 últimos
  *            dígitos son el BMS de la caja (antes se guardaban crudos como «sufijo»). Fuera de
  *            rango o no numérico → advertencia y `marmoleo: null`; NO es error, para no cambiar
  *            la desambiguación caja / primal.
  *      Texto legible «Lote 2201250031» = posiciones 14–23. Ejemplo real de JC:
  *      «2661700874xxx061125003511» = 26617 · 8.74 kg · xxx (trazabilidad perdida) · 06-11-25 ·
- *      lote 0035 (= «Num. Lote» del reporte de producción → arete) · BMS 11.
+ *      lote 0035 (= «Lote CC» del reporte de producción → arete; NO el «Num. Lote», que es el
+ *      correlativo del PDF en el día) · BMS 11.
  *
  *  C · Primal (25 dígitos, Code 39)
  *      1–5   código Arreo del primal
  *      6–10  Box (id único de la caja)
  *      11–15 peso neto en centésimas de kg
  *      16–21 fecha de empaque MMDDAA (¡mes primero!)
- *      22–23 lote de deshuese (2 dígitos)
+ *      22–23 lote de deshuese (2 dígitos) = «Lote CC» del reporte de producción
  *      24–25 sufijo (se guarda crudo: en el primal NO está confirmado que sea el BMS)
  *      Texto legible «Lot 03112620» = posiciones 16–23.
  *
@@ -371,7 +372,7 @@ function leerCaja(s) {
       loteDeshuese: lote.loteDeshuese,
       loteTexto: lote.loteTexto,
       loteLegible: pos(s, 14, 23),
-      // Lote de 10 dígitos = fecha del deshuese DDMMAA + LOTE DE DESHUESE de 4 dígitos (el «Num. Lote»
+      // Lote de 10 dígitos = fecha del deshuese DDMMAA + LOTE DE DESHUESE de 4 dígitos (el «Lote CC»
       // del reporte de producción de CIISA). Con «xxx» la trazabilidad se recupera por ese puente:
       // ver lib/trazabilidadEtiqueta.js.
       marmoleo: bms.bms,

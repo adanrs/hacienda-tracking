@@ -110,7 +110,7 @@ test('MySQL real: seed de PRUEBA del flujo completo (idempotente, traza, se borr
        JOIN animales a ON a.id = la.animal_id
        JOIN sacrificios s ON s.animal_id = a.id
        JOIN guias_transporte g ON g.id = s.guia_id
-      WHERE c.archivo = ? AND rp.num_lote = SUBSTRING(l.codigo_barras, 20, 4) + 0
+      WHERE c.archivo = ? AND rp.lote_cc = SUBSTRING(l.codigo_barras, 20, 4) + 0
         AND DATE_FORMAT(rp.fecha_produccion, '%d%m%y') = SUBSTRING(l.codigo_barras, 14, 6)`, [ARCHIVO]);
   assert.equal(traza.length, 4);
   assert.ok(traza.every((x) => x.arete === ARETE && x.sacrificio_id === ids.sacrificio && x.guia === GUIA));
