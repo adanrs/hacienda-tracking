@@ -46,7 +46,7 @@ SELECT l.id, l.carga_id, l.codigo_barras, l.descripcion, l.bms AS bms_guardado,
        RIGHT(l.codigo_barras, 2) AS sufijo, l.arete, s.marmoleo AS bms_animal
   FROM inventario_planta_lineas l
   LEFT JOIN (SELECT animal_id, MAX(marmoleo) AS marmoleo FROM sacrificios WHERE marmoleo IS NOT NULL GROUP BY animal_id) s ON s.animal_id = l.animal_id
- WHERE l.bms IS NOT NULL
+ WHERE l.bms IS NOT NULL AND l.bms >= 10
    AND JSON_UNQUOTE(JSON_EXTRACT(l.decodificado, '$.tipo')) IN ('caja', 'ambigua')
    AND CHAR_LENGTH(l.codigo_barras) = 25
  ORDER BY l.id
@@ -83,19 +83,21 @@ SELECT 'reporte_produccion_escaneos', COUNT(*) FROM reporte_produccion_escaneos 
  WHERE e.tipo = 'caja' AND e.bms IS NOT NULL;
 
 -- 5. CORRECCIÓN (comentada; respaldo antes; solo con el fix ya desplegado).
+-- «bms >= 10»: AUS-MEAT llega hasta 9, así que un BMS de 10 o más igual al sufijo SOLO pudo salir del sufijo;
+-- así no se vacía el marmoleo del animal que el código nuevo guarda después del deploy.
 --    Vacía el BMS guardado de las cajas. Lo que se muestra y lo que va a la tienda ya sale del
 --    marmoleo del animal al leer, así que vaciarlo no cambia ninguna pantalla: deja la base coherente.
 --
 -- START TRANSACTION;
 -- UPDATE inventario_planta_lineas
 --    SET bms = NULL
---  WHERE bms IS NOT NULL
+--  WHERE bms IS NOT NULL AND bms >= 10
 --    AND JSON_UNQUOTE(JSON_EXTRACT(decodificado, '$.tipo')) IN ('caja', 'ambigua')
 --    AND CHAR_LENGTH(codigo_barras) = 25
 --    AND bms = CAST(RIGHT(codigo_barras, 2) AS UNSIGNED);
 -- UPDATE ordenes_salida_items
 --    SET bms = NULL
---  WHERE bms IS NOT NULL
+--  WHERE bms IS NOT NULL AND bms >= 10
 --    AND CHAR_LENGTH(codigo_barras) = 25
 --    AND bms = CAST(RIGHT(codigo_barras, 2) AS UNSIGNED);
 -- UPDATE reporte_produccion_escaneos SET bms = NULL WHERE tipo = 'caja' AND bms IS NOT NULL;
