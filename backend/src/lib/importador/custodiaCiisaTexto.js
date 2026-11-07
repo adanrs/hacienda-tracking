@@ -99,12 +99,21 @@ const TIPOS = {
   traslado: { corto: 'TRE', nombre: 'Traslado de inventario en custodia' },
 };
 
-/** Lote CC y RES (n.º de canal) de las Observaciones: «CORTES FINOS LOTE 35 / RES 5094». */
+/**
+ * Lote CC y RES (n.º de canal) de las Observaciones: «CORTES FINOS LOTE 35 / RES 5094».
+ * Se leen TODOS los LOTE y RES: un mismo documento puede cubrir varios animales («LOTE 35 / RES 5094
+ * Y LOTE 36 / RES 5095»). Si hay más de un lote o más de una RES distintos no hay un solo animal que
+ * ligar: se devuelven en null con varios_animales = true y el documento se liga a mano. Quedarse con
+ * el primero ligaría todo el documento a un animal que solo tiene parte de los cortes.
+ */
 function loteYRes(observaciones) {
   const t = String(observaciones || '');
-  const lote = t.match(/\bLOTE\s*(?:CC)?\s*[#:.]?\s*(\d{1,4})\b/i);
-  const res = t.match(/\bRES\s*[#:.]?\s*(\d{3,6})\b/i);
-  return { lote_cc: lote ? Number(lote[1]) : null, res: res ? res[1] : null };
+  const lotes = [...new Set([...t.matchAll(/\bLOTE\s*(?:CC)?\s*[#:.]?\s*(\d{1,4})\b/gi)].map((m) => Number(m[1])))];
+  const reses = [...t.matchAll(/\bRES\s*[#:.]?\s*(\d{3,6})\b/gi)].map((m) => m[1]);
+  // «RES 05094» y «RES 5094» son la misma canal: se cuentan sin ceros a la izquierda.
+  const resesDistintas = new Set(reses.map((r) => r.replace(/^0+(?=\d)/, '')));
+  if (lotes.length > 1 || resesDistintas.size > 1) return { lote_cc: null, res: null, varios_animales: true };
+  return { lote_cc: lotes.length ? lotes[0] : null, res: reses.length ? reses[0] : null, varios_animales: false };
 }
 
 const ENCABEZADOS_COLUMNA = /\b(Articulo|Art[ií]culo|Descripci[oó]n|Und\.?\s*Alm\.?|Uda\s*Alm|Unidades|Und\.?\s*Pes\.?|Uda\s*Pes|Peso(\s*kg)?)\b/gi;
@@ -167,12 +176,15 @@ function parsearDocumentoCustodia(texto) {
     avisos.push(`El documento dice ${totalCajas} unidades y las líneas leídas suman ${sumaCajas}`);
   }
 
+  const lr = loteYRes(observaciones);
+  if (lr.varios_animales) avisos.push('Sin animal: el documento cubre varios animales (más de un LOTE o de una RES en las Observaciones): lígalo a mano');
+
   return {
     tipo, numero: numeroDoc, fecha, hora,
     bodega_origen: bodega(lineas, /^bodega\s+(?:de\s+)?origen\b/i),
     bodega_destino: bodega(lineas, /^bodega\s+(?:de\s+)?destino\b/i),
     estado: mEstado ? mEstado[1].slice(0, 30) : null,
-    observaciones, ...loteYRes(observaciones),
+    observaciones, ...lr,
     lineas: lineasDoc, total_cajas: totalCajas, total_kg: totalKg, suma_cajas: sumaCajas, suma_kg: sumaKg, avisos,
   };
 }

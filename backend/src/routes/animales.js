@@ -61,16 +61,22 @@ router.get('/:id', async (req, res) => {
 
     // Documentos oficiales y de la planta donde aparece el animal: guía de movilización del MAG
     // (por su DIIO) y ajustes/traslados de custodia de CIISA (por Lote CC / RES).
-    const [guiasMovilizacion] = await pool.query(`
+    // Si la base todavía no tiene las tablas (migración sin correr), la ficha se muestra igual sin
+    // esa sección en vez de responder 500: devuelve [] solo ante ER_NO_SUCH_TABLE.
+    const siLaTablaExiste = (consulta) => consulta.then(([rows]) => rows, (e) => {
+      if (e && e.code === 'ER_NO_SUCH_TABLE') return [];
+      throw e;
+    });
+    const guiasMovilizacion = await siLaTablaExiste(pool.query(`
       SELECT g.id, g.numero, DATE_FORMAT(g.fecha, '%Y-%m-%d') AS fecha, g.destino_establecimiento, l.diio, l.vinculo
       FROM guia_movilizacion_animales l JOIN guias_movilizacion g ON g.id = l.guia_id
       WHERE l.animal_id = ? ORDER BY g.fecha DESC LIMIT 20
-    `, [req.params.id]);
-    const [documentosCustodia] = await pool.query(`
+    `, [req.params.id]));
+    const documentosCustodia = await siLaTablaExiste(pool.query(`
       SELECT d.id, d.tipo, d.numero, DATE_FORMAT(d.fecha, '%Y-%m-%d') AS fecha, d.bodega_destino_nombre, d.observaciones,
              d.total_kg, d.vinculo
       FROM documentos_custodia d WHERE d.animal_id = ? ORDER BY d.fecha DESC LIMIT 50
-    `, [req.params.id]);
+    `, [req.params.id]));
 
     animal.pesajes = pesajes;
     animal.salud = salud;

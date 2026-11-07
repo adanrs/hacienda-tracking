@@ -10,7 +10,10 @@
 //     n.º de canal del sacrificio. El documento es de DESPUÉS del deshuese, así que se buscan los
 //     lotes CC y las canales de los 180 días anteriores a su fecha:
 //       · LOTE y RES apuntan al mismo animal            → se liga.
-//       · solo uno de los dos, con un único animal      → se liga, con aviso para confirmar.
+//       · el documento trae solo uno de los dos, con un
+//         único animal                                  → se liga, con aviso para confirmar.
+//       · trae los dos y uno no aparece en la base      → queda SIN animal, con aviso.
+//       · las Observaciones nombran varios LOTE o RES   → queda SIN animal (cubre varios animales).
 //       · varios candidatos o LOTE y RES no coinciden   → queda SIN animal, con los candidatos en
 //                                                         el aviso; se liga a mano. Nunca se adivina.
 //   - Equivalencias de código conocidas (25000 ↔ 22229, 25002 ↔ 11163) se anotan en la línea; un
@@ -32,7 +35,8 @@ const restarDias = (iso, dias) => {
 
 /** Animal del documento por Lote CC y RES (ver la cabecera). Devuelve { animal, avisos }. */
 async function ligarAnimal(conn, doc) {
-  if (!doc.fecha || (doc.lote_cc == null && !doc.res)) return { animal: null, avisos: [] };
+  // varios_animales: el aviso ya viene del parser (custodiaCiisaTexto.loteYRes).
+  if (!doc.fecha || doc.varios_animales || (doc.lote_cc == null && !doc.res)) return { animal: null, avisos: [] };
   const desde = restarDias(doc.fecha, VENTANA_DIAS);
   let porLote = [];
   let porRes = [];
@@ -56,9 +60,17 @@ async function ligarAnimal(conn, doc) {
     if (comun.length === 1) return { animal: comun[0], avisos: [] };
     return { animal: null, avisos: [`Sin animal: el ${lote} (${lista(porLote)}) y la ${res} (${lista(porRes)}) no coinciden en un solo animal; lígelo a mano`] };
   }
+  // Si el documento trae LOTE y RES y solo uno se encuentra, el otro dato contradice o no confirma
+  // el vínculo (p. ej. un lote de otro deshuese con el mismo número): no se liga por el que sí
+  // apareció. Ligar por un solo dato queda para cuando el otro NO viene en el documento.
+  if (doc.lote_cc != null && doc.res && (porLote.length || porRes.length)) {
+    const falta = porLote.length ? `la ${res} no aparece en los sacrificios` : `el ${lote} no aparece en los deshueses`;
+    const hallado = porLote.length ? `el ${lote} (${lista(porLote)})` : `la ${res} (${lista(porRes)})`;
+    return { animal: null, avisos: [`Sin animal: el documento trae ${lote} y ${res}, pero ${falta}; se encontró ${hallado}. Lígelo a mano`] };
+  }
   const solo = porLote.length ? porLote : porRes;
   const cual = porLote.length ? lote : res;
-  const otro = porLote.length ? (doc.res ? `la ${res} no aparece en los sacrificios` : 'sin RES') : (doc.lote_cc != null ? `el ${lote} no aparece en los deshueses` : 'sin LOTE');
+  const otro = porLote.length ? 'sin RES' : 'sin LOTE';
   if (solo.length === 1) return { animal: solo[0], avisos: [`Ligado solo por el ${cual} (${otro}): confírmelo`] };
   if (solo.length > 1) return { animal: null, avisos: [`Sin animal: el ${cual} corresponde a varios animales en los últimos ${VENTANA_DIAS} días (${lista(solo)}); lígelo a mano`] };
   const pedido = [doc.lote_cc != null ? lote : null, doc.res ? res : null].filter(Boolean).join(' / ');

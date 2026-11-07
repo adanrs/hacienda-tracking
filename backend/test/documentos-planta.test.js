@@ -146,6 +146,15 @@ test('guía MAG: el DIIO de la guía y la I.E. de Ganadero SG dan la misma clave
   assert.equal(claveChip(''), null);
 });
 
+test('guía MAG: chip ISO 11784 de 15+ dígitos → país 188 obligatorio; otro país no liga', () => {
+  assert.equal(claveChip('188000001057994'), '188:1057994');
+  assert.equal(claveChip('982000188001057994'), null, 'chip de otro país (982) con «188» dentro de la serie');
+  assert.equal(claveChip('A0020000982000188057994'), null);
+  assert.equal(claveChip('076000188001234567'), null);
+  // Más corto que 15: criterio anterior (busca el 188).
+  assert.equal(claveChip('1881057994'), '188:1057994');
+});
+
 /** Conexión simulada: responde según el SQL (solo lo que usan los procesadores nuevos). */
 function connSimulada({ animales = [], guiasTransporte = [], guias = [], lineasGuia = [], lotes = [], canales = [], catalogo = [], docs = [] } = {}) {
   return {
@@ -286,8 +295,51 @@ test('custodia: TRE 1824 (traslado) saca LOTE 35 y RES 5094 y avisa que faltan l
 test('custodia: líneas pegadas por pdf-parse y observaciones con LOTE CC', () => {
   assert.deepEqual(lineaArticulo('25000BCH WAGYUCAJ14KGS381.08381.08'), { codigo: '25000', descripcion: 'BCH WAGYU', unidad: 'CAJ', cajas: 14, unidad_peso: 'KGS', kg: 381.08 });
   assert.equal(lineaArticulo('Articulo Descripcion'), null);
-  assert.deepEqual(loteYRes('CORTES FINOS LOTE CC 06 / RES 5111'), { lote_cc: 6, res: '5111' });
-  assert.deepEqual(loteYRes('PRODUCTO PARA ZAMU'), { lote_cc: null, res: null });
+  assert.deepEqual(loteYRes('CORTES FINOS LOTE CC 06 / RES 5111'), { lote_cc: 6, res: '5111', varios_animales: false });
+  assert.deepEqual(loteYRes('PRODUCTO PARA ZAMU'), { lote_cc: null, res: null, varios_animales: false });
+});
+
+test('custodia: varios LOTE o varias RES distintos → el documento cubre varios animales', () => {
+  const varios = { lote_cc: null, res: null, varios_animales: true };
+  assert.deepEqual(loteYRes('CORTES FINOS LOTE 35 / RES 5094 Y LOTE 36 / RES 5095'), varios);
+  assert.deepEqual(loteYRes('LOTE 35 / RES 5094 RES 5095'), varios);
+  assert.deepEqual(loteYRes('LOTE 35 LOTE CC 36 / RES 5094'), varios);
+  // El mismo lote o la misma RES repetidos (también con ceros a la izquierda) siguen siendo uno.
+  assert.deepEqual(loteYRes('LOTE 35 / RES 5094 (LOTE 035 RES 05094)'), { lote_cc: 35, res: '5094', varios_animales: false });
+});
+
+test('custodia: documento con varios animales → sin animal y aviso «lígalo a mano»', async () => {
+  const conn = connSimulada({
+    lotes: [{ id: 21, arete: '177MFU', fecha: '2026-04-02', lote_cc: 35 }],
+    canales: [{ id: 21, arete: '177MFU', fecha: '2026-04-01', canal: '5094' }],
+  });
+  const texto = leer('custodia-traslado-1824.txt').replace(' / RES 5094', ' / RES 5094 Y LOTE 36 / RES 5095');
+  const plan = await motor.planificar(conn, 'custodia-ciisa', { pegado: { texto } });
+  const d = plan.documentos[0];
+  assert.equal(d.animal_id, null);
+  assert.equal(d.lote_cc, null);
+  assert.match(d.avisos.join(' '), /cubre varios animales.*lígalo a mano/);
+});
+
+test('custodia: trae LOTE y RES pero la RES no está en la base → sin animal (no se liga por el lote)', async () => {
+  const conn = connSimulada({ lotes: [{ id: 21, arete: '177MFU', fecha: '2026-04-02', lote_cc: 35 }] });
+  const plan = await motor.planificar(conn, 'custodia-ciisa', { pegado: { texto: leer('custodia-traslado-1824.txt') } });
+  const d = plan.documentos[0];
+  assert.equal(d.animal_id, null);
+  assert.match(d.avisos.join(' '), /RES 5094 no aparece en los sacrificios.*177MFU/);
+  // Y al revés: la RES sí, el lote no.
+  const conn2 = connSimulada({ canales: [{ id: 21, arete: '177MFU', fecha: '2026-04-01', canal: '5094' }] });
+  const plan2 = await motor.planificar(conn2, 'custodia-ciisa', { pegado: { texto: leer('custodia-traslado-1824.txt') } });
+  assert.equal(plan2.documentos[0].animal_id, null);
+  assert.match(plan2.documentos[0].avisos.join(' '), /lote CC 35 no aparece en los deshueses/);
+});
+
+test('custodia: solo LOTE en el documento (sin RES) con un animal → se liga con aviso', async () => {
+  const conn = connSimulada({ lotes: [{ id: 21, arete: '177MFU', fecha: '2026-04-02', lote_cc: 35 }] });
+  const texto = leer('custodia-traslado-1824.txt').replace(' / RES 5094', '');
+  const plan = await motor.planificar(conn, 'custodia-ciisa', { pegado: { texto } });
+  assert.equal(plan.documentos[0].animal_id, 21);
+  assert.match(plan.documentos[0].avisos.join(' '), /Ligado solo por el lote CC 35 \(sin RES\)/);
 });
 
 test('custodia: LOTE + RES del mismo animal → se liga; equivalencias 25000/25002 anotadas', async () => {

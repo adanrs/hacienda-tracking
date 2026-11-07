@@ -102,6 +102,15 @@ test('MySQL real: guía MAG + custodia CIISA (aplicar, re-aplicar, ligues)', opc
   const pc2 = await motor.planificar(pool, 'custodia-ciisa', e2);
   assert.equal(pc2.documentos[0].accion, 'sin_cambios');
 
+  // LOTE 87 existe pero la RES 9999 no: no se liga por el lote (solo vista previa, nada se escribe).
+  const pcRes = await motor.planificar(pool, 'custodia-ciisa', { pegado: { texto: treTexto.replace('No.: 999001', 'No.: 999002').replace('RES 9187', 'RES 9999') } });
+  assert.equal(pcRes.documentos[0].animal_id, null);
+  assert.match(pcRes.documentos[0].avisos.join(' '), /RES 9999 no aparece en los sacrificios/);
+  // Dos lotes en las Observaciones: cubre varios animales → sin animal.
+  const pcVarios = await motor.planificar(pool, 'custodia-ciisa', { pegado: { texto: treTexto.replace('No.: 999001', 'No.: 999002').replace('RES 9187', 'RES 9187 Y LOTE 88 / RES 9188') } });
+  assert.equal(pcVarios.documentos[0].animal_id, null);
+  assert.match(pcVarios.documentos[0].avisos.join(' '), /cubre varios animales/);
+
   // Bitácora: queda en el historial de importaciones.
   const [[imp]] = await pool.query("SELECT COUNT(*) AS n FROM importaciones_bitacora WHERE importacion_id = ? AND entidad = 'documento_custodia'", [rc.importacion_id]);
   assert.equal(Number(imp.n), 1);

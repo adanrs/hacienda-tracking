@@ -176,10 +176,21 @@ function parsearGuiaMovilizacion(texto) {
  * distinto: la guía trae el número oficial (188 + serie, p. ej. 188001057994) y Ganadero SG la I.E.
  * completa con prefijo y ceros (A0020000188000001057859). Se compara «188» + la serie sin ceros a la
  * izquierda. Un número sin el 188 se compara por sus dígitos sin ceros a la izquierda.
+ *
+ * Con 15 dígitos o más se usa el código ISO 11784 completo: los últimos 15 son 3 de país + 12
+ * nacionales. Si el país no es 188 (Costa Rica) el chip es de otro país y no liga (null): buscar
+ * «188» en cualquier parte del número podía encontrarlo dentro de la serie de un chip extranjero.
+ * Con menos de 15 dígitos (la guía trae 188 + la serie sin todos los ceros) sigue el criterio anterior.
  */
 function claveChip(v) {
   const d = String(v || '').replace(/\D/g, '');
   if (!d) return null;
+  if (d.length >= 15) {
+    const iso = d.slice(-15);
+    if (!iso.startsWith('188')) return null;
+    const serie = iso.slice(3).replace(/^0+/, '');
+    return serie.length >= 5 ? `188:${serie}` : null;
+  }
   const m = d.match(/188(0*)(\d+)$/);
   if (m && m[2].length >= 5) return `188:${m[2]}`;
   const sinCeros = d.replace(/^0+/, '');
